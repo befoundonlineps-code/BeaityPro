@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-
+export async function getServerSideProps() {
+  return { props: {} }
+}
 export default function Home() {
   const [clients, setClients] = useState([])
   const [firstName, setFirstName] = useState('')
