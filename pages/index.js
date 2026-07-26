@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-// ==================== Design tokens (blue, boxed style) ====================
 const BLUE = '#2E5AAC'
 const BLUE_DARK = '#1F3E7A'
 const BLUE_LIGHT = '#EAF0FB'
@@ -18,6 +17,10 @@ const topBarTitle = { fontSize: 17, fontWeight: 700, display: 'flex', alignItems
 const logoCircle = {
   width: 34, height: 34, borderRadius: '50%', background: '#fff', color: BLUE,
   display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15,
+}
+const logoutBtn = {
+  background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.4)',
+  borderRadius: 5, padding: '6px 14px', fontSize: 12.5, cursor: 'pointer',
 }
 
 const subBar = {
@@ -61,7 +64,7 @@ const tabBtn = (active) => ({
 
 const sideCard = { ...card, height: 'fit-content' }
 const sideHeader = { ...cardHeader, background: BLUE_DARK, color: '#fff' }
-const tipItem = (color) => ({
+const tipItem = () => ({
   display: 'flex', gap: 8, alignItems: 'flex-start', padding: '9px 14px',
   borderBottom: `1px solid ${BORDER}`, fontSize: 12.5, color: '#444', lineHeight: 1.5,
 })
@@ -103,7 +106,55 @@ const emptyForm = {
   identificationCode: '',
 }
 
-export default function Home() {
+// ==================== LOGIN SCREEN ====================
+function LoginScreen() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleLogin(e) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    setLoading(false)
+    if (error) setError('البريد الإلكتروني أو كلمة السر غير صحيحة')
+  }
+
+  return (
+    <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <form onSubmit={handleLogin} style={{
+        background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10,
+        padding: '36px 32px', width: 360, boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ ...logoCircle, background: BLUE, color: '#fff', margin: '0 auto 10px', width: 48, height: 48, fontSize: 20 }}>B</div>
+          <h2 style={{ margin: 0, fontSize: 18, color: BLUE_DARK }}>نظام Beauty</h2>
+          <p style={{ fontSize: 12.5, color: TEXT_MUTED, marginTop: 4 }}>تسجيل الدخول</p>
+        </div>
+
+        <div style={{ ...fieldRow, marginBottom: 14 }}>
+          <label style={bLabel}>البريد الإلكتروني</label>
+          <input style={bInput} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        </div>
+        <div style={{ ...fieldRow, marginBottom: 20 }}>
+          <label style={bLabel}>كلمة السر</label>
+          <input style={bInput} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        </div>
+
+        {error && <p style={{ color: '#a33', fontSize: 12.5, marginBottom: 14 }}>{error}</p>}
+
+        <button type="submit" disabled={loading} style={{ ...btnPrimary, width: '100%', marginLeft: 0, padding: '10px 0' }}>
+          {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// ==================== MAIN CLIENTS APP ====================
+function ClientsApp({ userEmail, onLogout }) {
   const [clients, setClients] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
@@ -178,29 +229,16 @@ export default function Home() {
     }
   }
 
-  // Contextual tips shown in the right sidebar, based on active tab / form state
   const tips = []
   if (view === 'form') {
-    if (duplicateWarning) {
-      tips.push({ color: '#d9534f', text: `⚠ رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}` })
-    } else if (form.phone) {
-      tips.push({ color: '#5cb85c', text: 'رقم الهاتف غير مستخدم — يمكن الحفظ' })
-    }
-    if (activeTab === 2) {
-      tips.push({ color: BLUE, text: 'سقف الدَّين يُحسب بالشيكل (₪)، وأي عملية بيع لاحقة تتجاوزه سترفض تلقائيًا' })
-    }
-    if (activeTab === 0) {
-      tips.push({ color: BLUE, text: 'فئة "قائمة سوداء" ستُستخدم لاحقًا لمنع حجوزات هذا الزبون' })
-    }
-    if (activeTab === 3) {
-      tips.push({ color: '#e08a1e', text: 'بيانات جواز السفر حساسة — لا تُخزَّن مشفّرة حاليًا (نموذج تجريبي فقط)' })
-    }
-    if (!form.firstName || !form.phone) {
-      tips.push({ color: '#e08a1e', text: 'الاسم الأول ورقم الهاتف إجباريان للحفظ' })
-    }
+    if (duplicateWarning) tips.push({ color: '#d9534f', text: `⚠ رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}` })
+    else if (form.phone) tips.push({ color: '#5cb85c', text: 'رقم الهاتف غير مستخدم — يمكن الحفظ' })
+    if (activeTab === 2) tips.push({ color: BLUE, text: 'سقف الدَّين يُحسب بالشيكل (₪)' })
+    if (activeTab === 0) tips.push({ color: BLUE, text: 'فئة "قائمة سوداء" ستُستخدم لاحقًا لمنع حجوزات هذا الزبون' })
+    if (activeTab === 3) tips.push({ color: '#e08a1e', text: 'بيانات جواز السفر حساسة — نموذج تجريبي فقط' })
+    if (!form.firstName || !form.phone) tips.push({ color: '#e08a1e', text: 'الاسم الأول ورقم الهاتف إجباريان للحفظ' })
   } else {
     tips.push({ color: BLUE, text: `إجمالي الزبائن المسجّلين: ${clients.length}` })
-    tips.push({ color: BLUE, text: 'اضغط "+ زبون جديد" لإضافة زبون آخر' })
   }
 
   return (
@@ -209,6 +247,10 @@ export default function Home() {
         <div style={topBarTitle}>
           <div style={logoCircle}>B</div>
           نظام Beauty — موديول الزبائن
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12.5, opacity: 0.9 }}>{userEmail}</span>
+          <button style={logoutBtn} onClick={onLogout}>تسجيل خروج</button>
         </div>
       </div>
 
@@ -236,7 +278,6 @@ export default function Home() {
       )}
 
       <div style={layout}>
-        {/* ===== MAIN COLUMN ===== */}
         <div>
           {view === 'form' && (
             <>
@@ -282,7 +323,7 @@ export default function Home() {
                   )}
                   {activeTab === 1 && (
                     <div style={fieldGrid}>
-                      <BField label="البريد الإلكتروني" type="email" focusKey="email" focused={focused} setFocused={setFocused} value={form.email} onChange={(e) => update('email', e.target.value)} />
+                      <BField label="البريد الإلكتروني" type="email" focusKey="cemail" focused={focused} setFocused={setFocused} value={form.email} onChange={(e) => update('email', e.target.value)} />
                       <div style={fieldRow}>
                         <label style={{ ...bLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <input type="checkbox" checked={form.emailOptOut} onChange={(e) => update('emailOptOut', e.target.checked)} />
@@ -331,43 +372,40 @@ export default function Home() {
           {view === 'list' && (
             <div style={card}>
               <div style={cardHeader}>قائمة الزبائن</div>
-              <div style={{ padding: 0 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: '#fafbfc', color: TEXT_MUTED, fontSize: 11.5 }}>
-                      <th style={{ textAlign: 'right', padding: '10px 14px' }}>الاسم</th>
-                      <th style={{ textAlign: 'right', padding: '10px 14px' }}>الهاتف</th>
-                      <th style={{ textAlign: 'right', padding: '10px 14px' }}>الفئة</th>
-                      <th style={{ textAlign: 'right', padding: '10px 14px' }}>البريد</th>
-                      <th style={{ textAlign: 'right', padding: '10px 14px' }}>سقف الدَّين</th>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: '#fafbfc', color: TEXT_MUTED, fontSize: 11.5 }}>
+                    <th style={{ textAlign: 'right', padding: '10px 14px' }}>الاسم</th>
+                    <th style={{ textAlign: 'right', padding: '10px 14px' }}>الهاتف</th>
+                    <th style={{ textAlign: 'right', padding: '10px 14px' }}>الفئة</th>
+                    <th style={{ textAlign: 'right', padding: '10px 14px' }}>البريد</th>
+                    <th style={{ textAlign: 'right', padding: '10px 14px' }}>سقف الدَّين</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clients.map((c, i) => (
+                    <tr key={c.id} style={{ borderTop: `1px solid ${BORDER}`, background: i % 2 ? '#fafbfc' : '#fff' }}>
+                      <td style={{ padding: '10px 14px', fontWeight: 700, color: BLUE }}>{c.first_name} {c.last_name}</td>
+                      <td style={{ padding: '10px 14px' }}>{c.phone_number}</td>
+                      <td style={{ padding: '10px 14px' }}>{CATEGORY_OPTIONS.find((o) => o.value === c.category)?.label || '—'}</td>
+                      <td style={{ padding: '10px 14px' }}>{c.email || '—'}</td>
+                      <td style={{ padding: '10px 14px' }}>{c.max_debt_limit ?? 0}₪</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {clients.map((c, i) => (
-                      <tr key={c.id} style={{ borderTop: `1px solid ${BORDER}`, background: i % 2 ? '#fafbfc' : '#fff' }}>
-                        <td style={{ padding: '10px 14px', fontWeight: 700, color: BLUE }}>{c.first_name} {c.last_name}</td>
-                        <td style={{ padding: '10px 14px' }}>{c.phone_number}</td>
-                        <td style={{ padding: '10px 14px' }}>{CATEGORY_OPTIONS.find((o) => o.value === c.category)?.label || '—'}</td>
-                        <td style={{ padding: '10px 14px' }}>{c.email || '—'}</td>
-                        <td style={{ padding: '10px 14px' }}>{c.max_debt_limit ?? 0}₪</td>
-                      </tr>
-                    ))}
-                    {clients.length === 0 && (
-                      <tr><td colSpan={5} style={{ padding: 24, textAlign: 'center', color: TEXT_MUTED }}>مافي زبائن لسا</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                  {clients.length === 0 && (
+                    <tr><td colSpan={5} style={{ padding: 24, textAlign: 'center', color: TEXT_MUTED }}>مافي زبائن لسا</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
 
-        {/* ===== SIDEBAR: live tips (inspired by "All suggestions") ===== */}
         <div style={sideCard}>
           <div style={sideHeader}>تلميحات وتنبيهات</div>
           <div>
             {tips.map((t, i) => (
-              <div key={i} style={tipItem(t.color)}>
+              <div key={i} style={tipItem()}>
                 <span style={dot(t.color)} />
                 <span>{t.text}</span>
               </div>
@@ -378,4 +416,31 @@ export default function Home() {
       </div>
     </div>
   )
+}
+
+// ==================== ROOT: AUTH GATE ====================
+export default function Home() {
+  const [session, setSession] = useState(undefined) // undefined = loading, null = logged out, object = logged in
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+    return () => listener.subscription.unsubscribe()
+  }, [])
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+  }
+
+  if (session === undefined) {
+    return <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>جاري التحميل...</div>
+  }
+
+  if (!session) {
+    return <LoginScreen />
+  }
+
+  return <ClientsApp userEmail={session.user.email} onLogout={handleLogout} />
 }
