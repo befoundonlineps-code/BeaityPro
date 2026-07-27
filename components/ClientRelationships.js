@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabaseClient'
+import { useClientSearch } from '../hooks/useClientSearch'
 import { RELATIONSHIP_TYPES, getRelationshipLabel, getOtherClientId } from '../lib/relationships'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -16,8 +17,7 @@ export default function ClientRelationships({ clientId }) {
   const [othersById, setOthersById] = useState({})
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
-  const [search, setSearch] = useState('')
-  const [searchResults, setSearchResults] = useState([])
+  const { search, setSearch, results: searchResults } = useClientSearch(clientId)
   const [pickedClient, setPickedClient] = useState(null)
   const [relType, setRelType] = useState('spouse')
   const [error, setError] = useState('')
@@ -48,24 +48,6 @@ export default function ClientRelationships({ clientId }) {
     setLoading(false)
   }
 
-  useEffect(() => {
-    const q = search.trim().replace(/,/g, '')
-    if (q.length < 2) {
-      setSearchResults([])
-      return undefined
-    }
-    const t = setTimeout(async () => {
-      const { data } = await supabase
-        .from('clients')
-        .select('id,first_name,last_name,phone_number,gender')
-        .neq('id', clientId)
-        .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone_number.ilike.%${q}%`)
-        .limit(6)
-      setSearchResults(data || [])
-    }, 300)
-    return () => clearTimeout(t)
-  }, [search, clientId])
-
   async function addRelationship() {
     if (!pickedClient) return
     setError('')
@@ -77,7 +59,6 @@ export default function ClientRelationships({ clientId }) {
       setAdding(false)
       setPickedClient(null)
       setSearch('')
-      setSearchResults([])
       load()
     }
   }
