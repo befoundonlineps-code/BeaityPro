@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 const TIP_DOT = {
   warning: 'bg-amber-500',
@@ -31,7 +32,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
-  const [view, setView] = useState('list')
+  const [formOpen, setFormOpen] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [listTab, setListTab] = useState('all')
   const [search, setSearch] = useState('')
@@ -43,6 +44,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   }, [])
 
   useEffect(() => {
+    if (!formOpen) return undefined
     const t = setTimeout(async () => {
       if (form.phone && form.phone.length >= 6) {
         const { data } = await supabase.from('clients').select('id,first_name,last_name').eq('phone_number', form.phone)
@@ -52,7 +54,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
       }
     }, 400)
     return () => clearTimeout(t)
-  }, [form.phone])
+  }, [form.phone, formOpen])
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }))
@@ -72,7 +74,13 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   function openNewClientForm() {
     setForm(emptyForm)
     setActiveTab(0)
-    setView('form')
+    setError('')
+    setFormOpen(true)
+  }
+
+  function closeNewClientForm() {
+    setForm(emptyForm)
+    setFormOpen(false)
   }
 
   useEffect(() => {
@@ -133,121 +141,95 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
     ? baseList.filter((c) => `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase().includes(q) || (c.phone_number || '').includes(q))
     : baseList
 
-  const tips = []
-  if (view === 'form') {
-    if (duplicateWarning) tips.push({ tone: 'danger', text: `⚠ رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}` })
-    else if (form.phone) tips.push({ tone: 'success', text: 'رقم الهاتف غير مستخدم — يمكن الحفظ' })
-    if (activeTab === 2) tips.push({ tone: 'info', text: 'سقف الدَّين يُحسب بالشيكل (₪)' })
-    if (!form.firstName || !form.phone) tips.push({ tone: 'warning', text: 'الاسم الأول ورقم الهاتف إجباريان للحفظ' })
-  } else {
-    tips.push({ tone: 'info', text: `إجمالي الزبائن المسجّلين: ${clients.length}` })
-    tips.push({ tone: 'warning', text: `زبائن جدد (لسا ما زاروا): ${newClients.length}` })
-  }
+  const tips = [
+    { tone: 'info', text: `إجمالي الزبائن المسجّلين: ${clients.length}` },
+    { tone: 'warning', text: `زبائن جدد (لسا ما زاروا): ${newClients.length}` },
+  ]
 
   return (
     <AppShell userEmail={userEmail} onLogout={onLogout}>
       <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
         <div className="text-sm text-muted-foreground">
-          <button className="font-semibold text-primary hover:underline" onClick={() => setView('list')}>الزبائن</button>
-          {' / '}<span>{view === 'form' ? 'زبون جديد' : 'القائمة'}</span>
+          <span className="font-semibold text-primary">الزبائن</span> / <span>القائمة</span>
         </div>
-        <div className="flex gap-2">
-          {view === 'form' ? (
-            <>
-              <Button size="sm" disabled={saving} onClick={saveClient}>
-                {saving ? 'جاري الحفظ...' : 'حفظ'}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => { setForm(emptyForm); setView('list') }}>تجاهل</Button>
-            </>
-          ) : (
-            <Button size="sm" onClick={openNewClientForm}>+ زبون جديد</Button>
-          )}
-        </div>
+        <Button size="sm" onClick={openNewClientForm}>+ زبون جديد</Button>
       </div>
 
-      {error && (
+      {error && !formOpen && (
         <div className="mx-5 mt-4 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div>
       )}
 
       <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-[1fr_280px]">
-        <div>
-          {view === 'form' && (
-            <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} />
-          )}
-
-          {view === 'list' && (
-            <Card>
-              <CardHeader className="gap-3">
-                <CardTitle>قائمة الزبائن</CardTitle>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <Tabs value={listTab} onValueChange={setListTab}>
-                    <TabsList>
-                      <TabsTrigger value="all">كل الزبائن ({clients.length})</TabsTrigger>
-                      <TabsTrigger value="new">جدد ({newClients.length})</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  <Input
-                    className="max-w-xs"
-                    placeholder="بحث بالاسم أو رقم الهاتف..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                {visibleClients.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>الاسم</TableHead>
-                        <TableHead>الهاتف</TableHead>
-                        <TableHead>البريد</TableHead>
-                        <TableHead>الحالة</TableHead>
-                        <TableHead>الرصيد</TableHead>
-                        <TableHead className="text-end">إجراء</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visibleClients.map((c) => (
-                        <TableRow key={c.id} className="cursor-pointer" onClick={() => openClientProfile(c)}>
-                          <TableCell>
-                            <div className="flex items-center gap-2.5">
-                              <Avatar size="sm">
-                                <AvatarFallback style={{ background: getAvatarColor(c.id || c.phone_number), color: '#fff' }}>
-                                  {getInitials(c.first_name, c.last_name)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="font-medium text-foreground">{c.first_name} {c.last_name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{c.phone_number}</TableCell>
-                          <TableCell>{c.email || '—'}</TableCell>
-                          <TableCell>
-                            {isNewClient(c) ? <Badge variant="secondary">جديد</Badge> : <Badge variant="outline">نشط</Badge>}
-                          </TableCell>
-                          <TableCell className={(balanceByClient[c.id] ?? 0) < 0 ? 'text-destructive' : ''}>
-                            {(balanceByClient[c.id] ?? 0).toLocaleString('ar')}₪
-                          </TableCell>
-                          <TableCell className="text-end">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); openClientProfile(c) }}
-                            >
-                              التفاصيل ‹
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                ) : (
-                  <div className="py-10 text-center text-sm text-muted-foreground">مافي زبائن مطابقين</div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        <Card>
+          <CardHeader className="gap-3">
+            <CardTitle>قائمة الزبائن</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Tabs value={listTab} onValueChange={setListTab}>
+                <TabsList>
+                  <TabsTrigger value="all">كل الزبائن ({clients.length})</TabsTrigger>
+                  <TabsTrigger value="new">جدد ({newClients.length})</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Input
+                className="max-w-xs"
+                placeholder="بحث بالاسم أو رقم الهاتف..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {visibleClients.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>الاسم</TableHead>
+                    <TableHead>الهاتف</TableHead>
+                    <TableHead>البريد</TableHead>
+                    <TableHead>الحالة</TableHead>
+                    <TableHead>الرصيد</TableHead>
+                    <TableHead className="text-end">إجراء</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleClients.map((c) => (
+                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openClientProfile(c)}>
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          <Avatar size="sm">
+                            <AvatarFallback style={{ background: getAvatarColor(c.id || c.phone_number), color: '#fff' }}>
+                              {getInitials(c.first_name, c.last_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium text-foreground">{c.first_name} {c.last_name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{c.phone_number}</TableCell>
+                      <TableCell>{c.email || '—'}</TableCell>
+                      <TableCell>
+                        {isNewClient(c) ? <Badge variant="secondary">جديد</Badge> : <Badge variant="outline">نشط</Badge>}
+                      </TableCell>
+                      <TableCell className={(balanceByClient[c.id] ?? 0) < 0 ? 'text-destructive' : ''}>
+                        {(balanceByClient[c.id] ?? 0).toLocaleString('ar')}₪
+                      </TableCell>
+                      <TableCell className="text-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => { e.stopPropagation(); openClientProfile(c) }}
+                        >
+                          التفاصيل ‹
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="py-10 text-center text-sm text-muted-foreground">مافي زبائن مطابقين</div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card className="h-fit">
           <CardHeader>
@@ -260,10 +242,33 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
                 <span>{t.text}</span>
               </div>
             ))}
-            {tips.length === 0 && <div className="text-[13px] text-muted-foreground">لا توجد تنبيهات حاليًا</div>}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={formOpen} onOpenChange={(open) => { if (!open) closeNewClientForm() }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-4xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>زبون جديد</DialogTitle>
+          </DialogHeader>
+
+          {error && (
+            <div className="rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div>
+          )}
+          {duplicateWarning && (
+            <div className="rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+              ⚠ رقم الهاتف مستخدم أصلًا لزبون: {duplicateWarning}
+            </div>
+          )}
+
+          <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} />
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeNewClientForm}>إلغاء</Button>
+            <Button disabled={saving} onClick={saveClient}>{saving ? 'جاري الحفظ...' : 'حفظ'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   )
 }
