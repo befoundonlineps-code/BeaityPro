@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { getDuplicateWarningMessage } from '../lib/duplicateCheck'
 import { isNewClient } from '../lib/clientStatus'
+import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { emptyForm } from '../constants'
 import Sidebar from './Sidebar'
+import AppHeader from './AppHeader'
 import ClientForm from './ClientForm'
-import ClientCard from './ClientCard'
-import {
-  appShell, mainColumn, topBar, topBarTitle, logoCircle, logoutBtn, subBar, btnPrimary, btnSecondary,
-  layout, card, cardHeader, sideCard, sideHeader, tipItem, dot, TEXT_MUTED, BLUE,
-  listToolbar, listTabsRow, listTabBtn, searchInput, cardGrid,
-} from '../styles'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 
 function buildClientPayload(form) {
   return {
@@ -46,6 +49,13 @@ function clientToForm(c) {
     passportSeries: c.passport_series || '', passportNumber: c.passport_number || '', passportIssuedDate: c.passport_issued_date || '',
     passportIssuedBy: c.passport_issued_by || '', identificationCode: c.identification_code || '',
   }
+}
+
+const TIP_DOT = {
+  warning: 'bg-amber-500',
+  danger: 'bg-destructive',
+  success: 'bg-emerald-500',
+  info: 'bg-primary',
 }
 
 export default function ClientsApp({ userEmail, salonId, onLogout }) {
@@ -146,109 +156,138 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
     : baseList
 
   const tips = []
-  if (notice) tips.push({ color: '#e08a1e', text: notice })
+  if (notice) tips.push({ tone: 'warning', text: notice })
   if (view === 'form') {
-    if (duplicateWarning) tips.push({ color: '#d9534f', text: `⚠ رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}` })
-    else if (form.phone) tips.push({ color: '#5cb85c', text: 'رقم الهاتف غير مستخدم — يمكن الحفظ' })
-    if (activeTab === 2) tips.push({ color: BLUE, text: 'سقف الدَّين يُحسب بالشيكل (₪)' })
-    if (!form.firstName || !form.phone) tips.push({ color: '#e08a1e', text: 'الاسم الأول ورقم الهاتف إجباريان للحفظ' })
+    if (duplicateWarning) tips.push({ tone: 'danger', text: `⚠ رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}` })
+    else if (form.phone) tips.push({ tone: 'success', text: 'رقم الهاتف غير مستخدم — يمكن الحفظ' })
+    if (activeTab === 2) tips.push({ tone: 'info', text: 'سقف الدَّين يُحسب بالشيكل (₪)' })
+    if (!form.firstName || !form.phone) tips.push({ tone: 'warning', text: 'الاسم الأول ورقم الهاتف إجباريان للحفظ' })
   } else {
-    tips.push({ color: BLUE, text: `إجمالي الزبائن المسجّلين: ${clients.length}` })
-    tips.push({ color: '#e08a1e', text: `زبائن جدد (لسا ما زاروا): ${newClients.length}` })
+    tips.push({ tone: 'info', text: `إجمالي الزبائن المسجّلين: ${clients.length}` })
+    tips.push({ tone: 'warning', text: `زبائن جدد (لسا ما زاروا): ${newClients.length}` })
   }
 
   return (
-    <div style={appShell}>
-      <Sidebar onDisabledClick={handleDisabledSection} />
-      <div style={mainColumn}>
-        <div style={topBar}>
-          <div style={topBarTitle}>
-            <div style={logoCircle}>B</div>
-            نظام Beauty
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 12.5, opacity: 0.9 }}>{userEmail}</span>
-            <button style={logoutBtn} onClick={onLogout}>تسجيل خروج</button>
-          </div>
-        </div>
-
-        <div style={subBar}>
-          <div style={{ fontSize: 13, color: TEXT_MUTED }}>
-            <span style={{ color: BLUE, fontWeight: 700, cursor: 'pointer' }} onClick={() => setView('list')}>الزبائن</span>
-            {' / '}<span>{view === 'form' ? (editingId ? 'تعديل زبون' : 'زبون جديد') : 'القائمة'}</span>
-          </div>
-          <div>
-            {view === 'form' ? (
-              <>
-                <button style={btnPrimary} disabled={saving} onClick={saveClient}>
-                  {saving ? 'جاري الحفظ...' : editingId ? 'حفظ التعديلات' : 'حفظ'}
-                </button>
-                <button style={btnSecondary} onClick={() => { setForm(emptyForm); setEditingId(null); setView('list') }}>تجاهل</button>
-              </>
-            ) : (
-              <button style={btnPrimary} onClick={openNewClientForm}>+ زبون جديد</button>
-            )}
-          </div>
-        </div>
-
-        {view === 'list' && (
-          <div style={listToolbar}>
-            <div style={listTabsRow}>
-              <button style={listTabBtn(listTab === 'all')} onClick={() => setListTab('all')}>كل الزبائن ({clients.length})</button>
-              <button style={listTabBtn(listTab === 'new')} onClick={() => setListTab('new')}>جدد ({newClients.length})</button>
+    <div className="flex h-screen flex-col bg-background">
+      <AppHeader userEmail={userEmail} onLogout={onLogout} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar onDisabledClick={handleDisabledSection} />
+        <main className="flex-1 overflow-y-auto">
+          <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
+            <div className="text-sm text-muted-foreground">
+              <button className="font-semibold text-primary hover:underline" onClick={() => setView('list')}>الزبائن</button>
+              {' / '}<span>{view === 'form' ? (editingId ? 'تعديل زبون' : 'زبون جديد') : 'القائمة'}</span>
             </div>
-            <input
-              style={searchInput}
-              placeholder="بحث بالاسم أو رقم الهاتف..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        )}
-
-        {error && (
-          <div style={{ maxWidth: 1180, margin: '12px auto 0', padding: '0 16px', width: '100%', boxSizing: 'border-box' }}>
-            <div style={{ background: '#fdecea', color: '#a33', padding: '9px 16px', borderRadius: 5, fontSize: 13 }}>{error}</div>
-          </div>
-        )}
-
-        <div style={layout}>
-          <div>
-            {view === 'form' && (
-              <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} focused={focused} setFocused={setFocused} />
-            )}
-
-            {view === 'list' && (
-              <div style={card}>
-                <div style={cardHeader}>قائمة الزبائن</div>
-                <div style={{ padding: 14 }}>
-                  {visibleClients.length > 0 ? (
-                    <div style={cardGrid}>
-                      {visibleClients.map((c) => (
-                        <ClientCard key={c.id} client={c} onOpen={openClientForEdit} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ padding: 24, textAlign: 'center', color: TEXT_MUTED }}>مافي زبائن مطابقين</div>
-                  )}
-                </div>
-              </div>
-            )}
+            <div className="flex gap-2">
+              {view === 'form' ? (
+                <>
+                  <Button size="sm" disabled={saving} onClick={saveClient}>
+                    {saving ? 'جاري الحفظ...' : editingId ? 'حفظ التعديلات' : 'حفظ'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setForm(emptyForm); setEditingId(null); setView('list') }}>تجاهل</Button>
+                </>
+              ) : (
+                <Button size="sm" onClick={openNewClientForm}>+ زبون جديد</Button>
+              )}
+            </div>
           </div>
 
-          <div style={sideCard}>
-            <div style={sideHeader}>تلميحات وتنبيهات</div>
+          {error && (
+            <div className="mx-5 mt-4 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-[1fr_280px]">
             <div>
-              {tips.map((t, i) => (
-                <div key={i} style={tipItem()}>
-                  <span style={dot(t.color)} />
-                  <span>{t.text}</span>
-                </div>
-              ))}
-              {tips.length === 0 && <div style={{ padding: 14, fontSize: 12.5, color: TEXT_MUTED }}>لا توجد تنبيهات حاليًا</div>}
+              {view === 'form' && (
+                <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} focused={focused} setFocused={setFocused} />
+              )}
+
+              {view === 'list' && (
+                <Card>
+                  <CardHeader className="gap-3">
+                    <CardTitle>قائمة الزبائن</CardTitle>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <Tabs value={listTab} onValueChange={setListTab}>
+                        <TabsList>
+                          <TabsTrigger value="all">كل الزبائن ({clients.length})</TabsTrigger>
+                          <TabsTrigger value="new">جدد ({newClients.length})</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                      <Input
+                        className="max-w-xs"
+                        placeholder="بحث بالاسم أو رقم الهاتف..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {visibleClients.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>الاسم</TableHead>
+                            <TableHead>الهاتف</TableHead>
+                            <TableHead>البريد</TableHead>
+                            <TableHead>الحالة</TableHead>
+                            <TableHead className="text-end">إجراء</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {visibleClients.map((c) => (
+                            <TableRow key={c.id} className="cursor-pointer" onClick={() => openClientForEdit(c)}>
+                              <TableCell>
+                                <div className="flex items-center gap-2.5">
+                                  <Avatar size="sm">
+                                    <AvatarFallback style={{ background: getAvatarColor(c.id || c.phone_number), color: '#fff' }}>
+                                      {getInitials(c.first_name, c.last_name)}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="font-medium text-foreground">{c.first_name} {c.last_name}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>{c.phone_number}</TableCell>
+                              <TableCell>{c.email || '—'}</TableCell>
+                              <TableCell>
+                                {isNewClient(c) ? <Badge variant="secondary">جديد</Badge> : <Badge variant="outline">نشط</Badge>}
+                              </TableCell>
+                              <TableCell className="text-end">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => { e.stopPropagation(); openClientForEdit(c) }}
+                                >
+                                  التفاصيل ‹
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <div className="py-10 text-center text-sm text-muted-foreground">مافي زبائن مطابقين</div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
+
+            <Card className="h-fit">
+              <CardHeader>
+                <CardTitle className="text-sm">تلميحات وتنبيهات</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2.5">
+                {tips.map((t, i) => (
+                  <div key={i} className="flex items-start gap-2 text-[13px] leading-relaxed text-foreground/80">
+                    <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${TIP_DOT[t.tone]}`} />
+                    <span>{t.text}</span>
+                  </div>
+                ))}
+                {tips.length === 0 && <div className="text-[13px] text-muted-foreground">لا توجد تنبيهات حاليًا</div>}
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   )
