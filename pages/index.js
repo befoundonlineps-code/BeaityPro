@@ -106,7 +106,6 @@ const emptyForm = {
   identificationCode: '',
 }
 
-// ==================== LOGIN SCREEN ====================
 function LoginScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -153,8 +152,7 @@ function LoginScreen() {
   )
 }
 
-// ==================== MAIN CLIENTS APP ====================
-function ClientsApp({ userEmail, onLogout }) {
+function ClientsApp({ userEmail, salonId, onLogout }) {
   const [clients, setClients] = useState([])
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
@@ -183,6 +181,8 @@ function ClientsApp({ userEmail, onLogout }) {
   }
 
   async function loadClients() {
+    // RLS already restricts results to this user's salon automatically —
+    // no need to filter by salon_id client-side, the database enforces it.
     const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
     if (error) setError(error.message)
     else setClients(data)
@@ -198,9 +198,14 @@ function ClientsApp({ userEmail, onLogout }) {
       setError(`رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}`)
       return
     }
+    if (!salonId) {
+      setError('لا يمكن الحفظ: لم يتم العثور على صالون مرتبط بحسابك')
+      return
+    }
     setSaving(true)
 
     const { error } = await supabase.from('clients').insert([{
+      salon_id: salonId,
       first_name: form.firstName, last_name: form.lastName, gender: form.gender || null,
       category: form.category || null, phone_number: form.phone,
       birthday: form.birthday || null,
@@ -418,9 +423,10 @@ function ClientsApp({ userEmail, onLogout }) {
   )
 }
 
-// ==================== ROOT: AUTH GATE ====================
 export default function Home() {
-  const [session, setSession] = useState(undefined) // undefined = loading, null = logged out, object = logged in
+  const [session, setSession] = useState(undefined)
+  const [salonId, setSalonId] = useState(null)
+  const [profileLoading, setProfileLoading] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -430,8 +436,20 @@ export default function Home() {
     return () => listener.subscription.unsubscribe()
   }, [])
 
+  useEffect(() => {
+    if (session) {
+      setProfileLoading(true)
+      supabase.from('profiles').select('salon_id').eq('id', session.user.id).single()
+        .then(({ data, error }) => {
+          setSalonId(data ? data.salon_id : null)
+          setProfileLoading(false)
+        })
+    }
+  }, [session])
+
   async function handleLogout() {
     await supabase.auth.signOut()
+    setSalonId(null)
   }
 
   if (session === undefined) {
@@ -442,5 +460,9 @@ export default function Home() {
     return <LoginScreen />
   }
 
-  return <ClientsApp userEmail={session.user.email} onLogout={handleLogout} />
+  if (profileLoading) {
+    return <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>جاري تحميل بيانات الصالون...</div>
+  }
+
+  return <ClientsApp userEmail={session.user.email} salonId={salonId} onLogout={handleLogout} />
 }
