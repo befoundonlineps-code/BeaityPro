@@ -6,14 +6,16 @@ import { buildClientPayload, clientToForm } from '../../lib/clientMapping'
 import { getDuplicateWarningMessage } from '../../lib/duplicateCheck'
 import { getAvatarColor, getInitials } from '../../lib/avatarColor'
 import { computeBalance } from '../../lib/ledger'
+import { getPublicFileUrl } from '../../lib/clientFiles'
 import LoginScreen from '../../components/LoginScreen'
 import AppShell from '../../components/AppShell'
 import ClientForm from '../../components/ClientForm'
 import ClientBalanceSummary from '../../components/ClientBalanceSummary'
 import ClientRelationships from '../../components/ClientRelationships'
+import ClientFilesTab from '../../components/ClientFilesTab'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 
 const PAGE_LOADING = (
   <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">جاري التحميل...</div>
@@ -94,6 +96,7 @@ export default function ClientProfilePage() {
 
   const initials = getInitials(client.first_name, client.last_name)
   const color = getAvatarColor(client.id)
+  const photoUrl = client.photo_path ? getPublicFileUrl(supabase, client.photo_path) : null
 
   return (
     <AppShell userEmail={session.user.email} onLogout={logout}>
@@ -114,6 +117,7 @@ export default function ClientProfilePage() {
       <div className="p-5">
         <div className="mb-5 flex items-center gap-3">
           <Avatar size="lg">
+            {photoUrl && <AvatarImage src={photoUrl} alt="" />}
             <AvatarFallback style={{ background: color, color: '#fff' }}>{initials}</AvatarFallback>
           </Avatar>
           <div>
@@ -152,7 +156,7 @@ export default function ClientProfilePage() {
           <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">قريبًا</div>
         )}
         {tab === 'files' && (
-          <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">قريبًا</div>
+          <ClientFilesTab client={client} onPhotoUpdated={loadClient} />
         )}
       </div>
     </AppShell>
