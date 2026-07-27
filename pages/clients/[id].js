@@ -13,6 +13,9 @@ import ClientForm from '../../components/ClientForm'
 import ClientBalanceSummary from '../../components/ClientBalanceSummary'
 import ClientRelationships from '../../components/ClientRelationships'
 import ClientFilesTab from '../../components/ClientFilesTab'
+import ClientCardsTab from '../../components/ClientCardsTab'
+import ClientHistoryTab from '../../components/ClientHistoryTab'
+import BalanceDialog from '../../components/BalanceDialog'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -34,6 +37,7 @@ export default function ClientProfilePage() {
   const [error, setError] = useState('')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [ledgerRows, setLedgerRows] = useState([])
+  const [balanceDialogType, setBalanceDialogType] = useState(null)
 
   useEffect(() => {
     if (!id) return
@@ -53,6 +57,14 @@ export default function ClientProfilePage() {
   async function loadLedger() {
     const { data } = await supabase.from('client_ledger').select('*').eq('client_id', id).order('created_at', { ascending: false })
     setLedgerRows(data || [])
+  }
+
+  async function addLedgerEntry(amount, note) {
+    const { error } = await supabase.from('client_ledger').insert([{
+      client_id: id, type: balanceDialogType, amount, note: note || null,
+    }])
+    if (error) setError(error.message)
+    else loadLedger()
   }
 
   useEffect(() => {
@@ -106,9 +118,18 @@ export default function ClientProfilePage() {
           {' / '}<span>{client.first_name} {client.last_name}</span>
         </div>
         <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('credit')}>+ إضافة رصيد</Button>
+          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('debit')}>− خصم من الرصيد</Button>
           <Button size="sm" disabled={saving} onClick={save}>{saving ? 'جاري الحفظ...' : 'حفظ التعديلات'}</Button>
         </div>
       </div>
+
+      <BalanceDialog
+        open={!!balanceDialogType}
+        type={balanceDialogType}
+        onOpenChange={(open) => { if (!open) setBalanceDialogType(null) }}
+        onSubmit={addLedgerEntry}
+      />
 
       {error && (
         <div className="mx-5 mt-4 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div>
@@ -149,12 +170,8 @@ export default function ClientProfilePage() {
             </div>
           </div>
         )}
-        {tab === 'cards' && (
-          <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">قريبًا</div>
-        )}
-        {tab === 'history' && (
-          <div className="rounded-lg border border-border bg-card p-10 text-center text-sm text-muted-foreground">قريبًا</div>
-        )}
+        {tab === 'cards' && <ClientCardsTab />}
+        {tab === 'history' && <ClientHistoryTab />}
         {tab === 'files' && (
           <ClientFilesTab client={client} onPhotoUpdated={loadClient} />
         )}
