@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
-import { Plus, Minus } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { getDuplicateWarningMessage } from '../lib/duplicateCheck'
 import { isNewClient } from '../lib/clientStatus'
@@ -10,7 +9,6 @@ import { computeBalance } from '../lib/ledger'
 import { emptyForm } from '../constants'
 import AppShell from './AppShell'
 import ClientForm from './ClientForm'
-import BalanceDialog from './BalanceDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -18,19 +16,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-
-function BalanceActionButton({ icon: Icon, label, tone, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 text-[10px] leading-none text-muted-foreground hover:bg-muted ${tone}`}
-    >
-      <Icon className="size-3.5" />
-      <span className="whitespace-nowrap">{label}</span>
-    </button>
-  )
-}
 
 const TIP_DOT = {
   warning: 'bg-amber-500',
@@ -51,7 +36,6 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   const [listTab, setListTab] = useState('all')
   const [search, setSearch] = useState('')
   const [ledgerRows, setLedgerRows] = useState([])
-  const [balanceTarget, setBalanceTarget] = useState(null)
 
   useEffect(() => {
     loadClients()
@@ -83,15 +67,6 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   async function loadLedger() {
     const { data } = await supabase.from('client_ledger').select('*')
     setLedgerRows(data || [])
-  }
-
-  async function submitBalanceEntry(amount, note) {
-    if (!balanceTarget) return
-    const { error } = await supabase.from('client_ledger').insert([{
-      client_id: balanceTarget.clientId, type: balanceTarget.type, amount, note: note || null,
-    }])
-    if (error) setError(error.message)
-    else loadLedger()
   }
 
   function openNewClientForm() {
@@ -247,27 +222,13 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
                             {(balanceByClient[c.id] ?? 0).toLocaleString('ar')}₪
                           </TableCell>
                           <TableCell className="text-end">
-                            <div className="flex items-center justify-end gap-1">
-                              <BalanceActionButton
-                                icon={Plus}
-                                label="إضافة للرصيد"
-                                tone="hover:text-emerald-600"
-                                onClick={(e) => { e.stopPropagation(); setBalanceTarget({ clientId: c.id, type: 'credit' }) }}
-                              />
-                              <BalanceActionButton
-                                icon={Minus}
-                                label="خصم من الرصيد"
-                                tone="hover:text-destructive"
-                                onClick={(e) => { e.stopPropagation(); setBalanceTarget({ clientId: c.id, type: 'debit' }) }}
-                              />
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); openClientProfile(c) }}
-                              >
-                                التفاصيل ‹
-                              </Button>
-                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => { e.stopPropagation(); openClientProfile(c) }}
+                            >
+                              التفاصيل ‹
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -296,13 +257,6 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
           </CardContent>
         </Card>
       </div>
-
-      <BalanceDialog
-        open={!!balanceTarget}
-        type={balanceTarget?.type}
-        onOpenChange={(open) => { if (!open) setBalanceTarget(null) }}
-        onSubmit={submitBalanceEntry}
-      />
     </AppShell>
   )
 }
