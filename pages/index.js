@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { page } from '../styles'
 import LoginScreen from '../components/LoginScreen'
 import ClientsApp from '../components/ClientsApp'
 
@@ -34,13 +33,13 @@ export default function Home() {
   }
 
   if (session === undefined) {
-    return <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>جاري التحميل...</div>
+    return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">جاري التحميل...</div>
   }
   if (!session) {
     return <LoginScreen />
   }
   if (profileLoading) {
-    return <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>جاري تحميل بيانات الصالون...</div>
+    return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">جاري تحميل بيانات الصالون...</div>
   }
   return <ClientsApp userEmail={session.user.email} salonId={salonId} onLogout={handleLogout} />
 }
