@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { page, fieldRow, bLabel, bInput, btnPrimary, logoCircle, BLUE, BLUE_DARK, TEXT_MUTED, BORDER } from '../styles'
+import { DotPattern } from '@/components/ui/dot-pattern'
+import { Card, CardContent } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('')
@@ -18,32 +22,38 @@ export default function LoginScreen() {
   }
 
   return (
-    <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <form onSubmit={handleLogin} style={{
-        background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10,
-        padding: '36px 32px', width: 360, boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ ...logoCircle, background: BLUE, color: '#fff', margin: '0 auto 10px', width: 48, height: 48, fontSize: 20 }}>B</div>
-          <h2 style={{ margin: 0, fontSize: 18, color: BLUE_DARK }}>نظام Beauty</h2>
-          <p style={{ fontSize: 12.5, color: TEXT_MUTED, marginTop: 4 }}>تسجيل الدخول</p>
-        </div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background">
+      <DotPattern
+        glow
+        className="text-primary/50 [mask-image:radial-gradient(480px_circle_at_center,white,transparent)]"
+      />
 
-        <div style={{ ...fieldRow, marginBottom: 14 }}>
-          <label style={bLabel}>البريد الإلكتروني</label>
-          <input style={bInput} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div style={{ ...fieldRow, marginBottom: 20 }}>
-          <label style={bLabel}>كلمة السر</label>
-          <input style={bInput} type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
+      <Card className="relative z-10 w-[360px] shadow-lg">
+        <CardContent className="pt-2">
+          <form onSubmit={handleLogin} className="flex flex-col gap-5">
+            <div className="mb-1 flex flex-col items-center gap-1.5 text-center">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">B</div>
+              <h2 className="text-lg font-semibold text-foreground">نظام Beauty</h2>
+              <p className="text-xs text-muted-foreground">تسجيل الدخول</p>
+            </div>
 
-        {error && <p style={{ color: '#a33', fontSize: 12.5, marginBottom: 14 }}>{error}</p>}
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="login-email">البريد الإلكتروني</Label>
+              <Input id="login-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="login-password">كلمة السر</Label>
+              <Input id="login-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
 
-        <button type="submit" disabled={loading} style={{ ...btnPrimary, width: '100%', marginLeft: 0, padding: '10px 0' }}>
-          {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
-        </button>
-      </form>
+            {error && <p className="text-xs text-destructive">{error}</p>}
+
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? 'جاري تسجيل الدخول...' : 'تسجيل الدخول'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
