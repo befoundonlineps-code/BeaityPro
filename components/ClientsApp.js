@@ -75,6 +75,13 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
     setView('form')
   }
 
+  useEffect(() => {
+    if (router.query.new !== undefined) {
+      openNewClientForm()
+      router.replace('/', undefined, { shallow: true })
+    }
+  }, [router.query.new])
+
   function openClientProfile(client) {
     router.push(`/clients/${client.id}`)
   }
