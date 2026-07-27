@@ -23,6 +23,59 @@ const logoutBtn = {
   borderRadius: 5, padding: '6px 14px', fontSize: 12.5, cursor: 'pointer',
 }
 
+// ==================== Department nav bar ====================
+const SECTIONS = [
+  { key: 'clients', label: 'الزبائن', active: true },
+  { key: 'appointments', label: 'دفتر المواعيد', active: false },
+  { key: 'calls', label: 'المكالمات', active: false },
+  { key: 'products', label: 'المنتجات', active: false },
+  { key: 'services', label: 'الخدمات', active: false },
+  { key: 'groups', label: 'المجموعات', active: false },
+  { key: 'marketing', label: 'التسويق', active: false },
+  { key: 'employees', label: 'الموظفون', active: false },
+  { key: 'salary', label: 'الرواتب', active: false },
+  { key: 'documents', label: 'المستندات', active: false },
+  { key: 'cash', label: 'الصندوق اليومي', active: false },
+  { key: 'reports', label: 'التقارير', active: false },
+  { key: 'settings', label: 'الإعدادات', active: false },
+]
+
+const sectionsBar = {
+  background: '#fff', borderBottom: `1px solid ${BORDER}`,
+  display: 'flex', alignItems: 'center', overflowX: 'auto', padding: '0 20px',
+}
+const sectionBtnActive = {
+  padding: '13px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+  color: BLUE, borderBottom: `3px solid ${BLUE}`, background: 'none', border: 'none',
+  marginBottom: -1, whiteSpace: 'nowrap', flexShrink: 0,
+}
+const sectionBtnDisabled = {
+  padding: '13px 14px', fontSize: 13, fontWeight: 500, cursor: 'not-allowed',
+  color: '#c3c8d1', border: 'none', background: 'none', display: 'flex',
+  alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flexShrink: 0,
+}
+const comingSoonBadge = {
+  fontSize: 9, background: '#f0f2f5', color: '#a7acb5', borderRadius: 8,
+  padding: '1px 6px', fontWeight: 700,
+}
+
+function SectionsBar({ onDisabledClick }) {
+  return (
+    <div style={sectionsBar}>
+      {SECTIONS.map((s) =>
+        s.active ? (
+          <button key={s.key} style={sectionBtnActive}>{s.label}</button>
+        ) : (
+          <button key={s.key} style={sectionBtnDisabled} onClick={() => onDisabledClick(s.label)} title="قيد التطوير">
+            {s.label}
+            <span style={comingSoonBadge}>قريبًا</span>
+          </button>
+        )
+      )}
+    </div>
+  )
+}
+
 const subBar = {
   background: '#fff', borderBottom: `1px solid ${BORDER}`, padding: '10px 28px',
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -161,6 +214,7 @@ function ClientsApp({ userEmail, salonId, onLogout }) {
   const [focused, setFocused] = useState(null)
   const [view, setView] = useState('form')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
+  const [notice, setNotice] = useState(null)
 
   useEffect(() => { loadClients() }, [])
 
@@ -181,8 +235,6 @@ function ClientsApp({ userEmail, salonId, onLogout }) {
   }
 
   async function loadClients() {
-    // RLS already restricts results to this user's salon automatically —
-    // no need to filter by salon_id client-side, the database enforces it.
     const { data, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false })
     if (error) setError(error.message)
     else setClients(data)
@@ -234,13 +286,17 @@ function ClientsApp({ userEmail, salonId, onLogout }) {
     }
   }
 
+  function handleDisabledSection(label) {
+    setNotice(`قسم "${label}" قيد التطوير — سيُبنى بنفس الأساس الحالي بالمراحل القادمة`)
+    setTimeout(() => setNotice(null), 4000)
+  }
+
   const tips = []
+  if (notice) tips.push({ color: '#e08a1e', text: notice })
   if (view === 'form') {
     if (duplicateWarning) tips.push({ color: '#d9534f', text: `⚠ رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}` })
     else if (form.phone) tips.push({ color: '#5cb85c', text: 'رقم الهاتف غير مستخدم — يمكن الحفظ' })
     if (activeTab === 2) tips.push({ color: BLUE, text: 'سقف الدَّين يُحسب بالشيكل (₪)' })
-    if (activeTab === 0) tips.push({ color: BLUE, text: 'فئة "قائمة سوداء" ستُستخدم لاحقًا لمنع حجوزات هذا الزبون' })
-    if (activeTab === 3) tips.push({ color: '#e08a1e', text: 'بيانات جواز السفر حساسة — نموذج تجريبي فقط' })
     if (!form.firstName || !form.phone) tips.push({ color: '#e08a1e', text: 'الاسم الأول ورقم الهاتف إجباريان للحفظ' })
   } else {
     tips.push({ color: BLUE, text: `إجمالي الزبائن المسجّلين: ${clients.length}` })
@@ -251,13 +307,15 @@ function ClientsApp({ userEmail, salonId, onLogout }) {
       <div style={topBar}>
         <div style={topBarTitle}>
           <div style={logoCircle}>B</div>
-          نظام Beauty — موديول الزبائن
+          نظام Beauty
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 12.5, opacity: 0.9 }}>{userEmail}</span>
           <button style={logoutBtn} onClick={onLogout}>تسجيل خروج</button>
         </div>
       </div>
+
+      <SectionsBar onDisabledClick={handleDisabledSection} />
 
       <div style={subBar}>
         <div style={{ fontSize: 13, color: TEXT_MUTED }}>
@@ -440,7 +498,7 @@ export default function Home() {
     if (session) {
       setProfileLoading(true)
       supabase.from('profiles').select('salon_id').eq('id', session.user.id).single()
-        .then(({ data, error }) => {
+        .then(({ data }) => {
           setSalonId(data ? data.salon_id : null)
           setProfileLoading(false)
         })
@@ -455,14 +513,11 @@ export default function Home() {
   if (session === undefined) {
     return <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>جاري التحميل...</div>
   }
-
   if (!session) {
     return <LoginScreen />
   }
-
   if (profileLoading) {
     return <div style={{ ...page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>جاري تحميل بيانات الصالون...</div>
   }
-
   return <ClientsApp userEmail={session.user.email} salonId={salonId} onLogout={handleLogout} />
 }
