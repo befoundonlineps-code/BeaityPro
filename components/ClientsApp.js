@@ -64,7 +64,6 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
-  const [focused, setFocused] = useState(null)
   const [view, setView] = useState('list')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [notice, setNotice] = useState(null)
@@ -199,7 +198,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
           <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-[1fr_280px]">
             <div>
               {view === 'form' && (
-                <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} focused={focused} setFocused={setFocused} />
+                <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} />
               )}
 
               {view === 'list' && (

@@ -1,95 +1,113 @@
 import { CATEGORY_OPTIONS, TABS } from '../constants'
 import BField from './BField'
-import { card, cardHeader, cardBody, fieldGrid, fieldRow, bLabel, bInput, tabBar, tabBtn } from '../styles'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
-export default function ClientForm({ form, update, activeTab, setActiveTab, focused, setFocused }) {
+const NONE = '__none__'
+
+function PickField({ label, value, onChange, options }) {
+  const items = Object.fromEntries(options.map((o) => [o.value || NONE, o.label]))
   return (
-    <>
-      <div style={card}>
-        <div style={cardHeader}>بيانات الزبون الأساسية</div>
-        <div style={cardBody}>
-          <div style={fieldGrid}>
-            <BField label="الاسم الأول *" focusKey="firstName" focused={focused} setFocused={setFocused} value={form.firstName} onChange={(e) => update('firstName', e.target.value)} />
-            <BField label="اسم العائلة" focusKey="lastName" focused={focused} setFocused={setFocused} value={form.lastName} onChange={(e) => update('lastName', e.target.value)} />
-            <BField label="رقم الهاتف *" focusKey="phone" focused={focused} setFocused={setFocused} value={form.phone} onChange={(e) => update('phone', e.target.value)} />
-          </div>
-        </div>
-      </div>
-
-      <div style={card}>
-        <div style={tabBar}>
-          {TABS.map((t, i) => (
-            <button key={t} style={tabBtn(activeTab === i)} onClick={() => setActiveTab(i)}>{t}</button>
+    <div className="flex flex-col gap-1.5">
+      <Label>{label}</Label>
+      <Select items={items} value={value || NONE} onValueChange={(v) => onChange(v === NONE ? '' : v)}>
+        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value || NONE} value={o.value || NONE}>{o.label}</SelectItem>
           ))}
-        </div>
-        <div style={cardBody}>
-          {activeTab === 0 && (
-            <div style={fieldGrid}>
-              <div style={fieldRow}>
-                <label style={bLabel}>الجنس</label>
-                <select style={bInput} value={form.gender} onChange={(e) => update('gender', e.target.value)}>
-                  <option value="">غير محدد</option>
-                  <option value="male">ذكر</option>
-                  <option value="female">أنثى</option>
-                </select>
-              </div>
-              <div style={fieldRow}>
-                <label style={bLabel}>الفئة</label>
-                <select style={bInput} value={form.category} onChange={(e) => update('category', e.target.value)}>
-                  {CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <BField label="تاريخ الميلاد" type="date" focusKey="birthday" focused={focused} setFocused={setFocused} value={form.birthday} onChange={(e) => update('birthday', e.target.value)} />
-              <BField label="الاختصاصي المفضل" focusKey="pro" focused={focused} setFocused={setFocused} value={form.preferredProfessional} onChange={(e) => update('preferredProfessional', e.target.value)} />
-              <BField label="اسم الشركة" focusKey="company" focused={focused} setFocused={setFocused} value={form.companyName} onChange={(e) => update('companyName', e.target.value)} />
-              <BField label="المنصب" focusKey="position" focused={focused} setFocused={setFocused} value={form.positionTitle} onChange={(e) => update('positionTitle', e.target.value)} />
-            </div>
-          )}
-          {activeTab === 1 && (
-            <div style={fieldGrid}>
-              <BField label="البريد الإلكتروني" type="email" focusKey="cemail" focused={focused} setFocused={setFocused} value={form.email} onChange={(e) => update('email', e.target.value)} />
-              <div style={fieldRow}>
-                <label style={{ ...bLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input type="checkbox" checked={form.emailOptOut} onChange={(e) => update('emailOptOut', e.target.checked)} />
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+export default function ClientForm({ form, update, activeTab, setActiveTab }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader><CardTitle>بيانات الزبون الأساسية</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <BField label="الاسم الأول *" value={form.firstName} onChange={(e) => update('firstName', e.target.value)} />
+            <BField label="اسم العائلة" value={form.lastName} onChange={(e) => update('lastName', e.target.value)} />
+            <BField label="رقم الهاتف *" value={form.phone} onChange={(e) => update('phone', e.target.value)} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <Tabs value={String(activeTab)} onValueChange={(v) => setActiveTab(Number(v))}>
+          <CardHeader>
+            <TabsList className="w-full sm:w-fit">
+              {TABS.map((t, i) => (
+                <TabsTrigger key={t} value={String(i)}>{t}</TabsTrigger>
+              ))}
+            </TabsList>
+          </CardHeader>
+          <CardContent>
+            {activeTab === 0 && (
+              <TabsContent value="0" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <PickField
+                  label="الجنس"
+                  value={form.gender}
+                  onChange={(v) => update('gender', v)}
+                  options={[{ value: '', label: 'غير محدد' }, { value: 'male', label: 'ذكر' }, { value: 'female', label: 'أنثى' }]}
+                />
+                <PickField label="الفئة" value={form.category} onChange={(v) => update('category', v)} options={CATEGORY_OPTIONS} />
+                <BField label="تاريخ الميلاد" type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} />
+                <BField label="الاختصاصي المفضل" value={form.preferredProfessional} onChange={(e) => update('preferredProfessional', e.target.value)} />
+                <BField label="اسم الشركة" value={form.companyName} onChange={(e) => update('companyName', e.target.value)} />
+                <BField label="المنصب" value={form.positionTitle} onChange={(e) => update('positionTitle', e.target.value)} />
+              </TabsContent>
+            )}
+
+            {activeTab === 1 && (
+              <TabsContent value="1" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <BField label="البريد الإلكتروني" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} />
+                <label className="flex items-center gap-2 self-end pb-1 text-sm font-medium">
+                  <input type="checkbox" className="accent-primary" checked={form.emailOptOut} onChange={(e) => update('emailOptOut', e.target.checked)} />
                   لا ترسل بريد إلكتروني
                 </label>
-              </div>
-              <BField label="فيسبوك" focusKey="fb" focused={focused} setFocused={setFocused} value={form.facebook} onChange={(e) => update('facebook', e.target.value)} />
-              <BField label="فايبر" focusKey="viber" focused={focused} setFocused={setFocused} value={form.viber} onChange={(e) => update('viber', e.target.value)} />
-              <BField label="انستقرام" focusKey="insta" focused={focused} setFocused={setFocused} value={form.instagram} onChange={(e) => update('instagram', e.target.value)} />
-              <BField label="مصدر اكتساب العميل" focusKey="acq" focused={focused} setFocused={setFocused} value={form.acquisitionSource} onChange={(e) => update('acquisitionSource', e.target.value)} />
-              <BField label="UTM Campaign" focusKey="utmc" focused={focused} setFocused={setFocused} value={form.utmCampaign} onChange={(e) => update('utmCampaign', e.target.value)} />
-              <BField label="UTM Source" focusKey="utms" focused={focused} setFocused={setFocused} value={form.utmSource} onChange={(e) => update('utmSource', e.target.value)} />
-              <BField label="UTM Medium" focusKey="utmm" focused={focused} setFocused={setFocused} value={form.utmMedium} onChange={(e) => update('utmMedium', e.target.value)} />
-            </div>
-          )}
-          {activeTab === 2 && (
-            <div style={fieldGrid}>
-              <BField label="رقم البطاقة" focusKey="card" focused={focused} setFocused={setFocused} value={form.cardNumber} onChange={(e) => update('cardNumber', e.target.value)} />
-              <BField label="سقف الدَّين الأقصى (₪)" type="number" step="0.01" focusKey="debt" focused={focused} setFocused={setFocused} value={form.maxDebt} onChange={(e) => update('maxDebt', e.target.value)} />
-            </div>
-          )}
-          {activeTab === 3 && (
-            <div style={fieldGrid}>
-              <BField label="الرمز البريدي" focusKey="idx" focused={focused} setFocused={setFocused} value={form.addressIndex} onChange={(e) => update('addressIndex', e.target.value)} />
-              <BField label="المدينة" focusKey="city" focused={focused} setFocused={setFocused} value={form.addressCity} onChange={(e) => update('addressCity', e.target.value)} />
-              <BField label="الشارع" focusKey="street" focused={focused} setFocused={setFocused} value={form.addressStreet} onChange={(e) => update('addressStreet', e.target.value)} />
-              <BField label="رقم المبنى" focusKey="building" focused={focused} setFocused={setFocused} value={form.addressBuilding} onChange={(e) => update('addressBuilding', e.target.value)} />
-              <div style={{ ...fieldRow, gridColumn: '1 / -1' }}>
-                <label style={{ ...bLabel, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input type="checkbox" checked={form.registrationAddressDiffers} onChange={(e) => update('registrationAddressDiffers', e.target.checked)} />
+                <BField label="فيسبوك" value={form.facebook} onChange={(e) => update('facebook', e.target.value)} />
+                <BField label="فايبر" value={form.viber} onChange={(e) => update('viber', e.target.value)} />
+                <BField label="انستقرام" value={form.instagram} onChange={(e) => update('instagram', e.target.value)} />
+                <BField label="مصدر اكتساب العميل" value={form.acquisitionSource} onChange={(e) => update('acquisitionSource', e.target.value)} />
+                <BField label="UTM Campaign" value={form.utmCampaign} onChange={(e) => update('utmCampaign', e.target.value)} />
+                <BField label="UTM Source" value={form.utmSource} onChange={(e) => update('utmSource', e.target.value)} />
+                <BField label="UTM Medium" value={form.utmMedium} onChange={(e) => update('utmMedium', e.target.value)} />
+              </TabsContent>
+            )}
+
+            {activeTab === 2 && (
+              <TabsContent value="2" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <BField label="رقم البطاقة" value={form.cardNumber} onChange={(e) => update('cardNumber', e.target.value)} />
+                <BField label="سقف الدَّين الأقصى (₪)" type="number" step="0.01" value={form.maxDebt} onChange={(e) => update('maxDebt', e.target.value)} />
+              </TabsContent>
+            )}
+
+            {activeTab === 3 && (
+              <TabsContent value="3" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <BField label="الرمز البريدي" value={form.addressIndex} onChange={(e) => update('addressIndex', e.target.value)} />
+                <BField label="المدينة" value={form.addressCity} onChange={(e) => update('addressCity', e.target.value)} />
+                <BField label="الشارع" value={form.addressStreet} onChange={(e) => update('addressStreet', e.target.value)} />
+                <BField label="رقم المبنى" value={form.addressBuilding} onChange={(e) => update('addressBuilding', e.target.value)} />
+                <label className="flex items-center gap-2 sm:col-span-2 lg:col-span-3 text-sm font-medium">
+                  <input type="checkbox" className="accent-primary" checked={form.registrationAddressDiffers} onChange={(e) => update('registrationAddressDiffers', e.target.checked)} />
                   عنوان التسجيل يختلف
                 </label>
-              </div>
-              <BField label="سلسلة جواز السفر" focusKey="pS" focused={focused} setFocused={setFocused} value={form.passportSeries} onChange={(e) => update('passportSeries', e.target.value)} />
-              <BField label="رقم جواز السفر" focusKey="pN" focused={focused} setFocused={setFocused} value={form.passportNumber} onChange={(e) => update('passportNumber', e.target.value)} />
-              <BField label="تاريخ الإصدار" type="date" focusKey="pD" focused={focused} setFocused={setFocused} value={form.passportIssuedDate} onChange={(e) => update('passportIssuedDate', e.target.value)} />
-              <BField label="جهة الإصدار" focusKey="pB" focused={focused} setFocused={setFocused} value={form.passportIssuedBy} onChange={(e) => update('passportIssuedBy', e.target.value)} />
-              <BField label="الرقم التعريفي" focusKey="idc" focused={focused} setFocused={setFocused} value={form.identificationCode} onChange={(e) => update('identificationCode', e.target.value)} />
-            </div>
-          )}
-        </div>
-      </div>
-    </>
+                <BField label="سلسلة جواز السفر" value={form.passportSeries} onChange={(e) => update('passportSeries', e.target.value)} />
+                <BField label="رقم جواز السفر" value={form.passportNumber} onChange={(e) => update('passportNumber', e.target.value)} />
+                <BField label="تاريخ الإصدار" type="date" value={form.passportIssuedDate} onChange={(e) => update('passportIssuedDate', e.target.value)} />
+                <BField label="جهة الإصدار" value={form.passportIssuedBy} onChange={(e) => update('passportIssuedBy', e.target.value)} />
+                <BField label="الرقم التعريفي" value={form.identificationCode} onChange={(e) => update('identificationCode', e.target.value)} />
+              </TabsContent>
+            )}
+          </CardContent>
+        </Tabs>
+      </Card>
+    </div>
   )
 }

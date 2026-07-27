@@ -1,16 +1,11 @@
-import { fieldRow, bLabel, bInput, bInputFocus } from '../styles'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 
-export default function BField({ label, focusKey, focused, setFocused, ...props }) {
-  const isFocused = focused === focusKey
+export default function BField({ label, id, ...props }) {
   return (
-    <div style={fieldRow}>
-      <label style={bLabel}>{label}</label>
-      <input
-        style={{ ...bInput, ...(isFocused ? bInputFocus : {}) }}
-        onFocus={() => setFocused(focusKey)}
-        onBlur={() => setFocused(null)}
-        {...props}
-      />
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} {...props} />
     </div>
   )
 }
