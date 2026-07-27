@@ -40,7 +40,7 @@ export default function ClientsQuickMenu({ triggerClassName, onDisabledClick }) 
     <>
       <DropdownMenu>
         <DropdownMenuTrigger className={triggerClassName} title="الزبائن">
-          <Icon name="clients" size={16} />
+          <Icon name="clients" size={18} />
           <span className="whitespace-nowrap">الزبائن</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="right" sideOffset={10} className="w-56">
