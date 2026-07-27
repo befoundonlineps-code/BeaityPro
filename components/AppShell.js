@@ -13,17 +13,15 @@ export default function AppShell({ userEmail, onLogout, children }) {
   return (
     <div className="flex h-screen flex-col bg-background">
       <AppHeader userEmail={userEmail} onLogout={onLogout} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar onDisabledClick={handleDisabledSection} />
-        <main className="flex-1 overflow-y-auto">
-          {notice && (
-            <div className="mx-5 mt-4 rounded-lg bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
-              {notice}
-            </div>
-          )}
-          {children}
-        </main>
-      </div>
+      <Sidebar onDisabledClick={handleDisabledSection} />
+      <main className="flex-1 overflow-y-auto">
+        {notice && (
+          <div className="mx-5 mt-4 rounded-lg bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+            {notice}
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   )
 }

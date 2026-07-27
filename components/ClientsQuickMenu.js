@@ -40,7 +40,8 @@ export default function ClientsQuickMenu({ triggerClassName, onDisabledClick }) 
     <>
       <DropdownMenu>
         <DropdownMenuTrigger className={triggerClassName} title="الزبائن">
-          <Icon name="clients" />
+          <Icon name="clients" size={16} />
+          <span className="whitespace-nowrap">الزبائن</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="right" sideOffset={10} className="w-56">
           <DropdownMenuItem onClick={() => router.push('/?new=1')}>
