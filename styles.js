@@ -39,6 +39,58 @@ export const comingSoonBadge = {
   padding: '1px 6px', fontWeight: 700,
 }
 
+export const appShell = { display: 'flex', minHeight: '100vh', background: '#eef1f6' }
+export const mainColumn = { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }
+
+export const sidebar = {
+  width: 68, flexShrink: 0, background: '#fff', borderInlineStart: `1px solid ${BORDER}`,
+  display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: 6,
+}
+export const sidebarLogo = {
+  width: 36, height: 36, borderRadius: 10, background: BLUE, color: '#fff',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15,
+  marginBottom: 18,
+}
+export const sidebarIconBtn = (active) => ({
+  width: 44, height: 44, borderRadius: 10, border: 'none', cursor: active ? 'pointer' : 'not-allowed',
+  background: active ? BLUE_LIGHT : 'transparent', color: active ? BLUE : '#b7bcc5',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+})
+
+export const listToolbar = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  padding: '12px 16px 0', maxWidth: 1180, margin: '0 auto', width: '100%', boxSizing: 'border-box', gap: 14, flexWrap: 'wrap',
+}
+export const listTabsRow = { display: 'flex', gap: 4, background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 8, padding: 3 }
+export const listTabBtn = (active) => ({
+  padding: '7px 14px', fontSize: 12.5, fontWeight: 700, borderRadius: 6, border: 'none', cursor: 'pointer',
+  background: active ? BLUE : 'transparent', color: active ? '#fff' : '#555',
+})
+export const searchInput = {
+  border: `1px solid ${BORDER}`, borderRadius: 8, padding: '9px 14px', fontSize: 13,
+  outline: 'none', fontFamily: 'inherit', background: '#fff', color: '#222', minWidth: 220, flex: '1 1 220px', maxWidth: 340,
+}
+
+export const cardGrid = {
+  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14,
+}
+export const clientCard = {
+  background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14,
+  cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 10,
+}
+export const avatarCircle = (color) => ({
+  width: 40, height: 40, borderRadius: '50%', background: color, color: '#fff',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0,
+})
+export const clientCardHead = { display: 'flex', alignItems: 'center', gap: 10 }
+export const clientCardName = { fontWeight: 700, fontSize: 14, color: '#222' }
+export const clientCardMeta = { fontSize: 12, color: TEXT_MUTED, display: 'flex', alignItems: 'center', gap: 5 }
+export const clientCardFooter = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  borderTop: `1px solid ${BORDER}`, paddingTop: 10, fontSize: 12.5,
+}
+export const detailsLink = { color: BLUE, fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }
+
 export const subBar = {
   background: '#fff', borderBottom: `1px solid ${BORDER}`, padding: '10px 28px',
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
