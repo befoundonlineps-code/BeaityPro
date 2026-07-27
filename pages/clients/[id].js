@@ -5,9 +5,12 @@ import { supabase } from '../../lib/supabaseClient'
 import { buildClientPayload, clientToForm } from '../../lib/clientMapping'
 import { getDuplicateWarningMessage } from '../../lib/duplicateCheck'
 import { getAvatarColor, getInitials } from '../../lib/avatarColor'
+import { computeBalance } from '../../lib/ledger'
 import LoginScreen from '../../components/LoginScreen'
 import AppShell from '../../components/AppShell'
 import ClientForm from '../../components/ClientForm'
+import ClientBalanceSummary from '../../components/ClientBalanceSummary'
+import ClientRelationships from '../../components/ClientRelationships'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -28,10 +31,12 @@ export default function ClientProfilePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [duplicateWarning, setDuplicateWarning] = useState(null)
+  const [ledgerRows, setLedgerRows] = useState([])
 
   useEffect(() => {
     if (!id) return
     loadClient()
+    loadLedger()
   }, [id])
 
   async function loadClient() {
@@ -41,6 +46,11 @@ export default function ClientProfilePage() {
       setClient(data)
       setForm(clientToForm(data))
     }
+  }
+
+  async function loadLedger() {
+    const { data } = await supabase.from('client_ledger').select('*').eq('client_id', id).order('created_at', { ascending: false })
+    setLedgerRows(data || [])
   }
 
   useEffect(() => {
@@ -122,11 +132,17 @@ export default function ClientProfilePage() {
         </Tabs>
 
         {tab === 'information' && (
-          <div className="flex flex-col gap-4">
-            {duplicateWarning && (
-              <div className="text-sm text-destructive">⚠ رقم الهاتف مستخدم أصلًا لزبون: {duplicateWarning}</div>
-            )}
-            <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} />
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
+            <div className="flex flex-col gap-4">
+              {duplicateWarning && (
+                <div className="text-sm text-destructive">⚠ رقم الهاتف مستخدم أصلًا لزبون: {duplicateWarning}</div>
+              )}
+              <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} />
+            </div>
+            <div className="flex flex-col gap-4">
+              <ClientBalanceSummary balance={computeBalance(ledgerRows)} />
+              <ClientRelationships clientId={id} />
+            </div>
           </div>
         )}
         {tab === 'cards' && (
