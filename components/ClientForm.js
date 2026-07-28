@@ -41,9 +41,15 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
       <Card>
         <Tabs value={String(activeTab)} onValueChange={(v) => setActiveTab(Number(v))}>
           <CardHeader>
-            <TabsList className="w-full sm:w-fit">
+            <TabsList className="group-data-horizontal/tabs:h-11 w-full flex-wrap gap-2 bg-muted p-1.5 sm:w-fit">
               {TABS.map((t, i) => (
-                <TabsTrigger key={t} value={String(i)}>{t}</TabsTrigger>
+                <TabsTrigger
+                  key={t}
+                  value={String(i)}
+                  className="px-3.5 py-2 data-active:bg-primary data-active:text-primary-foreground dark:data-active:bg-primary dark:data-active:text-primary-foreground"
+                >
+                  {t}
+                </TabsTrigger>
               ))}
             </TabsList>
           </CardHeader>
