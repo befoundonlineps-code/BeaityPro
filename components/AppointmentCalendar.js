@@ -6,14 +6,17 @@ import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
 import { useAppointments } from '../hooks/useAppointments'
+import { useEmployeeSchedules } from '../hooks/useEmployeeSchedules'
 import {
   buildTimeSlots,
   totalGridMinutes,
   slotStartTime,
   minutesFromGridStart,
+  minutesToLabel,
   isWithinGrid,
   SLOT_MINUTES,
 } from '../lib/appointmentGrid'
+import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,19 +51,30 @@ export default function AppointmentCalendar({ salonId }) {
   const { services, loading: servicesLoading } = useServiceCatalog()
   const { clients, loading: clientsLoading } = useClientsLookup()
   const { dayAppointments, waitingAppointments, loading: apptsLoading, reload } = useAppointments(dateISO)
+  const { schedulesByEmployee, loading: schedulesLoading } = useEmployeeSchedules()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
 
   const clientsById = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
   const servicesById = useMemo(() => Object.fromEntries(services.map((s) => [s.id, s])), [services])
+
+  const displayedDate = useMemo(() => new Date(`${dateISO}T00:00:00`), [dateISO])
+  const windowByEmployee = useMemo(() => {
+    const map = {}
+    for (const emp of employees) {
+      const entry = schedulesByEmployee[emp.id]
+      map[emp.id] = availableWindowForDate(entry?.schedule, entry?.slots, displayedDate)
+    }
+    return map
+  }, [employees, schedulesByEmployee, displayedDate])
 
   const isToday = dateISO === todayISO()
   const nowMinutes = isToday ? minutesFromGridStart(now) : -1
@@ -155,15 +169,31 @@ export default function AppointmentCalendar({ salonId }) {
               {emp.name}
             </div>
             <div className="relative" style={{ height: gridHeight }}>
-              {slots.map((s) => (
-                <button
-                  key={s.minutesFromStart}
-                  type="button"
-                  className="absolute inset-x-0 border-b border-border/50 hover:bg-muted/40"
-                  style={{ top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }}
-                  onClick={() => handleCellClick(emp.id, s.minutesFromStart)}
-                />
-              ))}
+              {slots.map((s) => {
+                const window = windowByEmployee[emp.id]
+                const cellEndLabel = minutesToLabel(s.minutesFromStart + SLOT_MINUTES)
+                const available = isWithinWindow(window, s.label, cellEndLabel)
+                const style = { top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }
+                if (!available) {
+                  return (
+                    <div
+                      key={s.minutesFromStart}
+                      className="absolute inset-x-0 border-b border-border/50 bg-muted/60"
+                      style={style}
+                      title={t('appointments:outsideScheduleHint')}
+                    />
+                  )
+                }
+                return (
+                  <button
+                    key={s.minutesFromStart}
+                    type="button"
+                    className="absolute inset-x-0 border-b border-border/50 hover:bg-muted/40"
+                    style={style}
+                    onClick={() => handleCellClick(emp.id, s.minutesFromStart)}
+                  />
+                )
+              })}
 
               {appointmentsForEmployee(emp.id).map((a) => {
                 const startMin = minutesFromGridStart(new Date(a.start_time))
@@ -206,6 +236,7 @@ export default function AppointmentCalendar({ salonId }) {
         initialStartTime={dialogState?.startTime}
         employees={employees}
         services={services}
+        schedulesByEmployee={schedulesByEmployee}
         onSaved={reload}
       />
     </div>

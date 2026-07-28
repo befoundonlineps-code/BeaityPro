@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -18,7 +19,7 @@ function toTimeInputValue(date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, onSaved }) {
+export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, schedulesByEmployee, onSaved }) {
   const { t } = useTranslation(['appointments', 'common'])
 
   const [client, setClient] = useState(null)
@@ -103,6 +104,13 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
 
     const start = new Date(`${date}T${time}:00`)
     const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
+
+    const scheduleEntry = (schedulesByEmployee || {})[employeeId]
+    const window = availableWindowForDate(scheduleEntry?.schedule, scheduleEntry?.slots, new Date(`${date}T00:00:00`))
+    if (!isWithinWindow(window, time, toTimeInputValue(end))) {
+      setError(t('appointments:formDialog.outsideScheduleError'))
+      return
+    }
 
     setSaving(true)
 
