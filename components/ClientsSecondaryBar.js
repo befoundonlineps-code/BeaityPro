@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { UserPlus, Pencil, Zap, Users, PlusCircle, MinusCircle, Building2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+import { emitLedgerChanged } from '../lib/ledgerEvents'
 import ClientPickerDialog from './ClientPickerDialog'
 import BalanceDialog from './BalanceDialog'
 
@@ -50,9 +51,10 @@ export default function ClientsSecondaryBar({ onDisabledClick }) {
 
   async function submitBalanceEntry(amount, note) {
     if (!balanceTarget) return
-    await supabase.from('client_ledger').insert([{
+    const { error } = await supabase.from('client_ledger').insert([{
       client_id: balanceTarget.clientId, type: balanceTarget.type, amount, note: note || null,
     }])
+    if (!error) emitLedgerChanged()
   }
 
   return (

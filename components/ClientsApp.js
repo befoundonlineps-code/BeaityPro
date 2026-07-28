@@ -6,6 +6,7 @@ import { isNewClient } from '../lib/clientStatus'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { buildClientPayload } from '../lib/clientMapping'
 import { computeBalance } from '../lib/ledger'
+import { onLedgerChanged } from '../lib/ledgerEvents'
 import { BUCKET, getPublicFileUrl, buildAvatarPath } from '../lib/clientFiles'
 import { emptyForm } from '../constants'
 import AppShell from './AppShell'
@@ -46,6 +47,8 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
     loadClients()
     loadLedger()
   }, [])
+
+  useEffect(() => onLedgerChanged(loadLedger), [])
 
   useEffect(() => {
     if (!formOpen) return undefined
