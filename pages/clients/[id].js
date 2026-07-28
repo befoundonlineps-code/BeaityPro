@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
+import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import { useAuthSession } from '../../hooks/useAuthSession'
 import { supabase } from '../../lib/supabaseClient'
@@ -21,22 +22,22 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 
-const PAGE_LOADING = (
-  <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">جاري التحميل...</div>
-)
-
 export async function getServerSideProps({ locale }) {
   return {
     props: {
-      ...(await serverSideTranslations(locale, ['common', 'login', 'clientForm'])),
+      ...(await serverSideTranslations(locale, ['common', 'login', 'clientForm', 'clientProfile', 'clientsList'])),
     },
   }
 }
 
 export default function ClientProfilePage() {
+  const { t } = useTranslation(['clientProfile', 'common', 'clientsList'])
   const router = useRouter()
   const { id } = router.query
   const { session, salonId, loading, logout } = useAuthSession()
+  const PAGE_LOADING = (
+    <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">{t('common:loading')}</div>
+  )
 
   const [client, setClient] = useState(null)
   const [form, setForm] = useState(null)
@@ -78,7 +79,7 @@ export default function ClientProfilePage() {
 
   useEffect(() => {
     if (!form || !id) return undefined
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       if (form.phone && form.phone.length >= 6) {
         const { data } = await supabase.from('clients').select('id,first_name,last_name').eq('phone_number', form.phone).neq('id', id)
         setDuplicateWarning(getDuplicateWarningMessage(data))
@@ -86,7 +87,7 @@ export default function ClientProfilePage() {
         setDuplicateWarning(null)
       }
     }, 400)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [form?.phone, id])
 
   function update(field, value) {
@@ -96,11 +97,11 @@ export default function ClientProfilePage() {
   async function save() {
     setError('')
     if (!form.firstName || !form.phone) {
-      setError('الاسم الأول ورقم الهاتف إجباريين')
+      setError(t('common:validation.nameAndPhoneRequired'))
       return
     }
     if (duplicateWarning) {
-      setError(`رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}`)
+      setError(t('common:validation.phoneAlreadyUsed', { name: duplicateWarning }))
       return
     }
     setSaving(true)
@@ -123,13 +124,13 @@ export default function ClientProfilePage() {
     <AppShell userEmail={session.user.email} onLogout={logout}>
       <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
         <div className="text-sm text-muted-foreground">
-          <button className="font-semibold text-primary hover:underline" onClick={() => router.push('/')}>الزبائن</button>
+          <button className="font-semibold text-primary hover:underline" onClick={() => router.push('/')}>{t('clientsList:breadcrumbClients')}</button>
           {' / '}<span>{client.first_name} {client.last_name}</span>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('credit')}>+ إضافة رصيد</Button>
-          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('debit')}>− خصم من الرصيد</Button>
-          <Button size="sm" disabled={saving} onClick={save}>{saving ? 'جاري الحفظ...' : 'حفظ التعديلات'}</Button>
+          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('credit')}>{t('clientProfile:addBalanceButton')}</Button>
+          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('debit')}>{t('clientProfile:removeBalanceButton')}</Button>
+          <Button size="sm" disabled={saving} onClick={save}>{saving ? t('common:saving') : t('clientProfile:saveChangesButton')}</Button>
         </div>
       </div>
 
@@ -158,10 +159,10 @@ export default function ClientProfilePage() {
 
         <Tabs value={tab} onValueChange={setTab} className="mb-4">
           <TabsList>
-            <TabsTrigger value="information">المعلومات</TabsTrigger>
-            <TabsTrigger value="cards">الباقات</TabsTrigger>
-            <TabsTrigger value="history">السجل</TabsTrigger>
-            <TabsTrigger value="files">الملفات</TabsTrigger>
+            <TabsTrigger value="information">{t('clientProfile:tabs.information')}</TabsTrigger>
+            <TabsTrigger value="cards">{t('clientProfile:tabs.cards')}</TabsTrigger>
+            <TabsTrigger value="history">{t('clientProfile:tabs.history')}</TabsTrigger>
+            <TabsTrigger value="files">{t('clientProfile:tabs.files')}</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -169,7 +170,7 @@ export default function ClientProfilePage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
             <div className="flex flex-col gap-4">
               {duplicateWarning && (
-                <div className="text-sm text-destructive">⚠ رقم الهاتف مستخدم أصلًا لزبون: {duplicateWarning}</div>
+                <div className="text-sm text-destructive">⚠ {t('common:validation.phoneAlreadyUsed', { name: duplicateWarning })}</div>
               )}
               <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} />
             </div>

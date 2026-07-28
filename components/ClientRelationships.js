@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { useClientSearch } from '../hooks/useClientSearch'
-import { RELATIONSHIP_TYPES, getRelationshipLabel, getOtherClientId } from '../lib/relationships'
+import { RELATIONSHIP_TYPE_VALUES, getRelationshipLabel, getOtherClientId } from '../lib/relationships'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,9 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
-const RELATIONSHIP_ITEMS = Object.fromEntries(RELATIONSHIP_TYPES.map((t) => [t.value, t.label]))
-
 export default function ClientRelationships({ clientId }) {
+  const { t } = useTranslation(['clientProfile', 'common'])
+  const relationshipTypes = RELATIONSHIP_TYPE_VALUES.map((value) => ({
+    value,
+    label: t(`clientProfile:relationshipTypeOptions.${value}`),
+  }))
+  const relationshipItems = Object.fromEntries(relationshipTypes.map((r) => [r.value, r.label]))
+
   const [rows, setRows] = useState([])
   const [othersById, setOthersById] = useState({})
   const [loading, setLoading] = useState(true)
@@ -71,8 +77,8 @@ export default function ClientRelationships({ clientId }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-sm">الأقارب والمعارف</CardTitle>
-        <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>{adding ? 'إلغاء' : '+ ربط زبون'}</Button>
+        <CardTitle className="text-sm">{t('clientProfile:relationships.title')}</CardTitle>
+        <Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}>{adding ? t('common:cancel') : t('clientProfile:relationships.linkClientButton')}</Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {error && <div className="text-sm text-destructive">{error}</div>}
@@ -80,7 +86,7 @@ export default function ClientRelationships({ clientId }) {
         {adding && (
           <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
             <Input
-              placeholder="ابحث بالاسم أو الهاتف..."
+              placeholder={t('clientProfile:relationships.searchPlaceholder')}
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPickedClient(null) }}
             />
@@ -100,28 +106,28 @@ export default function ClientRelationships({ clientId }) {
             )}
             {pickedClient && (
               <div className="flex items-center gap-2">
-                <Select items={RELATIONSHIP_ITEMS} value={relType} onValueChange={setRelType}>
+                <Select items={relationshipItems} value={relType} onValueChange={setRelType}>
                   <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {RELATIONSHIP_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    {relationshipTypes.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button size="sm" onClick={addRelationship}>ربط</Button>
+                <Button size="sm" onClick={addRelationship}>{t('clientProfile:relationships.linkButton')}</Button>
               </div>
             )}
           </div>
         )}
 
         {loading ? (
-          <div className="text-sm text-muted-foreground">جاري التحميل...</div>
+          <div className="text-sm text-muted-foreground">{t('common:loading')}</div>
         ) : rows.length === 0 ? (
-          <div className="text-sm text-muted-foreground">ما في أقارب أو معارف مرتبطين</div>
+          <div className="text-sm text-muted-foreground">{t('clientProfile:relationships.noneLinked')}</div>
         ) : (
           <div className="flex flex-col gap-2">
             {rows.map((r) => {
               const other = othersById[getOtherClientId(r, clientId)]
               if (!other) return null
-              const label = getRelationshipLabel(r, clientId, other.gender)
+              const label = getRelationshipLabel(r, clientId, other.gender, (key) => t(`clientProfile:${key}`))
               return (
                 <div key={r.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
                   <Link href={`/clients/${other.id}`} className="flex items-center gap-2.5 hover:underline">
@@ -134,7 +140,7 @@ export default function ClientRelationships({ clientId }) {
                   </Link>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{label}</span>
-                    <button type="button" className="text-xs text-destructive hover:underline" onClick={() => removeRelationship(r.id)}>إزالة</button>
+                    <button type="button" className="text-xs text-destructive hover:underline" onClick={() => removeRelationship(r.id)}>{t('clientProfile:relationships.removeButton')}</button>
                   </div>
                 </div>
               )

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { BUCKET, getPublicFileUrl, buildAttachmentPath, buildAvatarPath } from '../lib/clientFiles'
@@ -7,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 
 export default function ClientFilesTab({ client, onPhotoUpdated }) {
+  const { t } = useTranslation(['clientProfile', 'common'])
   const clientId = client.id
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(true)
@@ -84,18 +86,18 @@ export default function ClientFilesTab({ client, onPhotoUpdated }) {
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-          <CardTitle className="text-sm">الملفات المرفقة</CardTitle>
+          <CardTitle className="text-sm">{t('clientProfile:filesTab.attachedFilesTitle')}</CardTitle>
           <Button size="sm" variant="outline" disabled={uploadingFile} onClick={() => fileInputRef.current?.click()}>
-            {uploadingFile ? 'جاري الرفع...' : '+ رفع ملف'}
+            {uploadingFile ? t('clientProfile:filesTab.uploading') : t('clientProfile:filesTab.uploadFileButton')}
           </Button>
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           {error && <div className="text-sm text-destructive">{error}</div>}
           {loading ? (
-            <div className="text-sm text-muted-foreground">جاري التحميل...</div>
+            <div className="text-sm text-muted-foreground">{t('common:loading')}</div>
           ) : files.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">ما في ملفات مرفقة لسا</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">{t('clientProfile:filesTab.noFiles')}</div>
           ) : (
             files.map((f) => (
               <div key={f.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
@@ -107,7 +109,7 @@ export default function ClientFilesTab({ client, onPhotoUpdated }) {
                 >
                   {f.file_name}
                 </a>
-                <button type="button" className="shrink-0 text-xs text-destructive hover:underline" onClick={() => handleDeleteFile(f)}>حذف</button>
+                <button type="button" className="shrink-0 text-xs text-destructive hover:underline" onClick={() => handleDeleteFile(f)}>{t('clientProfile:filesTab.deleteButton')}</button>
               </div>
             ))
           )}
@@ -115,14 +117,14 @@ export default function ClientFilesTab({ client, onPhotoUpdated }) {
       </Card>
 
       <Card className="h-fit">
-        <CardHeader><CardTitle className="text-sm">الصورة الشخصية</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm">{t('clientProfile:filesTab.photoTitle')}</CardTitle></CardHeader>
         <CardContent className="flex flex-col items-center gap-3">
           <Avatar className="size-24">
             {photoUrl && <AvatarImage src={photoUrl} alt="" />}
             <AvatarFallback style={{ background: color, color: '#fff' }} className="text-xl">{initials}</AvatarFallback>
           </Avatar>
           <Button size="sm" variant="outline" disabled={uploadingPhoto} onClick={() => photoInputRef.current?.click()}>
-            {uploadingPhoto ? 'جاري الرفع...' : client.photo_path ? 'تغيير الصورة' : 'رفع صورة'}
+            {uploadingPhoto ? t('clientProfile:filesTab.uploading') : client.photo_path ? t('common:changePhoto') : t('clientProfile:filesTab.uploadPhotoButton')}
           </Button>
           <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
         </CardContent>

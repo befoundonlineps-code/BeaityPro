@@ -1,0 +1,58 @@
+{
+  "addBalanceButton": "+ إضافة رصيد",
+  "removeBalanceButton": "− خصم من الرصيد",
+  "saveChangesButton": "حفظ التعديلات",
+  "tabs": {
+    "information": "المعلومات",
+    "cards": "الباقات",
+    "history": "السجل",
+    "files": "الملفات"
+  },
+  "balanceSummary": {
+    "currentBalanceTitle": "الرصيد الحالي"
+  },
+  "relationships": {
+    "title": "الأقارب والمعارف",
+    "linkClientButton": "+ ربط زبون",
+    "searchPlaceholder": "ابحث بالاسم أو الهاتف...",
+    "linkButton": "ربط",
+    "noneLinked": "ما في أقارب أو معارف مرتبطين",
+    "removeButton": "إزالة"
+  },
+  "relationshipTypeOptions": {
+    "spouse": "زوج / زوجة",
+    "child": "ابن / ابنة",
+    "friend": "صديق",
+    "colleague": "زميل"
+  },
+  "relationshipLabels": {
+    "spouse": { "male": "زوج", "female": "زوجة", "other": "الزوج/الزوجة" },
+    "friend": { "male": "صديق", "female": "صديقة", "other": "صديق" },
+    "colleague": { "male": "زميل", "female": "زميلة", "other": "زميل" },
+    "child": { "male": "ابن", "female": "ابنة", "other": "ابن/ابنة" },
+    "parent": { "male": "الأب", "female": "الأم", "other": "الوالد/ة" }
+  },
+  "cardsTab": {
+    "title": "باقات واشتراكات الزبون",
+    "packageName": "اسم الباقة",
+    "type": "النوع",
+    "startDate": "تاريخ البدء",
+    "endDate": "تاريخ الانتهاء",
+    "remainingSessions": "الجلسات المتبقية",
+    "status": "الحالة",
+    "empty": "ما في باقات مسجّلة لسا"
+  },
+  "historyTab": {
+    "emptyTitle": "لسا ما في زيارات",
+    "emptyHint": "هاد التبويب رح يتفعّل تلقائياً لما يُبنى موديول الحجوزات"
+  },
+  "filesTab": {
+    "attachedFilesTitle": "الملفات المرفقة",
+    "uploadFileButton": "+ رفع ملف",
+    "uploading": "جاري الرفع...",
+    "noFiles": "ما في ملفات مرفقة لسا",
+    "deleteButton": "حذف",
+    "photoTitle": "الصورة الشخصية",
+    "uploadPhotoButton": "رفع صورة"
+  }
+}

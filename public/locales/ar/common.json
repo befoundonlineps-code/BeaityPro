@@ -8,5 +8,13 @@
   "validation": {
     "nameAndPhoneRequired": "الاسم الأول ورقم الهاتف إجباريين",
     "phoneAlreadyUsed": "رقم الهاتف مستخدم أصلًا لزبون: {{name}}"
+  },
+  "balanceDialog": {
+    "creditTitle": "إضافة رصيد",
+    "debitTitle": "خصم من الرصيد",
+    "amountLabel": "المبلغ (₪)",
+    "noteLabel": "ملاحظة (اختياري)",
+    "confirm": "تأكيد",
+    "invalidAmount": "أدخل مبلغ صحيح أكبر من صفر"
   }
 }
