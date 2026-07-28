@@ -28,7 +28,7 @@ const PAGE_LOADING = (
 export async function getServerSideProps({ locale }) {
   return {
     props: {
-      ...(await serverSideTranslations(locale, ['common', 'login'])),
+      ...(await serverSideTranslations(locale, ['common', 'login', 'clientForm'])),
     },
   }
 }

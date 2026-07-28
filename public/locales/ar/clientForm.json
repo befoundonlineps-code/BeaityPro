@@ -1,0 +1,50 @@
+{
+  "basicDataTitle": "بيانات الزبون الأساسية",
+  "firstNameLabel": "الاسم الأول *",
+  "lastNameLabel": "اسم العائلة",
+  "phoneLabel": "رقم الهاتف *",
+  "tabs": {
+    "general": "معلومات عامة",
+    "contact": "التواصل والتسويق",
+    "financial": "المعلومات المالية",
+    "address": "العنوان والوثائق"
+  },
+  "genderLabel": "الجنس",
+  "genderOptions": {
+    "unspecified": "غير محدد",
+    "male": "ذكر",
+    "female": "أنثى"
+  },
+  "categoryLabel": "الفئة",
+  "categoryOptions": {
+    "none": "بدون",
+    "blacklist": "قائمة سوداء",
+    "familyFriends": "عائلة / أصدقاء",
+    "vip": "VIP"
+  },
+  "birthdayLabel": "تاريخ الميلاد",
+  "preferredProfessionalLabel": "الاختصاصي المفضل",
+  "companyNameLabel": "اسم الشركة",
+  "positionTitleLabel": "المنصب",
+  "emailLabel": "البريد الإلكتروني",
+  "emailOptOutLabel": "لا ترسل بريد إلكتروني",
+  "facebookLabel": "فيسبوك",
+  "whatsappLabel": "رقم واتساب",
+  "instagramLabel": "انستغرام",
+  "acquisitionSourceLabel": "مصدر اكتساب العميل",
+  "utmCampaignLabel": "UTM Campaign",
+  "utmSourceLabel": "UTM Source",
+  "utmMediumLabel": "UTM Medium",
+  "cardNumberLabel": "رقم البطاقة",
+  "maxDebtLabel": "سقف الدَّين الأقصى (₪)",
+  "addressIndexLabel": "الرمز البريدي",
+  "addressCityLabel": "المدينة",
+  "addressStreetLabel": "الشارع",
+  "addressBuildingLabel": "رقم المبنى",
+  "registrationAddressDiffersLabel": "عنوان التسجيل يختلف",
+  "passportSeriesLabel": "سلسلة جواز السفر",
+  "passportNumberLabel": "رقم جواز السفر",
+  "passportIssuedDateLabel": "تاريخ الإصدار",
+  "passportIssuedByLabel": "جهة الإصدار",
+  "identificationCodeLabel": "الرقم التعريفي"
+}

@@ -14,15 +14,6 @@ export const SECTIONS = [
   { key: 'settings', label: 'الإعدادات', active: false, icon: 'settings' },
 ]
 
-export const CATEGORY_OPTIONS = [
-  { value: '', label: 'بدون' },
-  { value: 'blacklist', label: 'قائمة سوداء' },
-  { value: 'family_friends', label: 'عائلة / أصدقاء' },
-  { value: 'vip', label: 'VIP' },
-]
-
-export const TABS = ['معلومات عامة', 'التواصل والتسويق', 'المعلومات المالية', 'العنوان والوثائق']
-
 export const emptyForm = {
   firstName: '', lastName: '', gender: '', category: '', phone: '',
   birthday: '',

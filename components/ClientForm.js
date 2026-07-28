@@ -1,4 +1,4 @@
-import { CATEGORY_OPTIONS, TABS } from '../constants'
+import { useTranslation } from 'next-i18next'
 import BField from './BField'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -25,15 +25,30 @@ function PickField({ label, value, onChange, options, disabled }) {
 }
 
 export default function ClientForm({ form, update, activeTab, setActiveTab, readOnly = false }) {
+  const { t } = useTranslation('clientForm')
+
+  const tabs = [t('tabs.general'), t('tabs.contact'), t('tabs.financial'), t('tabs.address')]
+  const genderOptions = [
+    { value: '', label: t('genderOptions.unspecified') },
+    { value: 'male', label: t('genderOptions.male') },
+    { value: 'female', label: t('genderOptions.female') },
+  ]
+  const categoryOptions = [
+    { value: '', label: t('categoryOptions.none') },
+    { value: 'blacklist', label: t('categoryOptions.blacklist') },
+    { value: 'family_friends', label: t('categoryOptions.familyFriends') },
+    { value: 'vip', label: t('categoryOptions.vip') },
+  ]
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <CardHeader><CardTitle>بيانات الزبون الأساسية</CardTitle></CardHeader>
+        <CardHeader><CardTitle>{t('basicDataTitle')}</CardTitle></CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <BField label="الاسم الأول *" value={form.firstName} onChange={(e) => update('firstName', e.target.value)} disabled={readOnly} />
-            <BField label="اسم العائلة" value={form.lastName} onChange={(e) => update('lastName', e.target.value)} disabled={readOnly} />
-            <BField label="رقم الهاتف *" value={form.phone} onChange={(e) => update('phone', e.target.value)} disabled={readOnly} />
+            <BField label={t('firstNameLabel')} value={form.firstName} onChange={(e) => update('firstName', e.target.value)} disabled={readOnly} />
+            <BField label={t('lastNameLabel')} value={form.lastName} onChange={(e) => update('lastName', e.target.value)} disabled={readOnly} />
+            <BField label={t('phoneLabel')} value={form.phone} onChange={(e) => update('phone', e.target.value)} disabled={readOnly} />
           </div>
         </CardContent>
       </Card>
@@ -42,13 +57,13 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
         <Tabs value={String(activeTab)} onValueChange={(v) => setActiveTab(Number(v))}>
           <CardHeader>
             <TabsList className="group-data-horizontal/tabs:h-11 w-full flex-wrap gap-2 bg-muted p-1.5 sm:w-fit">
-              {TABS.map((t, i) => (
+              {tabs.map((label, i) => (
                 <TabsTrigger
-                  key={t}
+                  key={label}
                   value={String(i)}
                   className="px-3.5 py-2 data-active:bg-primary data-active:text-primary-foreground dark:data-active:bg-primary dark:data-active:text-primary-foreground"
                 >
-                  {t}
+                  {label}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -57,59 +72,59 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
             {activeTab === 0 && (
               <TabsContent value="0" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <PickField
-                  label="الجنس"
+                  label={t('genderLabel')}
                   value={form.gender}
                   onChange={(v) => update('gender', v)}
-                  options={[{ value: '', label: 'غير محدد' }, { value: 'male', label: 'ذكر' }, { value: 'female', label: 'أنثى' }]}
+                  options={genderOptions}
                   disabled={readOnly}
                 />
-                <PickField label="الفئة" value={form.category} onChange={(v) => update('category', v)} options={CATEGORY_OPTIONS} disabled={readOnly} />
-                <BField label="تاريخ الميلاد" type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} disabled={readOnly} />
-                <BField label="الاختصاصي المفضل" value={form.preferredProfessional} onChange={(e) => update('preferredProfessional', e.target.value)} disabled={readOnly} />
-                <BField label="اسم الشركة" value={form.companyName} onChange={(e) => update('companyName', e.target.value)} disabled={readOnly} />
-                <BField label="المنصب" value={form.positionTitle} onChange={(e) => update('positionTitle', e.target.value)} disabled={readOnly} />
+                <PickField label={t('categoryLabel')} value={form.category} onChange={(v) => update('category', v)} options={categoryOptions} disabled={readOnly} />
+                <BField label={t('birthdayLabel')} type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} disabled={readOnly} />
+                <BField label={t('preferredProfessionalLabel')} value={form.preferredProfessional} onChange={(e) => update('preferredProfessional', e.target.value)} disabled={readOnly} />
+                <BField label={t('companyNameLabel')} value={form.companyName} onChange={(e) => update('companyName', e.target.value)} disabled={readOnly} />
+                <BField label={t('positionTitleLabel')} value={form.positionTitle} onChange={(e) => update('positionTitle', e.target.value)} disabled={readOnly} />
               </TabsContent>
             )}
 
             {activeTab === 1 && (
               <TabsContent value="1" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <BField label="البريد الإلكتروني" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} disabled={readOnly} />
+                <BField label={t('emailLabel')} type="email" value={form.email} onChange={(e) => update('email', e.target.value)} disabled={readOnly} />
                 <label className="flex items-center gap-2 self-end pb-1 text-sm font-medium">
                   <input type="checkbox" className="accent-primary" checked={form.emailOptOut} onChange={(e) => update('emailOptOut', e.target.checked)} disabled={readOnly} />
-                  لا ترسل بريد إلكتروني
+                  {t('emailOptOutLabel')}
                 </label>
-                <BField label="فيسبوك" value={form.facebook} onChange={(e) => update('facebook', e.target.value)} disabled={readOnly} />
-                <BField label="رقم واتساب" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} disabled={readOnly} />
-                <BField label="انستغرام" value={form.instagram} onChange={(e) => update('instagram', e.target.value)} disabled={readOnly} />
-                <BField label="مصدر اكتساب العميل" value={form.acquisitionSource} onChange={(e) => update('acquisitionSource', e.target.value)} disabled={readOnly} />
-                <BField label="UTM Campaign" value={form.utmCampaign} onChange={(e) => update('utmCampaign', e.target.value)} disabled={readOnly} />
-                <BField label="UTM Source" value={form.utmSource} onChange={(e) => update('utmSource', e.target.value)} disabled={readOnly} />
-                <BField label="UTM Medium" value={form.utmMedium} onChange={(e) => update('utmMedium', e.target.value)} disabled={readOnly} />
+                <BField label={t('facebookLabel')} value={form.facebook} onChange={(e) => update('facebook', e.target.value)} disabled={readOnly} />
+                <BField label={t('whatsappLabel')} value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} disabled={readOnly} />
+                <BField label={t('instagramLabel')} value={form.instagram} onChange={(e) => update('instagram', e.target.value)} disabled={readOnly} />
+                <BField label={t('acquisitionSourceLabel')} value={form.acquisitionSource} onChange={(e) => update('acquisitionSource', e.target.value)} disabled={readOnly} />
+                <BField label={t('utmCampaignLabel')} value={form.utmCampaign} onChange={(e) => update('utmCampaign', e.target.value)} disabled={readOnly} />
+                <BField label={t('utmSourceLabel')} value={form.utmSource} onChange={(e) => update('utmSource', e.target.value)} disabled={readOnly} />
+                <BField label={t('utmMediumLabel')} value={form.utmMedium} onChange={(e) => update('utmMedium', e.target.value)} disabled={readOnly} />
               </TabsContent>
             )}
 
             {activeTab === 2 && (
               <TabsContent value="2" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <BField label="رقم البطاقة" value={form.cardNumber} onChange={(e) => update('cardNumber', e.target.value)} disabled={readOnly} />
-                <BField label="سقف الدَّين الأقصى (₪)" type="number" step="0.01" value={form.maxDebt} onChange={(e) => update('maxDebt', e.target.value)} disabled={readOnly} />
+                <BField label={t('cardNumberLabel')} value={form.cardNumber} onChange={(e) => update('cardNumber', e.target.value)} disabled={readOnly} />
+                <BField label={t('maxDebtLabel')} type="number" step="0.01" value={form.maxDebt} onChange={(e) => update('maxDebt', e.target.value)} disabled={readOnly} />
               </TabsContent>
             )}
 
             {activeTab === 3 && (
               <TabsContent value="3" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <BField label="الرمز البريدي" value={form.addressIndex} onChange={(e) => update('addressIndex', e.target.value)} disabled={readOnly} />
-                <BField label="المدينة" value={form.addressCity} onChange={(e) => update('addressCity', e.target.value)} disabled={readOnly} />
-                <BField label="الشارع" value={form.addressStreet} onChange={(e) => update('addressStreet', e.target.value)} disabled={readOnly} />
-                <BField label="رقم المبنى" value={form.addressBuilding} onChange={(e) => update('addressBuilding', e.target.value)} disabled={readOnly} />
+                <BField label={t('addressIndexLabel')} value={form.addressIndex} onChange={(e) => update('addressIndex', e.target.value)} disabled={readOnly} />
+                <BField label={t('addressCityLabel')} value={form.addressCity} onChange={(e) => update('addressCity', e.target.value)} disabled={readOnly} />
+                <BField label={t('addressStreetLabel')} value={form.addressStreet} onChange={(e) => update('addressStreet', e.target.value)} disabled={readOnly} />
+                <BField label={t('addressBuildingLabel')} value={form.addressBuilding} onChange={(e) => update('addressBuilding', e.target.value)} disabled={readOnly} />
                 <label className="flex items-center gap-2 sm:col-span-2 lg:col-span-3 text-sm font-medium">
                   <input type="checkbox" className="accent-primary" checked={form.registrationAddressDiffers} onChange={(e) => update('registrationAddressDiffers', e.target.checked)} disabled={readOnly} />
-                  عنوان التسجيل يختلف
+                  {t('registrationAddressDiffersLabel')}
                 </label>
-                <BField label="سلسلة جواز السفر" value={form.passportSeries} onChange={(e) => update('passportSeries', e.target.value)} disabled={readOnly} />
-                <BField label="رقم جواز السفر" value={form.passportNumber} onChange={(e) => update('passportNumber', e.target.value)} disabled={readOnly} />
-                <BField label="تاريخ الإصدار" type="date" value={form.passportIssuedDate} onChange={(e) => update('passportIssuedDate', e.target.value)} disabled={readOnly} />
-                <BField label="جهة الإصدار" value={form.passportIssuedBy} onChange={(e) => update('passportIssuedBy', e.target.value)} disabled={readOnly} />
-                <BField label="الرقم التعريفي" value={form.identificationCode} onChange={(e) => update('identificationCode', e.target.value)} disabled={readOnly} />
+                <BField label={t('passportSeriesLabel')} value={form.passportSeries} onChange={(e) => update('passportSeries', e.target.value)} disabled={readOnly} />
+                <BField label={t('passportNumberLabel')} value={form.passportNumber} onChange={(e) => update('passportNumber', e.target.value)} disabled={readOnly} />
+                <BField label={t('passportIssuedDateLabel')} type="date" value={form.passportIssuedDate} onChange={(e) => update('passportIssuedDate', e.target.value)} disabled={readOnly} />
+                <BField label={t('passportIssuedByLabel')} value={form.passportIssuedBy} onChange={(e) => update('passportIssuedBy', e.target.value)} disabled={readOnly} />
+                <BField label={t('identificationCodeLabel')} value={form.identificationCode} onChange={(e) => update('identificationCode', e.target.value)} disabled={readOnly} />
               </TabsContent>
             )}
           </CardContent>
