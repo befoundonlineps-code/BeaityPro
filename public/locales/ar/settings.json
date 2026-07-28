@@ -1,7 +1,10 @@
 {
+  "breadcrumb": "الإعدادات",
+  "tabs": {
+    "workingHours": "ساعات العمل",
+    "businessTypes": "نوع النشاط"
+  },
   "workingHours": {
-    "breadcrumbSettings": "الإعدادات",
-    "breadcrumbWorkingHours": "ساعات العمل",
     "cardTitle": "ساعات عمل الصالون الأسبوعية",
     "fromLabel": "من",
     "toLabel": "إلى",
@@ -18,5 +21,21 @@
     "saveButton": "حفظ",
     "saveSuccessMessage": "تم حفظ ساعات العمل بنجاح",
     "loadErrorMessage": "تعذّر تحميل ساعات العمل"
+  },
+  "businessTypes": {
+    "cardTitle": "نوع نشاط الصالون",
+    "hint": "اختر نوع أو أكتر — هاد بيحدد أي فئات خدمات بتظهرلك بشاشة الخدمات.",
+    "types": {
+      "hairdressing": "حلاقة وتصفيف",
+      "barbershop": "باربر شوب",
+      "cosmetology": "تجميل (كوزمتولوجي)",
+      "nails": "خدمات أظافر",
+      "makeup": "مكياج",
+      "massage": "مساج",
+      "tanning": "سرير تسمير"
+    },
+    "noneSelectedWarning": "ما اخترت أي نوع نشاط — شاشة الخدمات رح تكون فاضية",
+    "saveButton": "حفظ",
+    "saveSuccessMessage": "تم حفظ أنواع النشاط بنجاح"
   }
 }
