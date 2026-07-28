@@ -79,7 +79,7 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
                   لا ترسل بريد إلكتروني
                 </label>
                 <BField label="فيسبوك" value={form.facebook} onChange={(e) => update('facebook', e.target.value)} disabled={readOnly} />
-                <BField label="فايبر" value={form.viber} onChange={(e) => update('viber', e.target.value)} disabled={readOnly} />
+                <BField label="واتس اب" value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} disabled={readOnly} />
                 <BField label="انستقرام" value={form.instagram} onChange={(e) => update('instagram', e.target.value)} disabled={readOnly} />
                 <BField label="مصدر اكتساب العميل" value={form.acquisitionSource} onChange={(e) => update('acquisitionSource', e.target.value)} disabled={readOnly} />
                 <BField label="UTM Campaign" value={form.utmCampaign} onChange={(e) => update('utmCampaign', e.target.value)} disabled={readOnly} />
