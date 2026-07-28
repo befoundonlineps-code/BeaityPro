@@ -6,16 +6,15 @@ import { isNewClient } from '../lib/clientStatus'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { buildClientPayload } from '../lib/clientMapping'
 import { computeBalance } from '../lib/ledger'
+import { getPublicFileUrl } from '../lib/clientFiles'
 import { emptyForm } from '../constants'
 import AppShell from './AppShell'
 import ClientForm from './ClientForm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 const TIP_DOT = {
@@ -179,51 +178,39 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
           </CardHeader>
           <CardContent>
             {visibleClients.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>الاسم</TableHead>
-                    <TableHead>الهاتف</TableHead>
-                    <TableHead>البريد</TableHead>
-                    <TableHead>الحالة</TableHead>
-                    <TableHead>الرصيد</TableHead>
-                    <TableHead className="text-end">إجراء</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleClients.map((c) => (
-                    <TableRow key={c.id} className="cursor-pointer" onClick={() => openClientProfile(c)}>
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <Avatar size="sm">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {visibleClients.map((c) => {
+                  const balance = balanceByClient[c.id] ?? 0
+                  const balanceClass = balance > 0 ? 'text-emerald-600' : balance < 0 ? 'text-destructive' : 'text-primary'
+                  const photoUrl = c.photo_path ? getPublicFileUrl(supabase, c.photo_path) : null
+                  return (
+                    <Card
+                      key={c.id}
+                      className="cursor-pointer transition-shadow hover:shadow-md"
+                      onClick={() => openClientProfile(c)}
+                    >
+                      <CardContent className="flex flex-col gap-3 p-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar size="lg">
+                            {photoUrl && <AvatarImage src={photoUrl} alt="" />}
                             <AvatarFallback style={{ background: getAvatarColor(c.id || c.phone_number), color: '#fff' }}>
                               {getInitials(c.first_name, c.last_name)}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-medium text-foreground">{c.first_name} {c.last_name}</span>
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-foreground">{c.first_name} {c.last_name}</div>
+                            <div className="truncate text-xs text-muted-foreground">{c.phone_number}</div>
+                          </div>
                         </div>
-                      </TableCell>
-                      <TableCell>{c.phone_number}</TableCell>
-                      <TableCell>{c.email || '—'}</TableCell>
-                      <TableCell>
-                        {isNewClient(c) ? <Badge variant="secondary">جديد</Badge> : <Badge variant="outline">نشط</Badge>}
-                      </TableCell>
-                      <TableCell className={(balanceByClient[c.id] ?? 0) < 0 ? 'text-destructive' : ''}>
-                        {(balanceByClient[c.id] ?? 0).toLocaleString('ar')}₪
-                      </TableCell>
-                      <TableCell className="text-end">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => { e.stopPropagation(); openClientProfile(c) }}
-                        >
-                          التفاصيل ‹
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className={`font-semibold ${balanceClass}`}>{balance.toLocaleString('ar')}₪</span>
+                          <span className="text-xs text-muted-foreground">لا توجد زيارات بعد</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
             ) : (
               <div className="py-10 text-center text-sm text-muted-foreground">مافي زبائن مطابقين</div>
             )}
