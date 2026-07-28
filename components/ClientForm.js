@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Pencil } from 'lucide-react'
 import { useAcquisitionSources } from '../hooks/useAcquisitionSources'
@@ -20,7 +20,7 @@ function PickField({ label, value, onChange, options, disabled }) {
     <div className="flex flex-col gap-1.5">
       <Label>{label}</Label>
       <Select items={items} value={value || NONE} onValueChange={(v) => onChange(v === NONE ? '' : v)} disabled={disabled}>
-        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+        <SelectTrigger className="w-full"><SelectValue className="truncate" /></SelectTrigger>
         <SelectContent>
           {options.map((o) => (
             <SelectItem key={o.value || NONE} value={o.value || NONE}>{o.label}</SelectItem>
@@ -37,6 +37,22 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
   const { categories, loading: categoriesLoading, reload: reloadCategories } = useCategories()
   const [managerOpen, setManagerOpen] = useState(false)
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
+
+  // If the selected category/source was deleted elsewhere while this form was
+  // open, drop the stale reference instead of showing a raw id or saving it.
+  useEffect(() => {
+    if (categoriesLoading) return
+    if (form.categoryId && !categories.some((c) => c.id === form.categoryId)) {
+      update('categoryId', '')
+    }
+  }, [categories, categoriesLoading])
+
+  useEffect(() => {
+    if (acquisitionSourcesLoading) return
+    if (form.acquisitionSourceId && !acquisitionSources.some((s) => s.id === form.acquisitionSourceId)) {
+      update('acquisitionSourceId', '')
+    }
+  }, [acquisitionSources, acquisitionSourcesLoading])
 
   const tabs = [t('tabs.general'), t('tabs.contact'), t('tabs.financial'), t('tabs.address')]
   const genderOptions = [
