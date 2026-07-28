@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 const DEFAULT_COLOR = '#7C3AED'
+const SEX_OPTIONS = ['all', 'men', 'women']
 
 export default function ServiceFormDialog({ open, onOpenChange, service, categoryId, salonId, onSaved }) {
   const { t } = useTranslation(['services', 'common'])
@@ -14,6 +15,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
   const [duration, setDuration] = useState('30')
   const [price, setPrice] = useState('0')
   const [color, setColor] = useState(DEFAULT_COLOR)
+  const [sex, setSex] = useState('all')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -26,6 +28,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
     setDuration(service ? String(service.duration_minutes) : '30')
     setPrice(service ? String(service.price) : '0')
     setColor(service && service.color ? service.color : DEFAULT_COLOR)
+    setSex(service && service.sex ? service.sex : 'all')
   }, [open, service])
 
   function validate() {
@@ -50,6 +53,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
       duration_minutes: Number(duration),
       price: Number(price),
       color,
+      sex,
     }
 
     const { data, error: saveError } = isEdit
@@ -105,6 +109,18 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
                 onChange={(e) => setColor(e.target.value.toUpperCase())}
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('services:serviceDialog.sexLabel')}</Label>
+            <select
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+              value={sex}
+              onChange={(e) => setSex(e.target.value)}
+            >
+              {SEX_OPTIONS.map((v) => (
+                <option key={v} value={v}>{t(`services:sexOptions.${v}`)}</option>
+              ))}
+            </select>
           </div>
         </div>
 
