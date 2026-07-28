@@ -6,7 +6,7 @@ export const SECTIONS = [
   { key: 'services', active: true, icon: 'services', route: '/services' },
   { key: 'groups', active: false, icon: 'groups' },
   { key: 'marketing', active: false, icon: 'marketing' },
-  { key: 'employees', active: false, icon: 'employees' },
+  { key: 'employees', active: true, icon: 'employees', route: '/employees' },
   { key: 'salary', active: false, icon: 'salary' },
   { key: 'documents', active: false, icon: 'documents' },
   { key: 'cash', active: false, icon: 'cash' },

@@ -1,0 +1,56 @@
+{
+  "breadcrumbEmployees": "الموظفون",
+  "breadcrumbList": "قائمة الموظفين",
+  "listTitle": "الموظفون",
+  "addEmployeeButton": "إضافة موظف",
+  "emptyList": "ما في موظفين مضافين",
+  "roles": {
+    "cosmetologist": "أخصائي/ة تجميل",
+    "hairdresser": "مصفف/ة شعر",
+    "makeup_artist": "خبير/ة مكياج",
+    "manicure_professional": "أخصائي/ة مانيكير",
+    "masseur": "معالج/ة مساج",
+    "pedicure_professional": "أخصائي/ة باديكير",
+    "stylist": "ستايلست",
+    "administrator": "إداري/ة استقبال",
+    "executive": "مدير تنفيذي"
+  },
+  "formDialog": {
+    "addTitle": "إضافة موظف جديد",
+    "editTitle": "تعديل بيانات الموظف",
+    "nameLabel": "اسم الموظف",
+    "roleLabel": "الدور",
+    "nameRequiredError": "اسم الموظف إجباري",
+    "fixErrorsFirst": "في أخطاء بجدول الدوام لازم تصلّحها قبل الحفظ",
+    "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
+  },
+  "scheduleFields": {
+    "patternLabel": "نمط الدوام",
+    "patterns": {
+      "weekly": "أيام الأسبوع",
+      "even_odd": "زوجي - فردي",
+      "cycle": "دورة أيام (X من Y)"
+    },
+    "startsOnLabel": "تاريخ بداية الدوام",
+    "workDaysLabel": "عدد أيام العمل",
+    "cycleLengthLabel": "عدد أيام الدورة الكاملة",
+    "cycleErrors": {
+      "workDaysInvalid": "عدد أيام العمل لازم يكون رقم صحيح أكبر من صفر",
+      "cycleLengthInvalid": "عدد أيام الدورة لازم يكون رقم صحيح أكبر من صفر",
+      "workDaysExceedsCycle": "عدد أيام العمل لازم يكون أقل من عدد أيام الدورة الكاملة"
+    },
+    "evenOdd": {
+      "even": "الأيام الزوجية",
+      "odd": "الأيام الفردية"
+    },
+    "workingHoursLabel": "ساعات يوم العمل"
+  },
+  "pricing": {
+    "hint": "سعر مخصص لدور معيّن على خدمة معيّنة — لو تركت الخانة فاضية، بيُعتمد السعر الأساسي للخدمة.",
+    "serviceColumn": "الخدمة",
+    "basePriceHint": "الأساسي: {{price}} ₪",
+    "saveButton": "حفظ",
+    "saveSuccessMessage": "تم حفظ التسعير بنجاح",
+    "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
+  }
+}
