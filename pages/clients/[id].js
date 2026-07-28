@@ -172,7 +172,7 @@ export default function ClientProfilePage() {
               {duplicateWarning && (
                 <div className="text-sm text-destructive">⚠ {t('common:validation.phoneAlreadyUsed', { name: duplicateWarning })}</div>
               )}
-              <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} />
+              <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} salonId={salonId} />
             </div>
             <div className="flex flex-col gap-4">
               <ClientBalanceSummary balance={computeBalance(ledgerRows)} />

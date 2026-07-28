@@ -1,7 +1,11 @@
+import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
+import { useAcquisitionSources } from '../hooks/useAcquisitionSources'
 import BField from './BField'
+import AcquisitionSourceManagerDialog from './AcquisitionSourceManagerDialog'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 
@@ -24,8 +28,10 @@ function PickField({ label, value, onChange, options, disabled }) {
   )
 }
 
-export default function ClientForm({ form, update, activeTab, setActiveTab, readOnly = false }) {
+export default function ClientForm({ form, update, activeTab, setActiveTab, readOnly = false, salonId }) {
   const { t } = useTranslation('clientForm')
+  const { sources: acquisitionSources, loading: acquisitionSourcesLoading, reload: reloadAcquisitionSources } = useAcquisitionSources()
+  const [managerOpen, setManagerOpen] = useState(false)
 
   const tabs = [t('tabs.general'), t('tabs.contact'), t('tabs.financial'), t('tabs.address')]
   const genderOptions = [
@@ -38,6 +44,10 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
     { value: 'blacklist', label: t('categoryOptions.blacklist') },
     { value: 'family_friends', label: t('categoryOptions.familyFriends') },
     { value: 'vip', label: t('categoryOptions.vip') },
+  ]
+  const acquisitionSourceOptions = [
+    { value: '', label: t('acquisitionSourceUnspecified') },
+    ...acquisitionSources.map((s) => ({ value: s.id, label: s.name })),
   ]
 
   return (
@@ -96,7 +106,24 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
                 <BField label={t('facebookLabel')} value={form.facebook} onChange={(e) => update('facebook', e.target.value)} disabled={readOnly} />
                 <BField label={t('whatsappLabel')} value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} disabled={readOnly} />
                 <BField label={t('instagramLabel')} value={form.instagram} onChange={(e) => update('instagram', e.target.value)} disabled={readOnly} />
-                <BField label={t('acquisitionSourceLabel')} value={form.acquisitionSource} onChange={(e) => update('acquisitionSource', e.target.value)} disabled={readOnly} />
+                <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <PickField
+                        label={t('acquisitionSourceLabel')}
+                        value={form.acquisitionSourceId}
+                        onChange={(v) => update('acquisitionSourceId', v)}
+                        options={acquisitionSourceOptions}
+                        disabled={readOnly}
+                      />
+                    </div>
+                    {!readOnly && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setManagerOpen(true)}>
+                        {t('manageAcquisitionSourcesButton')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
                 <BField label={t('utmCampaignLabel')} value={form.utmCampaign} onChange={(e) => update('utmCampaign', e.target.value)} disabled={readOnly} />
                 <BField label={t('utmSourceLabel')} value={form.utmSource} onChange={(e) => update('utmSource', e.target.value)} disabled={readOnly} />
                 <BField label={t('utmMediumLabel')} value={form.utmMedium} onChange={(e) => update('utmMedium', e.target.value)} disabled={readOnly} />
@@ -130,6 +157,15 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
           </CardContent>
         </Tabs>
       </Card>
+
+      <AcquisitionSourceManagerDialog
+        open={managerOpen}
+        onOpenChange={setManagerOpen}
+        sources={acquisitionSources}
+        loading={acquisitionSourcesLoading}
+        onChanged={reloadAcquisitionSources}
+        salonId={salonId}
+      />
     </div>
   )
 }

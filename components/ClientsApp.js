@@ -282,7 +282,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
             </div>
           )}
 
-          <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} />
+          <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} salonId={salonId} />
 
           <DialogFooter>
             <Button variant="outline" onClick={closeNewClientForm}>{t('common:cancel')}</Button>
@@ -296,6 +296,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
         clientId={quickViewClientId}
         onOpenChange={(open) => { if (!open) setQuickViewClientId(null) }}
         onSaved={loadClients}
+        salonId={salonId}
       />
     </AppShell>
   )

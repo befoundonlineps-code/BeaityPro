@@ -13,7 +13,7 @@ import AvatarUpload from './AvatarUpload'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
-export default function ClientQuickViewDialog({ open, clientId, onOpenChange, onSaved }) {
+export default function ClientQuickViewDialog({ open, clientId, onOpenChange, onSaved, salonId }) {
   const { t } = useTranslation(['clientsList', 'common'])
   const [client, setClient] = useState(null)
   const [form, setForm] = useState(null)
@@ -158,7 +158,7 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
             )}
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
-              <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} readOnly={!editMode} />
+              <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} readOnly={!editMode} salonId={salonId} />
               <div className="flex flex-col gap-4">
                 <ClientBalanceSummary balance={computeBalance(ledgerRows)} />
                 <ClientRelationships clientId={clientId} />

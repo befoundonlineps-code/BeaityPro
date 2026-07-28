@@ -18,7 +18,7 @@ export const emptyForm = {
   firstName: '', lastName: '', gender: '', category: '', phone: '',
   birthday: '',
   email: '', emailOptOut: false, facebook: '', whatsapp: '', instagram: '',
-  acquisitionSource: '', utmCampaign: '', utmSource: '', utmMedium: '',
+  acquisitionSourceId: '', utmCampaign: '', utmSource: '', utmMedium: '',
   cardNumber: '', maxDebt: 0, preferredProfessional: '', companyName: '', positionTitle: '',
   addressIndex: '', addressCity: '', addressStreet: '', addressBuilding: '',
   registrationAddressDiffers: false,

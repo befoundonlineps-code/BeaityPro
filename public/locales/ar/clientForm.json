@@ -32,6 +32,16 @@
   "whatsappLabel": "رقم واتساب",
   "instagramLabel": "انستغرام",
   "acquisitionSourceLabel": "مصدر اكتساب العميل",
+  "acquisitionSourceUnspecified": "غير محدد",
+  "manageAcquisitionSourcesButton": "إدارة المصادر",
+  "acquisitionSourceManager": {
+    "title": "إدارة مصادر اكتساب العملاء",
+    "namePlaceholder": "اسم المصدر الجديد",
+    "addButton": "إضافة",
+    "deleteButton": "حذف",
+    "empty": "ما في مصادر مضافة",
+    "close": "إغلاق"
+  },
   "utmCampaignLabel": "UTM Campaign",
   "utmSourceLabel": "UTM Source",
   "utmMediumLabel": "UTM Medium",
