@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useAcquisitionSources } from '../hooks/useAcquisitionSources'
+import { useCategories } from '../hooks/useCategories'
 import BField from './BField'
 import AcquisitionSourceManagerDialog from './AcquisitionSourceManagerDialog'
+import CategoryManagerDialog from './CategoryManagerDialog'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -31,7 +33,9 @@ function PickField({ label, value, onChange, options, disabled }) {
 export default function ClientForm({ form, update, activeTab, setActiveTab, readOnly = false, salonId }) {
   const { t } = useTranslation('clientForm')
   const { sources: acquisitionSources, loading: acquisitionSourcesLoading, reload: reloadAcquisitionSources } = useAcquisitionSources()
+  const { categories, loading: categoriesLoading, reload: reloadCategories } = useCategories()
   const [managerOpen, setManagerOpen] = useState(false)
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
 
   const tabs = [t('tabs.general'), t('tabs.contact'), t('tabs.financial'), t('tabs.address')]
   const genderOptions = [
@@ -40,10 +44,8 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
     { value: 'female', label: t('genderOptions.female') },
   ]
   const categoryOptions = [
-    { value: '', label: t('categoryOptions.none') },
-    { value: 'blacklist', label: t('categoryOptions.blacklist') },
-    { value: 'family_friends', label: t('categoryOptions.familyFriends') },
-    { value: 'vip', label: t('categoryOptions.vip') },
+    { value: '', label: t('categoryUnspecified') },
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
   ]
   const acquisitionSourceOptions = [
     { value: '', label: t('acquisitionSourceUnspecified') },
@@ -88,7 +90,24 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
                   options={genderOptions}
                   disabled={readOnly}
                 />
-                <PickField label={t('categoryLabel')} value={form.category} onChange={(v) => update('category', v)} options={categoryOptions} disabled={readOnly} />
+                <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <PickField
+                        label={t('categoryLabel')}
+                        value={form.categoryId}
+                        onChange={(v) => update('categoryId', v)}
+                        options={categoryOptions}
+                        disabled={readOnly}
+                      />
+                    </div>
+                    {!readOnly && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setCategoryManagerOpen(true)}>
+                        {t('manageCategoriesButton')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
                 <BField label={t('birthdayLabel')} type="date" value={form.birthday} onChange={(e) => update('birthday', e.target.value)} disabled={readOnly} />
                 <BField label={t('preferredProfessionalLabel')} value={form.preferredProfessional} onChange={(e) => update('preferredProfessional', e.target.value)} disabled={readOnly} />
                 <BField label={t('companyNameLabel')} value={form.companyName} onChange={(e) => update('companyName', e.target.value)} disabled={readOnly} />
@@ -164,6 +183,15 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
         sources={acquisitionSources}
         loading={acquisitionSourcesLoading}
         onChanged={reloadAcquisitionSources}
+        salonId={salonId}
+      />
+
+      <CategoryManagerDialog
+        open={categoryManagerOpen}
+        onOpenChange={setCategoryManagerOpen}
+        categories={categories}
+        loading={categoriesLoading}
+        onChanged={reloadCategories}
         salonId={salonId}
       />
     </div>

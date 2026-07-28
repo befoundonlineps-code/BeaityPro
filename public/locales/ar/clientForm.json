@@ -16,11 +16,15 @@
     "female": "أنثى"
   },
   "categoryLabel": "الفئة",
-  "categoryOptions": {
-    "none": "بدون",
-    "blacklist": "قائمة سوداء",
-    "familyFriends": "عائلة / أصدقاء",
-    "vip": "VIP"
+  "categoryUnspecified": "بدون",
+  "manageCategoriesButton": "إدارة الفئات",
+  "categoryManager": {
+    "title": "إدارة فئات الزبائن",
+    "namePlaceholder": "اسم الفئة الجديدة",
+    "addButton": "إضافة",
+    "deleteButton": "حذف",
+    "empty": "ما في فئات مضافة",
+    "close": "إغلاق"
   },
   "birthdayLabel": "تاريخ الميلاد",
   "preferredProfessionalLabel": "الاختصاصي المفضل",
