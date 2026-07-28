@@ -3,7 +3,7 @@ export const SECTIONS = [
   { key: 'appointments', active: false, icon: 'appointments' },
   { key: 'calls', active: false, icon: 'calls' },
   { key: 'products', active: false, icon: 'products' },
-  { key: 'services', active: false, icon: 'services' },
+  { key: 'services', active: true, icon: 'services', route: '/services' },
   { key: 'groups', active: false, icon: 'groups' },
   { key: 'marketing', active: false, icon: 'marketing' },
   { key: 'employees', active: false, icon: 'employees' },

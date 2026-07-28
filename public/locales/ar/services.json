@@ -1,0 +1,28 @@
+{
+  "breadcrumbServices": "الخدمات",
+  "breadcrumbCatalog": "كتالوج الخدمات",
+  "noBusinessTypesTitle": "ما في نوع نشاط محدد",
+  "noBusinessTypesMessage": "روح على الإعدادات ← نوع النشاط، واختر نوع أو أكتر، وبتظهرلك خدماتهم هون.",
+  "goToSettingsButton": "روح لإعدادات نوع النشاط",
+  "servicesCount": "{{count}} خدمة",
+  "minutesShort": "{{count}} د",
+  "priceShort": "{{price}} ₪",
+  "inactiveBadge": "معطّلة",
+  "emptyCategory": "ما في خدمات بهاي الفئة",
+  "addServiceButton": "إضافة خدمة",
+  "editServiceTitle": "تعديل الخدمة",
+  "activeToggleTitle": "تفعيل / تعطيل الخدمة",
+  "toggleFailedMessage": "تعذّر تغيير حالة الخدمة — جرّب مرة تانية",
+  "serviceDialog": {
+    "addTitle": "إضافة خدمة جديدة",
+    "editTitle": "تعديل الخدمة",
+    "nameLabel": "اسم الخدمة",
+    "durationLabel": "المدة (دقيقة)",
+    "priceLabel": "السعر (₪)",
+    "colorLabel": "اللون",
+    "nameRequiredError": "اسم الخدمة إجباري",
+    "durationInvalidError": "المدة لازم تكون أكبر من صفر",
+    "priceInvalidError": "السعر ما بصير يكون سالب",
+    "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
+  }
+}
