@@ -1,5 +1,5 @@
 export const SECTIONS = [
-  { key: 'clients', active: true, icon: 'clients' },
+  { key: 'clients', active: true, icon: 'clients', route: '/' },
   { key: 'appointments', active: false, icon: 'appointments' },
   { key: 'calls', active: false, icon: 'calls' },
   { key: 'products', active: false, icon: 'products' },
@@ -11,7 +11,7 @@ export const SECTIONS = [
   { key: 'documents', active: false, icon: 'documents' },
   { key: 'cash', active: false, icon: 'cash' },
   { key: 'reports', active: false, icon: 'reports' },
-  { key: 'settings', active: false, icon: 'settings' },
+  { key: 'settings', active: true, icon: 'settings', route: '/settings' },
 ]
 
 export const emptyForm = {
