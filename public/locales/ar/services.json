@@ -13,6 +13,11 @@
   "editServiceTitle": "تعديل الخدمة",
   "activeToggleTitle": "تفعيل / تعطيل الخدمة",
   "toggleFailedMessage": "تعذّر تغيير حالة الخدمة — جرّب مرة تانية",
+  "sexOptions": {
+    "all": "الكل",
+    "men": "رجال",
+    "women": "نساء"
+  },
   "serviceDialog": {
     "addTitle": "إضافة خدمة جديدة",
     "editTitle": "تعديل الخدمة",
@@ -20,6 +25,7 @@
     "durationLabel": "المدة (دقيقة)",
     "priceLabel": "السعر (₪)",
     "colorLabel": "اللون",
+    "sexLabel": "الجنس",
     "nameRequiredError": "اسم الخدمة إجباري",
     "durationInvalidError": "المدة لازم تكون أكبر من صفر",
     "priceInvalidError": "السعر ما بصير يكون سالب",

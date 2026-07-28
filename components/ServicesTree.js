@@ -22,6 +22,7 @@ function ServiceRow({ service, t, onToggleActive, onEdit }) {
         {service.name}
       </span>
       {!service.is_active && <Badge variant="outline">{t('services:inactiveBadge')}</Badge>}
+      <Badge variant="secondary">{t(`services:sexOptions.${service.sex || 'all'}`)}</Badge>
       <span className="shrink-0 text-xs text-muted-foreground">
         {t('services:minutesShort', { count: service.duration_minutes })}
       </span>
@@ -103,18 +104,28 @@ export default function ServicesTree({ salonId }) {
         return (
           <Card key={root.id}>
             <CardContent className="flex flex-col gap-2 p-4">
-              <button
-                type="button"
-                className="flex items-center gap-2 text-start"
-                onClick={() => setCollapsedRoots((prev) => ({ ...prev, [root.id]: rootOpen }))}
-              >
-                {rootOpen ? <ChevronDown className="size-4" /> : <ChevronLeft className="size-4" />}
-                <span className="size-3 shrink-0 rounded-full" style={{ background: root.services[0]?.color || root.children[0]?.services[0]?.color }} />
-                <span className="font-semibold">{root.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {t('services:servicesCount', { count: countServices(root) })}
-                </span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="flex flex-1 items-center gap-2 text-start"
+                  onClick={() => setCollapsedRoots((prev) => ({ ...prev, [root.id]: rootOpen }))}
+                >
+                  {rootOpen ? <ChevronDown className="size-4" /> : <ChevronLeft className="size-4" />}
+                  <span className="size-3 shrink-0 rounded-full" style={{ background: root.services[0]?.color || root.children[0]?.services[0]?.color }} />
+                  <span className="font-semibold">{root.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t('services:servicesCount', { count: countServices(root) })}
+                  </span>
+                </button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDialog({ service: null, categoryId: root.id })}
+                >
+                  <Plus />
+                  {t('services:addServiceButton')}
+                </Button>
+              </div>
 
               {rootOpen && (
                 <div className="flex flex-col gap-2 ps-6">
