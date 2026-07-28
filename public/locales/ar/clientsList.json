@@ -1,0 +1,21 @@
+{
+  "breadcrumbClients": "الزبائن",
+  "breadcrumbList": "القائمة",
+  "listTitle": "قائمة الزبائن",
+  "tabAll": "كل الزبائن ({{count}})",
+  "tabNew": "جدد ({{count}})",
+  "searchPlaceholder": "بحث بالاسم أو رقم الهاتف...",
+  "noVisitsYet": "لا توجد زيارات بعد",
+  "noMatchingClients": "مافي زبائن مطابقين",
+  "tipsTitle": "تلميحات وتنبيهات",
+  "tipTotalClients": "إجمالي الزبائن المسجّلين: {{count}}",
+  "tipNewClients": "زبائن جدد (لسا ما زاروا): {{count}}",
+  "newClientDialogTitle": "زبون جديد",
+  "newClientPhotoHint": "اختياري: أضف صورة للزبون",
+  "salonNotFound": "لا يمكن الحفظ: لم يتم العثور على صالون مرتبط بحسابك",
+  "quickView": {
+    "bookingNotice": "قسم \"حجز موعد\" قيد التطوير — سيُبنى بنفس الأساس الحالي بالمراحل القادمة",
+    "bookAppointment": "حجز موعد",
+    "edit": "تعديل"
+  }
+}

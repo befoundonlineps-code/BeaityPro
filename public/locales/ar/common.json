@@ -1,3 +1,12 @@
 {
-  "appName": "نظام Beauty"
+  "appName": "نظام Beauty",
+  "cancel": "إلغاء",
+  "save": "حفظ",
+  "saving": "جاري الحفظ...",
+  "loading": "جاري التحميل...",
+  "changePhoto": "تغيير الصورة",
+  "validation": {
+    "nameAndPhoneRequired": "الاسم الأول ورقم الهاتف إجباريين",
+    "phoneAlreadyUsed": "رقم الهاتف مستخدم أصلًا لزبون: {{name}}"
+  }
 }

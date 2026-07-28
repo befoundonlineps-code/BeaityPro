@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { buildClientPayload, clientToForm } from '../lib/clientMapping'
 import { getDuplicateWarningMessage } from '../lib/duplicateCheck'
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 export default function ClientQuickViewDialog({ open, clientId, onOpenChange, onSaved }) {
+  const { t } = useTranslation(['clientsList', 'common'])
   const [client, setClient] = useState(null)
   const [form, setForm] = useState(null)
   const [formTab, setFormTab] = useState(0)
@@ -74,11 +76,11 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
   async function save() {
     setError('')
     if (!form.firstName || !form.phone) {
-      setError('الاسم الأول ورقم الهاتف إجباريين')
+      setError(t('common:validation.nameAndPhoneRequired'))
       return
     }
     if (duplicateWarning) {
-      setError(`رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}`)
+      setError(t('common:validation.phoneAlreadyUsed', { name: duplicateWarning }))
       return
     }
     setSaving(true)
@@ -119,7 +121,7 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-4xl max-h-[88vh] overflow-y-auto">
         {!client || !form ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">جاري التحميل...</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">{t('common:loading')}</div>
         ) : (
           <>
             <DialogHeader>
@@ -146,12 +148,12 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
             )}
             {duplicateWarning && (
               <div className="rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-                ⚠ رقم الهاتف مستخدم أصلًا لزبون: {duplicateWarning}
+                ⚠ {t('common:validation.phoneAlreadyUsed', { name: duplicateWarning })}
               </div>
             )}
             {bookingNotice && (
               <div className="rounded-lg bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
-                قسم "حجز موعد" قيد التطوير — سيُبنى بنفس الأساس الحالي بالمراحل القادمة
+                {t('clientsList:quickView.bookingNotice')}
               </div>
             )}
 
@@ -166,13 +168,13 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
             <DialogFooter>
               {editMode ? (
                 <>
-                  <Button variant="outline" onClick={cancelEdit}>إلغاء</Button>
-                  <Button disabled={saving} onClick={save}>{saving ? 'جاري الحفظ...' : 'حفظ'}</Button>
+                  <Button variant="outline" onClick={cancelEdit}>{t('common:cancel')}</Button>
+                  <Button disabled={saving} onClick={save}>{saving ? t('common:saving') : t('common:save')}</Button>
                 </>
               ) : (
                 <>
-                  <Button variant="outline" onClick={() => setBookingNotice(true)}>حجز موعد</Button>
-                  <Button onClick={() => setEditMode(true)}>تعديل</Button>
+                  <Button variant="outline" onClick={() => setBookingNotice(true)}>{t('clientsList:quickView.bookAppointment')}</Button>
+                  <Button onClick={() => setEditMode(true)}>{t('clientsList:quickView.edit')}</Button>
                 </>
               )}
             </DialogFooter>

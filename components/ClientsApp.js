@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
+import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { getDuplicateWarningMessage } from '../lib/duplicateCheck'
 import { isNewClient } from '../lib/clientStatus'
@@ -28,6 +29,7 @@ const TIP_DOT = {
 }
 
 export default function ClientsApp({ userEmail, salonId, onLogout }) {
+  const { t } = useTranslation(['clientsList', 'common'])
   const router = useRouter()
   const [clients, setClients] = useState([])
   const [form, setForm] = useState(emptyForm)
@@ -109,15 +111,15 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   async function saveClient() {
     setError('')
     if (!form.firstName || !form.phone) {
-      setError('الاسم الأول ورقم الهاتف إجباريين')
+      setError(t('common:validation.nameAndPhoneRequired'))
       return
     }
     if (duplicateWarning) {
-      setError(`رقم الهاتف مستخدم أصلًا لزبون: ${duplicateWarning}`)
+      setError(t('common:validation.phoneAlreadyUsed', { name: duplicateWarning }))
       return
     }
     if (!salonId) {
-      setError('لا يمكن الحفظ: لم يتم العثور على صالون مرتبط بحسابك')
+      setError(t('clientsList:salonNotFound'))
       return
     }
     setSaving(true)
@@ -165,15 +167,15 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
     : baseList
 
   const tips = [
-    { tone: 'info', text: `إجمالي الزبائن المسجّلين: ${clients.length}` },
-    { tone: 'warning', text: `زبائن جدد (لسا ما زاروا): ${newClients.length}` },
+    { tone: 'info', text: t('clientsList:tipTotalClients', { count: clients.length }) },
+    { tone: 'warning', text: t('clientsList:tipNewClients', { count: newClients.length }) },
   ]
 
   return (
     <AppShell userEmail={userEmail} onLogout={onLogout}>
       <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
         <div className="text-sm text-muted-foreground">
-          <span className="font-semibold text-primary">الزبائن</span> / <span>القائمة</span>
+          <span className="font-semibold text-primary">{t('clientsList:breadcrumbClients')}</span> / <span>{t('clientsList:breadcrumbList')}</span>
         </div>
       </div>
 
@@ -184,17 +186,17 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
       <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-[1fr_280px]">
         <Card>
           <CardHeader className="gap-3">
-            <CardTitle>قائمة الزبائن</CardTitle>
+            <CardTitle>{t('clientsList:listTitle')}</CardTitle>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Tabs value={listTab} onValueChange={setListTab}>
                 <TabsList>
-                  <TabsTrigger value="all">كل الزبائن ({clients.length})</TabsTrigger>
-                  <TabsTrigger value="new">جدد ({newClients.length})</TabsTrigger>
+                  <TabsTrigger value="all">{t('clientsList:tabAll', { count: clients.length })}</TabsTrigger>
+                  <TabsTrigger value="new">{t('clientsList:tabNew', { count: newClients.length })}</TabsTrigger>
                 </TabsList>
               </Tabs>
               <Input
                 className="max-w-xs"
-                placeholder="بحث بالاسم أو رقم الهاتف..."
+                placeholder={t('clientsList:searchPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -228,7 +230,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className={`font-semibold ${balanceClass}`}>{balance.toLocaleString('ar')}₪</span>
-                          <span className="text-xs text-muted-foreground">لا توجد زيارات بعد</span>
+                          <span className="text-xs text-muted-foreground">{t('clientsList:noVisitsYet')}</span>
                         </div>
                       </CardContent>
                     </Card>
@@ -236,20 +238,20 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
                 })}
               </div>
             ) : (
-              <div className="py-10 text-center text-sm text-muted-foreground">مافي زبائن مطابقين</div>
+              <div className="py-10 text-center text-sm text-muted-foreground">{t('clientsList:noMatchingClients')}</div>
             )}
           </CardContent>
         </Card>
 
         <Card className="h-fit">
           <CardHeader>
-            <CardTitle className="text-sm">تلميحات وتنبيهات</CardTitle>
+            <CardTitle className="text-sm">{t('clientsList:tipsTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2.5">
-            {tips.map((t, i) => (
+            {tips.map((tip, i) => (
               <div key={i} className="flex items-start gap-2 text-[13px] leading-relaxed text-foreground/80">
-                <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${TIP_DOT[t.tone]}`} />
-                <span>{t.text}</span>
+                <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${TIP_DOT[tip.tone]}`} />
+                <span>{tip.text}</span>
               </div>
             ))}
           </CardContent>
@@ -259,7 +261,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
       <Dialog open={formOpen} onOpenChange={(open) => { if (!open) closeNewClientForm() }}>
         <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-4xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>زبون جديد</DialogTitle>
+            <DialogTitle>{t('clientsList:newClientDialogTitle')}</DialogTitle>
           </DialogHeader>
 
           <div className="flex items-center gap-3">
@@ -268,7 +270,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
               fallbackInitials={form.firstName ? getInitials(form.firstName, form.lastName) : null}
               onFileSelected={selectNewClientPhoto}
             />
-            <span className="text-sm text-muted-foreground">اختياري: أضف صورة للزبون</span>
+            <span className="text-sm text-muted-foreground">{t('clientsList:newClientPhotoHint')}</span>
           </div>
 
           {error && (
@@ -276,15 +278,15 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
           )}
           {duplicateWarning && (
             <div className="rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-              ⚠ رقم الهاتف مستخدم أصلًا لزبون: {duplicateWarning}
+              ⚠ {t('common:validation.phoneAlreadyUsed', { name: duplicateWarning })}
             </div>
           )}
 
           <ClientForm form={form} update={update} activeTab={activeTab} setActiveTab={setActiveTab} />
 
           <DialogFooter>
-            <Button variant="outline" onClick={closeNewClientForm}>إلغاء</Button>
-            <Button disabled={saving} onClick={saveClient}>{saving ? 'جاري الحفظ...' : 'حفظ'}</Button>
+            <Button variant="outline" onClick={closeNewClientForm}>{t('common:cancel')}</Button>
+            <Button disabled={saving} onClick={saveClient}>{saving ? t('common:saving') : t('common:save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

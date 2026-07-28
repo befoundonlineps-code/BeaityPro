@@ -6,7 +6,7 @@ import ClientsApp from '../components/ClientsApp'
 export async function getServerSideProps({ locale }) {
   return {
     props: {
-      ...(await serverSideTranslations(locale, ['common', 'login'])),
+      ...(await serverSideTranslations(locale, ['common', 'login', 'clientsList'])),
     },
   }
 }
