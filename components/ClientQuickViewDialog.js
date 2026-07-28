@@ -4,12 +4,12 @@ import { buildClientPayload, clientToForm } from '../lib/clientMapping'
 import { getDuplicateWarningMessage } from '../lib/duplicateCheck'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { computeBalance } from '../lib/ledger'
-import { getPublicFileUrl } from '../lib/clientFiles'
+import { BUCKET, getPublicFileUrl, buildAvatarPath } from '../lib/clientFiles'
 import ClientForm from './ClientForm'
 import ClientBalanceSummary from './ClientBalanceSummary'
 import ClientRelationships from './ClientRelationships'
+import AvatarUpload from './AvatarUpload'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
 export default function ClientQuickViewDialog({ open, clientId, onOpenChange, onSaved }) {
@@ -22,6 +22,7 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
   const [duplicateWarning, setDuplicateWarning] = useState(null)
   const [ledgerRows, setLedgerRows] = useState([])
   const [bookingNotice, setBookingNotice] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   useEffect(() => {
     if (!open || !clientId) return
@@ -93,6 +94,25 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
     onSaved?.()
   }
 
+  async function uploadPhoto(file) {
+    setUploadingPhoto(true)
+    const path = buildAvatarPath(clientId, file.name)
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file)
+    if (uploadError) {
+      setUploadingPhoto(false)
+      setError(uploadError.message)
+      return
+    }
+    const { error: updateError } = await supabase.from('clients').update({ photo_path: path }).eq('id', clientId)
+    setUploadingPhoto(false)
+    if (updateError) {
+      setError(updateError.message)
+      return
+    }
+    await loadClient()
+    onSaved?.()
+  }
+
   const photoUrl = client?.photo_path ? getPublicFileUrl(supabase, client.photo_path) : null
 
   return (
@@ -105,12 +125,13 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
             <DialogHeader>
               <DialogTitle>
                 <div className="flex items-center gap-3">
-                  <Avatar size="lg">
-                    {photoUrl && <AvatarImage src={photoUrl} alt="" />}
-                    <AvatarFallback style={{ background: getAvatarColor(client.id), color: '#fff' }}>
-                      {getInitials(client.first_name, client.last_name)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <AvatarUpload
+                    photoUrl={photoUrl}
+                    fallbackColor={getAvatarColor(client.id)}
+                    fallbackInitials={getInitials(client.first_name, client.last_name)}
+                    uploading={uploadingPhoto}
+                    onFileSelected={uploadPhoto}
+                  />
                   <div>
                     <div className="text-base font-semibold text-foreground">{client.first_name} {client.last_name}</div>
                     <div className="text-sm font-normal text-muted-foreground">{client.phone_number}</div>

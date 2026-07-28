@@ -6,11 +6,12 @@ import { isNewClient } from '../lib/clientStatus'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 import { buildClientPayload } from '../lib/clientMapping'
 import { computeBalance } from '../lib/ledger'
-import { getPublicFileUrl } from '../lib/clientFiles'
+import { BUCKET, getPublicFileUrl, buildAvatarPath } from '../lib/clientFiles'
 import { emptyForm } from '../constants'
 import AppShell from './AppShell'
 import ClientForm from './ClientForm'
 import ClientQuickViewDialog from './ClientQuickViewDialog'
+import AvatarUpload from './AvatarUpload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -38,6 +39,8 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   const [search, setSearch] = useState('')
   const [ledgerRows, setLedgerRows] = useState([])
   const [quickViewClientId, setQuickViewClientId] = useState(null)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState(null)
 
   useEffect(() => {
     loadClients()
@@ -77,11 +80,20 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
     setActiveTab(0)
     setError('')
     setFormOpen(true)
+    setPhotoFile(null)
+    setPhotoPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
   }
 
   function closeNewClientForm() {
     setForm(emptyForm)
     setFormOpen(false)
+    setPhotoFile(null)
+    setPhotoPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return null })
+  }
+
+  function selectNewClientPhoto(file) {
+    setPhotoFile(file)
+    setPhotoPreviewUrl((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(file) })
   }
 
   useEffect(() => {
@@ -114,9 +126,20 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
       .select()
       .single()
 
+    if (error) {
+      setSaving(false)
+      setError(error.message)
+      return
+    }
+
+    if (photoFile) {
+      const path = buildAvatarPath(data.id, photoFile.name)
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, photoFile)
+      if (!uploadError) await supabase.from('clients').update({ photo_path: path }).eq('id', data.id)
+    }
+
     setSaving(false)
-    if (error) setError(error.message)
-    else router.push(`/clients/${data.id}`)
+    router.push(`/clients/${data.id}`)
   }
 
   const balanceByClient = useMemo(() => {
@@ -235,6 +258,15 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
           <DialogHeader>
             <DialogTitle>زبون جديد</DialogTitle>
           </DialogHeader>
+
+          <div className="flex items-center gap-3">
+            <AvatarUpload
+              photoUrl={photoPreviewUrl}
+              fallbackInitials={form.firstName ? getInitials(form.firstName, form.lastName) : null}
+              onFileSelected={selectNewClientPhoto}
+            />
+            <span className="text-sm text-muted-foreground">اختياري: أضف صورة للزبون</span>
+          </div>
 
           {error && (
             <div className="rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div>
