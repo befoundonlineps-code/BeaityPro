@@ -1,6 +1,11 @@
 {
   "breadcrumbServices": "الخدمات",
   "breadcrumbCatalog": "كتالوج الخدمات",
+  "breadcrumbPricing": "التسعير حسب الدور",
+  "tabs": {
+    "catalog": "كتالوج الخدمات",
+    "rolePricing": "التسعير حسب الدور"
+  },
   "noBusinessTypesTitle": "ما في نوع نشاط محدد",
   "noBusinessTypesMessage": "روح على الإعدادات ← نوع النشاط، واختر نوع أو أكتر، وبتظهرلك خدماتهم هون.",
   "goToSettingsButton": "روح لإعدادات نوع النشاط",
