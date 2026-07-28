@@ -14,6 +14,7 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
   const [nameInput, setNameInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [deleteSuccessName, setDeleteSuccessName] = useState(null)
 
   const selectedSource = sources.find((s) => s.id === selectedId) || null
 
@@ -37,7 +38,13 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
 
   function openDeleteConfirm() {
     setError('')
+    setDeleteSuccessName(null)
     setDeleteConfirmOpen(true)
+  }
+
+  function closeDeleteConfirm(next) {
+    setDeleteConfirmOpen(next)
+    if (!next) setDeleteSuccessName(null)
   }
 
   async function handleSaveAdd() {
@@ -68,16 +75,21 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
 
   async function handleConfirmDelete() {
     if (!selectedSource) return
+    const name = selectedSource.name
     setError('')
     setSaving(true)
-    const { error } = await supabase.from('acquisition_sources').delete().eq('id', selectedSource.id)
+    const { data, error } = await supabase.from('acquisition_sources').delete().eq('id', selectedSource.id).select()
     setSaving(false)
     if (error) {
       setError(error.message)
       return
     }
-    setDeleteConfirmOpen(false)
+    if (!data || data.length === 0) {
+      setError(t('clientForm:acquisitionSourceManager.deleteNoRowsMessage'))
+      return
+    }
     setSelectedId(null)
+    setDeleteSuccessName(name)
     onChanged()
   }
 
@@ -170,18 +182,31 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <Dialog open={deleteConfirmOpen} onOpenChange={closeDeleteConfirm}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('clientForm:acquisitionSourceManager.deleteConfirmMessage', { name: selectedSource?.name || '' })}</DialogTitle>
-          </DialogHeader>
-          {error && <div className="text-sm text-destructive">{error}</div>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{t('common:discard')}</Button>
-            <Button variant="destructive" disabled={saving} onClick={handleConfirmDelete}>
-              {saving ? t('common:saving') : t('clientForm:acquisitionSourceManager.confirmDeleteButton')}
-            </Button>
-          </DialogFooter>
+          {deleteSuccessName ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t('clientForm:acquisitionSourceManager.deleteSuccessMessage', { name: deleteSuccessName })}</DialogTitle>
+              </DialogHeader>
+              <DialogFooter>
+                <Button onClick={() => closeDeleteConfirm(false)}>{t('common:done')}</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t('clientForm:acquisitionSourceManager.deleteConfirmMessage', { name: selectedSource?.name || '' })}</DialogTitle>
+              </DialogHeader>
+              {error && <div className="text-sm text-destructive">{error}</div>}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => closeDeleteConfirm(false)}>{t('common:discard')}</Button>
+                <Button variant="destructive" disabled={saving} onClick={handleConfirmDelete}>
+                  {saving ? t('common:saving') : t('clientForm:acquisitionSourceManager.confirmDeleteButton')}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

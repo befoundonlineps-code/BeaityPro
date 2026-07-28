@@ -14,6 +14,7 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
   const [nameInput, setNameInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [deleteSuccessName, setDeleteSuccessName] = useState(null)
 
   const selectedCategory = categories.find((c) => c.id === selectedId) || null
 
@@ -30,7 +31,13 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
 
   function openDeleteConfirm() {
     setError('')
+    setDeleteSuccessName(null)
     setDeleteConfirmOpen(true)
+  }
+
+  function closeDeleteConfirm(next) {
+    setDeleteConfirmOpen(next)
+    if (!next) setDeleteSuccessName(null)
   }
 
   function openEdit() {
@@ -68,16 +75,21 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
 
   async function handleConfirmDelete() {
     if (!selectedCategory) return
+    const name = selectedCategory.name
     setError('')
     setSaving(true)
-    const { error } = await supabase.from('categories').delete().eq('id', selectedCategory.id)
+    const { data, error } = await supabase.from('categories').delete().eq('id', selectedCategory.id).select()
     setSaving(false)
     if (error) {
       setError(error.message)
       return
     }
-    setDeleteConfirmOpen(false)
+    if (!data || data.length === 0) {
+      setError(t('clientForm:categoryManager.deleteNoRowsMessage'))
+      return
+    }
     setSelectedId(null)
+    setDeleteSuccessName(name)
     onChanged()
   }
 
@@ -170,18 +182,31 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <Dialog open={deleteConfirmOpen} onOpenChange={closeDeleteConfirm}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('clientForm:categoryManager.deleteConfirmMessage', { name: selectedCategory?.name || '' })}</DialogTitle>
-          </DialogHeader>
-          {error && <div className="text-sm text-destructive">{error}</div>}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{t('common:discard')}</Button>
-            <Button variant="destructive" disabled={saving} onClick={handleConfirmDelete}>
-              {saving ? t('common:saving') : t('clientForm:categoryManager.confirmDeleteButton')}
-            </Button>
-          </DialogFooter>
+          {deleteSuccessName ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t('clientForm:categoryManager.deleteSuccessMessage', { name: deleteSuccessName })}</DialogTitle>
+              </DialogHeader>
+              <DialogFooter>
+                <Button onClick={() => closeDeleteConfirm(false)}>{t('common:done')}</Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>{t('clientForm:categoryManager.deleteConfirmMessage', { name: selectedCategory?.name || '' })}</DialogTitle>
+              </DialogHeader>
+              {error && <div className="text-sm text-destructive">{error}</div>}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => closeDeleteConfirm(false)}>{t('common:discard')}</Button>
+                <Button variant="destructive" disabled={saving} onClick={handleConfirmDelete}>
+                  {saving ? t('common:saving') : t('clientForm:categoryManager.confirmDeleteButton')}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </>

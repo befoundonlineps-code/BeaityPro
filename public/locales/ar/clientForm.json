@@ -28,7 +28,9 @@
     "editDialogTitle": "تعديل الفئة",
     "namePlaceholder": "اسم الفئة",
     "deleteConfirmMessage": "متأكد إنك بدك تحذف الفئة \"{{name}}\"؟",
-    "confirmDeleteButton": "تأكيد الحذف"
+    "confirmDeleteButton": "تأكيد الحذف",
+    "deleteSuccessMessage": "تم حذف الفئة \"{{name}}\" بنجاح",
+    "deleteNoRowsMessage": "تعذّر التأكد من نجاح الحذف — جرّب مرة تانية"
   },
   "birthdayLabel": "تاريخ الميلاد",
   "preferredProfessionalLabel": "الاختصاصي المفضل",
@@ -52,7 +54,9 @@
     "editDialogTitle": "تعديل المصدر",
     "namePlaceholder": "اسم المصدر",
     "deleteConfirmMessage": "متأكد إنك بدك تحذف المصدر \"{{name}}\"؟",
-    "confirmDeleteButton": "تأكيد الحذف"
+    "confirmDeleteButton": "تأكيد الحذف",
+    "deleteSuccessMessage": "تم حذف المصدر \"{{name}}\" بنجاح",
+    "deleteNoRowsMessage": "تعذّر التأكد من نجاح الحذف — جرّب مرة تانية"
   },
   "utmCampaignLabel": "UTM Campaign",
   "utmSourceLabel": "UTM Source",
