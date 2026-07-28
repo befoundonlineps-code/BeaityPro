@@ -1,0 +1,32 @@
+{
+  "sections": {
+    "clients": "الزبائن",
+    "appointments": "دفتر المواعيد",
+    "calls": "المكالمات",
+    "products": "المنتجات",
+    "services": "الخدمات",
+    "groups": "المجموعات",
+    "marketing": "التسويق",
+    "employees": "الموظفون",
+    "salary": "الرواتب",
+    "documents": "المستندات",
+    "cash": "الصندوق اليومي",
+    "reports": "التقارير",
+    "settings": "الإعدادات"
+  },
+  "soonBadge": "قريبًا",
+  "secondaryItems": {
+    "newClient": "زبون جديد",
+    "editClient": "تعديل زبون",
+    "quickSale": "بيع فوري",
+    "atSalon": "داخل المركز",
+    "addBalance": "اضافة رصيد",
+    "removeBalance": "خصم من الرصيد",
+    "companies": "الشركات"
+  },
+  "pickerTitles": {
+    "edit": "تعديل زبون — اختر الزبون",
+    "credit": "اضافة رصيد — اختر الزبون",
+    "debit": "خصم من الرصيد — اختر الزبون"
+  }
+}

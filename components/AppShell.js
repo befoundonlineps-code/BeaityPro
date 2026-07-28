@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import { useTranslation } from 'next-i18next'
 import Sidebar from './Sidebar'
 import AppHeader from './AppHeader'
 
 export default function AppShell({ userEmail, onLogout, children }) {
+  const { t } = useTranslation('common')
   const [notice, setNotice] = useState(null)
 
   function handleDisabledSection(label) {
-    setNotice(`قسم "${label}" قيد التطوير — سيُبنى بنفس الأساس الحالي بالمراحل القادمة`)
+    setNotice(t('sectionInDevelopmentNotice', { label }))
     setTimeout(() => setNotice(null), 4000)
   }
 

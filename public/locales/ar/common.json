@@ -4,7 +4,12 @@
   "save": "حفظ",
   "saving": "جاري الحفظ...",
   "loading": "جاري التحميل...",
+  "loadingSalonData": "جاري تحميل بيانات الصالون...",
   "changePhoto": "تغيير الصورة",
+  "logout": "تسجيل خروج",
+  "noResults": "ما في نتائج",
+  "inDevelopmentSuffix": "قيد التطوير",
+  "sectionInDevelopmentNotice": "قسم \"{{label}}\" قيد التطوير — سيُبنى بنفس الأساس الحالي بالمراحل القادمة",
   "validation": {
     "nameAndPhoneRequired": "الاسم الأول ورقم الهاتف إجباريين",
     "phoneAlreadyUsed": "رقم الهاتف مستخدم أصلًا لزبون: {{name}}"

@@ -1,3 +1,4 @@
+import { useTranslation } from 'next-i18next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -5,6 +6,7 @@ import { useClientSearch } from '../hooks/useClientSearch'
 import { getAvatarColor, getInitials } from '../lib/avatarColor'
 
 export default function ClientPickerDialog({ open, title, onOpenChange, onPick }) {
+  const { t } = useTranslation(['clientsList', 'common'])
   const { search, setSearch, results } = useClientSearch()
 
   function handleOpenChange(next) {
@@ -20,7 +22,7 @@ export default function ClientPickerDialog({ open, title, onOpenChange, onPick }
         </DialogHeader>
         <div className="flex flex-col gap-2">
           <Input
-            placeholder="ابحث بالاسم أو رقم الهاتف..."
+            placeholder={t('clientsList:searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus
@@ -42,7 +44,7 @@ export default function ClientPickerDialog({ open, title, onOpenChange, onPick }
               </button>
             ))}
             {search.trim().length >= 2 && results.length === 0 && (
-              <div className="px-2 py-3 text-center text-sm text-muted-foreground">ما في نتائج</div>
+              <div className="px-2 py-3 text-center text-sm text-muted-foreground">{t('common:noResults')}</div>
             )}
           </div>
         </div>

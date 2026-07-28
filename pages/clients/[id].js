@@ -25,7 +25,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 export async function getServerSideProps({ locale }) {
   return {
     props: {
-      ...(await serverSideTranslations(locale, ['common', 'login', 'clientForm', 'clientProfile', 'clientsList'])),
+      ...(await serverSideTranslations(locale, ['common', 'login', 'clientForm', 'clientProfile', 'clientsList', 'topBar'])),
     },
   }
 }
