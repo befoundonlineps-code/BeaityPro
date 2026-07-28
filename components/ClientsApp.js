@@ -10,6 +10,7 @@ import { getPublicFileUrl } from '../lib/clientFiles'
 import { emptyForm } from '../constants'
 import AppShell from './AppShell'
 import ClientForm from './ClientForm'
+import ClientQuickViewDialog from './ClientQuickViewDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -36,6 +37,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   const [listTab, setListTab] = useState('all')
   const [search, setSearch] = useState('')
   const [ledgerRows, setLedgerRows] = useState([])
+  const [quickViewClientId, setQuickViewClientId] = useState(null)
 
   useEffect(() => {
     loadClients()
@@ -88,10 +90,6 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
       router.replace('/', undefined, { shallow: true })
     }
   }, [router.query.new])
-
-  function openClientProfile(client) {
-    router.push(`/clients/${client.id}`)
-  }
 
   async function saveClient() {
     setError('')
@@ -187,7 +185,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
                     <Card
                       key={c.id}
                       className="cursor-pointer transition-shadow hover:shadow-md"
-                      onClick={() => openClientProfile(c)}
+                      onClick={() => setQuickViewClientId(c.id)}
                     >
                       <CardContent className="flex flex-col gap-3 p-4">
                         <div className="flex items-center gap-3">
@@ -255,6 +253,13 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ClientQuickViewDialog
+        open={!!quickViewClientId}
+        clientId={quickViewClientId}
+        onOpenChange={(open) => { if (!open) setQuickViewClientId(null) }}
+        onSaved={loadClients}
+      />
     </AppShell>
   )
 }
