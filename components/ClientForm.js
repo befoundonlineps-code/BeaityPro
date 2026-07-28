@@ -139,9 +139,6 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
                   <input type="checkbox" className="accent-primary" checked={form.emailOptOut} onChange={(e) => update('emailOptOut', e.target.checked)} disabled={readOnly} />
                   {t('emailOptOutLabel')}
                 </label>
-                <BField label={t('facebookLabel')} value={form.facebook} onChange={(e) => update('facebook', e.target.value)} disabled={readOnly} />
-                <BField label={t('whatsappLabel')} value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} disabled={readOnly} />
-                <BField label={t('instagramLabel')} value={form.instagram} onChange={(e) => update('instagram', e.target.value)} disabled={readOnly} />
                 <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
@@ -160,6 +157,9 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
                     )}
                   </div>
                 </div>
+                <BField label={t('whatsappLabel')} value={form.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} disabled={readOnly} />
+                <BField label={t('instagramLabel')} value={form.instagram} onChange={(e) => update('instagram', e.target.value)} disabled={readOnly} />
+                <BField label={t('facebookLabel')} value={form.facebook} onChange={(e) => update('facebook', e.target.value)} disabled={readOnly} />
                 <BField label={t('utmCampaignLabel')} value={form.utmCampaign} onChange={(e) => update('utmCampaign', e.target.value)} disabled={readOnly} />
                 <BField label={t('utmSourceLabel')} value={form.utmSource} onChange={(e) => update('utmSource', e.target.value)} disabled={readOnly} />
                 <BField label={t('utmMediumLabel')} value={form.utmMedium} onChange={(e) => update('utmMedium', e.target.value)} disabled={readOnly} />
