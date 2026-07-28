@@ -1,6 +1,6 @@
 export const SECTIONS = [
   { key: 'clients', active: true, icon: 'clients', route: '/' },
-  { key: 'appointments', active: false, icon: 'appointments' },
+  { key: 'appointments', active: true, icon: 'appointments', route: '/appointments' },
   { key: 'calls', active: false, icon: 'calls' },
   { key: 'products', active: false, icon: 'products' },
   { key: 'services', active: true, icon: 'services', route: '/services' },
