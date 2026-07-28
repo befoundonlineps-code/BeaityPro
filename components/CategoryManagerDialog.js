@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
-export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sources, loading, onChanged, salonId }) {
+export default function CategoryManagerDialog({ open, onOpenChange, categories, loading, onChanged, salonId }) {
   const { t } = useTranslation(['clientForm', 'common'])
   const [selectedId, setSelectedId] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -16,7 +16,7 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
   const [error, setError] = useState('')
   const [deleteSuccessName, setDeleteSuccessName] = useState(null)
 
-  const selectedSource = sources.find((s) => s.id === selectedId) || null
+  const selectedCategory = categories.find((c) => c.id === selectedId) || null
 
   function handleMainOpenChange(next) {
     if (!next) setSelectedId(null)
@@ -27,13 +27,6 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
     setNameInput('')
     setError('')
     setAddOpen(true)
-  }
-
-  function openEdit() {
-    if (!selectedSource) return
-    setNameInput(selectedSource.name)
-    setError('')
-    setEditOpen(true)
   }
 
   function openDeleteConfirm() {
@@ -47,11 +40,18 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
     if (!next) setDeleteSuccessName(null)
   }
 
+  function openEdit() {
+    if (!selectedCategory) return
+    setNameInput(selectedCategory.name)
+    setError('')
+    setEditOpen(true)
+  }
+
   async function handleSaveAdd() {
     if (!nameInput.trim()) return
     setError('')
     setSaving(true)
-    const { error } = await supabase.from('acquisition_sources').insert([{ name: nameInput.trim(), salon_id: salonId }])
+    const { error } = await supabase.from('categories').insert([{ name: nameInput.trim(), salon_id: salonId }])
     setSaving(false)
     if (error) setError(error.message)
     else {
@@ -61,10 +61,10 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
   }
 
   async function handleSaveEdit() {
-    if (!nameInput.trim() || !selectedSource) return
+    if (!nameInput.trim() || !selectedCategory) return
     setError('')
     setSaving(true)
-    const { error } = await supabase.from('acquisition_sources').update({ name: nameInput.trim() }).eq('id', selectedSource.id)
+    const { error } = await supabase.from('categories').update({ name: nameInput.trim() }).eq('id', selectedCategory.id)
     setSaving(false)
     if (error) setError(error.message)
     else {
@@ -74,18 +74,18 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
   }
 
   async function handleConfirmDelete() {
-    if (!selectedSource) return
-    const name = selectedSource.name
+    if (!selectedCategory) return
+    const name = selectedCategory.name
     setError('')
     setSaving(true)
-    const { data, error } = await supabase.from('acquisition_sources').delete().eq('id', selectedSource.id).select()
+    const { data, error } = await supabase.from('categories').delete().eq('id', selectedCategory.id).select()
     setSaving(false)
     if (error) {
       setError(error.message)
       return
     }
     if (!data || data.length === 0) {
-      setError(t('clientForm:acquisitionSourceManager.deleteNoRowsMessage'))
+      setError(t('clientForm:categoryManager.deleteNoRowsMessage'))
       return
     }
     setSelectedId(null)
@@ -98,27 +98,27 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
       <Dialog open={open} onOpenChange={handleMainOpenChange}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('clientForm:acquisitionSourceManager.title')}</DialogTitle>
+            <DialogTitle>{t('clientForm:categoryManager.title')}</DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col gap-1.5">
             {loading ? (
               <div className="text-sm text-muted-foreground">{t('common:loading')}</div>
-            ) : sources.length === 0 ? (
-              <div className="text-sm text-muted-foreground">{t('clientForm:acquisitionSourceManager.empty')}</div>
+            ) : categories.length === 0 ? (
+              <div className="text-sm text-muted-foreground">{t('clientForm:categoryManager.empty')}</div>
             ) : (
-              sources.map((s) => (
+              categories.map((c) => (
                 <button
                   type="button"
-                  key={s.id}
-                  onClick={() => setSelectedId(s.id === selectedId ? null : s.id)}
+                  key={c.id}
+                  onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
                   className={
-                    s.id === selectedId
+                    c.id === selectedId
                       ? 'rounded-lg border border-primary bg-primary/10 px-3 py-2 text-start text-sm font-medium text-primary'
                       : 'rounded-lg border border-border px-3 py-2 text-start text-sm hover:bg-muted'
                   }
                 >
-                  {s.name}
+                  {c.name}
                 </button>
               ))
             )}
@@ -126,14 +126,14 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
 
           <DialogFooter className="sm:justify-between">
             <Button type="button" variant="outline" size="sm" onClick={openAdd}>
-              {t('clientForm:acquisitionSourceManager.addSourceButton')}
+              {t('clientForm:categoryManager.addCategoryButton')}
             </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" size="sm" disabled={!selectedId} onClick={openEdit}>
-                {t('clientForm:acquisitionSourceManager.editButton')}
+                {t('clientForm:categoryManager.editButton')}
               </Button>
               <Button type="button" variant="outline" size="sm" disabled={!selectedId} onClick={openDeleteConfirm}>
-                {t('clientForm:acquisitionSourceManager.deleteButton')}
+                {t('clientForm:categoryManager.deleteButton')}
               </Button>
             </div>
           </DialogFooter>
@@ -143,10 +143,10 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('clientForm:acquisitionSourceManager.addDialogTitle')}</DialogTitle>
+            <DialogTitle>{t('clientForm:categoryManager.addDialogTitle')}</DialogTitle>
           </DialogHeader>
           <Input
-            placeholder={t('clientForm:acquisitionSourceManager.namePlaceholder')}
+            placeholder={t('clientForm:categoryManager.namePlaceholder')}
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             autoFocus
@@ -164,10 +164,10 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('clientForm:acquisitionSourceManager.editDialogTitle')}</DialogTitle>
+            <DialogTitle>{t('clientForm:categoryManager.editDialogTitle')}</DialogTitle>
           </DialogHeader>
           <Input
-            placeholder={t('clientForm:acquisitionSourceManager.namePlaceholder')}
+            placeholder={t('clientForm:categoryManager.namePlaceholder')}
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             autoFocus
@@ -187,7 +187,7 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
           {deleteSuccessName ? (
             <>
               <DialogHeader>
-                <DialogTitle>{t('clientForm:acquisitionSourceManager.deleteSuccessMessage', { name: deleteSuccessName })}</DialogTitle>
+                <DialogTitle>{t('clientForm:categoryManager.deleteSuccessMessage', { name: deleteSuccessName })}</DialogTitle>
               </DialogHeader>
               <DialogFooter>
                 <Button onClick={() => closeDeleteConfirm(false)}>{t('common:done')}</Button>
@@ -196,13 +196,13 @@ export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sou
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>{t('clientForm:acquisitionSourceManager.deleteConfirmMessage', { name: selectedSource?.name || '' })}</DialogTitle>
+                <DialogTitle>{t('clientForm:categoryManager.deleteConfirmMessage', { name: selectedCategory?.name || '' })}</DialogTitle>
               </DialogHeader>
               {error && <div className="text-sm text-destructive">{error}</div>}
               <DialogFooter>
                 <Button variant="outline" onClick={() => closeDeleteConfirm(false)}>{t('common:discard')}</Button>
                 <Button variant="destructive" disabled={saving} onClick={handleConfirmDelete}>
-                  {saving ? t('common:saving') : t('clientForm:acquisitionSourceManager.confirmDeleteButton')}
+                  {saving ? t('common:saving') : t('clientForm:categoryManager.confirmDeleteButton')}
                 </Button>
               </DialogFooter>
             </>

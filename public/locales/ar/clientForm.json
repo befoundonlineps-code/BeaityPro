@@ -16,11 +16,21 @@
     "female": "أنثى"
   },
   "categoryLabel": "الفئة",
-  "categoryOptions": {
-    "none": "بدون",
-    "blacklist": "قائمة سوداء",
-    "familyFriends": "عائلة / أصدقاء",
-    "vip": "VIP"
+  "categoryUnspecified": "بدون",
+  "manageCategoriesButton": "إدارة الفئات",
+  "categoryManager": {
+    "title": "إدارة فئات الزبائن",
+    "empty": "ما في فئات مضافة",
+    "addCategoryButton": "إضافة فئة جديدة",
+    "editButton": "تعديل",
+    "deleteButton": "حذف",
+    "addDialogTitle": "إضافة فئة جديدة",
+    "editDialogTitle": "تعديل الفئة",
+    "namePlaceholder": "اسم الفئة",
+    "deleteConfirmMessage": "متأكد إنك بدك تحذف الفئة \"{{name}}\"؟",
+    "confirmDeleteButton": "تأكيد الحذف",
+    "deleteSuccessMessage": "تم حذف الفئة \"{{name}}\" بنجاح",
+    "deleteNoRowsMessage": "تعذّر التأكد من نجاح الحذف — جرّب مرة تانية"
   },
   "birthdayLabel": "تاريخ الميلاد",
   "preferredProfessionalLabel": "الاختصاصي المفضل",
@@ -36,11 +46,17 @@
   "manageAcquisitionSourcesButton": "إدارة المصادر",
   "acquisitionSourceManager": {
     "title": "إدارة مصادر اكتساب العملاء",
-    "namePlaceholder": "اسم المصدر الجديد",
-    "addButton": "إضافة",
-    "deleteButton": "حذف",
     "empty": "ما في مصادر مضافة",
-    "close": "إغلاق"
+    "addSourceButton": "إضافة مصدر جديد",
+    "editButton": "تعديل",
+    "deleteButton": "حذف",
+    "addDialogTitle": "إضافة مصدر جديد",
+    "editDialogTitle": "تعديل المصدر",
+    "namePlaceholder": "اسم المصدر",
+    "deleteConfirmMessage": "متأكد إنك بدك تحذف المصدر \"{{name}}\"؟",
+    "confirmDeleteButton": "تأكيد الحذف",
+    "deleteSuccessMessage": "تم حذف المصدر \"{{name}}\" بنجاح",
+    "deleteNoRowsMessage": "تعذّر التأكد من نجاح الحذف — جرّب مرة تانية"
   },
   "utmCampaignLabel": "UTM Campaign",
   "utmSourceLabel": "UTM Source",

@@ -1,6 +1,8 @@
 {
   "appName": "نظام Beauty",
   "cancel": "إلغاء",
+  "discard": "تجاهل",
+  "done": "تم",
   "save": "حفظ",
   "saving": "جاري الحفظ...",
   "loading": "جاري التحميل...",

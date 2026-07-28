@@ -15,7 +15,7 @@ export const SECTIONS = [
 ]
 
 export const emptyForm = {
-  firstName: '', lastName: '', gender: '', category: '', phone: '',
+  firstName: '', lastName: '', gender: '', categoryId: '', phone: '',
   birthday: '',
   email: '', emailOptOut: false, facebook: '', whatsapp: '', instagram: '',
   acquisitionSourceId: '', utmCampaign: '', utmSource: '', utmMedium: '',
