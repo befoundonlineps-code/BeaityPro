@@ -130,6 +130,7 @@ export default function ClientQuickViewDialog({ open, clientId, onOpenChange, on
                     fallbackColor={getAvatarColor(client.id)}
                     fallbackInitials={getInitials(client.first_name, client.last_name)}
                     uploading={uploadingPhoto}
+                    disabled={!editMode}
                     onFileSelected={uploadPhoto}
                   />
                   <div>

@@ -2,8 +2,9 @@ import { useRef } from 'react'
 import { Camera, User } from 'lucide-react'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 
-export default function AvatarUpload({ photoUrl, fallbackColor, fallbackInitials, uploading, onFileSelected }) {
+export default function AvatarUpload({ photoUrl, fallbackColor, fallbackInitials, uploading, disabled, onFileSelected }) {
   const inputRef = useRef(null)
+  const isDisabled = uploading || disabled
 
   function handleChange(e) {
     const file = e.target.files?.[0]
@@ -21,7 +22,7 @@ export default function AvatarUpload({ photoUrl, fallbackColor, fallbackInitials
       </Avatar>
       <button
         type="button"
-        disabled={uploading}
+        disabled={isDisabled}
         onClick={() => inputRef.current?.click()}
         title="تغيير الصورة"
         className="absolute end-0 bottom-0 z-10 flex size-6 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-background disabled:opacity-50"
