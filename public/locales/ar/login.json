@@ -1,0 +1,8 @@
+{
+  "heading": "تسجيل الدخول",
+  "emailLabel": "البريد الإلكتروني",
+  "passwordLabel": "كلمة السر",
+  "submitButton": "تسجيل الدخول",
+  "submitButtonLoading": "جاري تسجيل الدخول...",
+  "invalidCredentials": "البريد الإلكتروني أو كلمة السر غير صحيحة"
+}

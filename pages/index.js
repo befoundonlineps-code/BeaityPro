@@ -1,6 +1,15 @@
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import { useAuthSession } from '../hooks/useAuthSession'
 import LoginScreen from '../components/LoginScreen'
 import ClientsApp from '../components/ClientsApp'
+
+export async function getServerSideProps({ locale }) {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale, ['common', 'login'])),
+    },
+  }
+}
 
 export default function Home() {
   const { session, salonId, loading, logout } = useAuthSession()

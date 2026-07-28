@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import { useAuthSession } from '../../hooks/useAuthSession'
 import { supabase } from '../../lib/supabaseClient'
 import { buildClientPayload, clientToForm } from '../../lib/clientMapping'
@@ -23,6 +24,14 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 const PAGE_LOADING = (
   <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">جاري التحميل...</div>
 )
+
+export async function getServerSideProps({ locale }) {
+  return {
+    props: {
+      ...(await serverSideTranslations(locale, ['common', 'login'])),
+    },
+  }
+}
 
 export default function ClientProfilePage() {
   const router = useRouter()
