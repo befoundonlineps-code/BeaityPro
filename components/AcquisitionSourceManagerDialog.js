@@ -7,71 +7,183 @@ import { Button } from '@/components/ui/button'
 
 export default function AcquisitionSourceManagerDialog({ open, onOpenChange, sources, loading, onChanged, salonId }) {
   const { t } = useTranslation(['clientForm', 'common'])
-  const [name, setName] = useState('')
+  const [selectedId, setSelectedId] = useState(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [nameInput, setNameInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleAdd() {
-    if (!name.trim()) return
+  const selectedSource = sources.find((s) => s.id === selectedId) || null
+
+  function handleMainOpenChange(next) {
+    if (!next) setSelectedId(null)
+    onOpenChange(next)
+  }
+
+  function openAdd() {
+    setNameInput('')
+    setError('')
+    setAddOpen(true)
+  }
+
+  function openEdit() {
+    if (!selectedSource) return
+    setNameInput(selectedSource.name)
+    setError('')
+    setEditOpen(true)
+  }
+
+  function openDeleteConfirm() {
+    setError('')
+    setDeleteConfirmOpen(true)
+  }
+
+  async function handleSaveAdd() {
+    if (!nameInput.trim()) return
     setError('')
     setSaving(true)
-    const { error } = await supabase.from('acquisition_sources').insert([{ name: name.trim(), salon_id: salonId }])
+    const { error } = await supabase.from('acquisition_sources').insert([{ name: nameInput.trim(), salon_id: salonId }])
     setSaving(false)
     if (error) setError(error.message)
     else {
-      setName('')
+      setAddOpen(false)
       onChanged()
     }
   }
 
-  async function handleDelete(id) {
-    await supabase.from('acquisition_sources').delete().eq('id', id)
+  async function handleSaveEdit() {
+    if (!nameInput.trim() || !selectedSource) return
+    setError('')
+    setSaving(true)
+    const { error } = await supabase.from('acquisition_sources').update({ name: nameInput.trim() }).eq('id', selectedSource.id)
+    setSaving(false)
+    if (error) setError(error.message)
+    else {
+      setEditOpen(false)
+      onChanged()
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!selectedSource) return
+    setError('')
+    setSaving(true)
+    const { error } = await supabase.from('acquisition_sources').delete().eq('id', selectedSource.id)
+    setSaving(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setDeleteConfirmOpen(false)
+    setSelectedId(null)
     onChanged()
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('clientForm:acquisitionSourceManager.title')}</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleMainOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('clientForm:acquisitionSourceManager.title')}</DialogTitle>
+          </DialogHeader>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder={t('clientForm:acquisitionSourceManager.namePlaceholder')}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Button size="sm" disabled={saving || !name.trim()} onClick={handleAdd}>
-              {t('clientForm:acquisitionSourceManager.addButton')}
-            </Button>
+          <div className="flex flex-col gap-1.5">
+            {loading ? (
+              <div className="text-sm text-muted-foreground">{t('common:loading')}</div>
+            ) : sources.length === 0 ? (
+              <div className="text-sm text-muted-foreground">{t('clientForm:acquisitionSourceManager.empty')}</div>
+            ) : (
+              sources.map((s) => (
+                <button
+                  type="button"
+                  key={s.id}
+                  onClick={() => setSelectedId(s.id === selectedId ? null : s.id)}
+                  className={
+                    s.id === selectedId
+                      ? 'rounded-lg border border-primary bg-primary/10 px-3 py-2 text-start text-sm font-medium text-primary'
+                      : 'rounded-lg border border-border px-3 py-2 text-start text-sm hover:bg-muted'
+                  }
+                >
+                  {s.name}
+                </button>
+              ))
+            )}
           </div>
 
-          {error && <div className="text-sm text-destructive">{error}</div>}
-
-          {loading ? (
-            <div className="text-sm text-muted-foreground">{t('common:loading')}</div>
-          ) : sources.length === 0 ? (
-            <div className="text-sm text-muted-foreground">{t('clientForm:acquisitionSourceManager.empty')}</div>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {sources.map((s) => (
-                <div key={s.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                  <span className="text-sm">{s.name}</span>
-                  <button type="button" className="text-xs text-destructive hover:underline" onClick={() => handleDelete(s.id)}>
-                    {t('clientForm:acquisitionSourceManager.deleteButton')}
-                  </button>
-                </div>
-              ))}
+          <DialogFooter className="sm:justify-between">
+            <Button type="button" variant="outline" size="sm" onClick={openAdd}>
+              {t('clientForm:acquisitionSourceManager.addSourceButton')}
+            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={!selectedId} onClick={openEdit}>
+                {t('clientForm:acquisitionSourceManager.editButton')}
+              </Button>
+              <Button type="button" variant="outline" size="sm" disabled={!selectedId} onClick={openDeleteConfirm}>
+                {t('clientForm:acquisitionSourceManager.deleteButton')}
+              </Button>
             </div>
-          )}
-        </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('clientForm:acquisitionSourceManager.close')}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('clientForm:acquisitionSourceManager.addDialogTitle')}</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder={t('clientForm:acquisitionSourceManager.namePlaceholder')}
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            autoFocus
+          />
+          {error && <div className="text-sm text-destructive">{error}</div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>{t('common:discard')}</Button>
+            <Button disabled={saving || !nameInput.trim()} onClick={handleSaveAdd}>
+              {saving ? t('common:saving') : t('common:save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('clientForm:acquisitionSourceManager.editDialogTitle')}</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder={t('clientForm:acquisitionSourceManager.namePlaceholder')}
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            autoFocus
+          />
+          {error && <div className="text-sm text-destructive">{error}</div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t('common:discard')}</Button>
+            <Button disabled={saving || !nameInput.trim()} onClick={handleSaveEdit}>
+              {saving ? t('common:saving') : t('common:save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('clientForm:acquisitionSourceManager.deleteConfirmMessage', { name: selectedSource?.name || '' })}</DialogTitle>
+          </DialogHeader>
+          {error && <div className="text-sm text-destructive">{error}</div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{t('common:discard')}</Button>
+            <Button variant="destructive" disabled={saving} onClick={handleConfirmDelete}>
+              {saving ? t('common:saving') : t('clientForm:acquisitionSourceManager.confirmDeleteButton')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

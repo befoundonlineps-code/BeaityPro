@@ -138,8 +138,8 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
                       />
                     </div>
                     {!readOnly && (
-                      <Button type="button" variant="outline" size="sm" onClick={() => setManagerOpen(true)}>
-                        {t('manageAcquisitionSourcesButton')}
+                      <Button type="button" variant="outline" size="icon-sm" title={t('manageAcquisitionSourcesButton')} onClick={() => setManagerOpen(true)}>
+                        <Pencil />
                       </Button>
                     )}
                   </div>

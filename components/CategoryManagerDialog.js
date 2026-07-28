@@ -28,6 +28,11 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
     setAddOpen(true)
   }
 
+  function openDeleteConfirm() {
+    setError('')
+    setDeleteConfirmOpen(true)
+  }
+
   function openEdit() {
     if (!selectedCategory) return
     setNameInput(selectedCategory.name)
@@ -63,7 +68,14 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
 
   async function handleConfirmDelete() {
     if (!selectedCategory) return
-    await supabase.from('categories').delete().eq('id', selectedCategory.id)
+    setError('')
+    setSaving(true)
+    const { error } = await supabase.from('categories').delete().eq('id', selectedCategory.id)
+    setSaving(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
     setDeleteConfirmOpen(false)
     setSelectedId(null)
     onChanged()
@@ -108,7 +120,7 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
               <Button type="button" variant="outline" size="sm" disabled={!selectedId} onClick={openEdit}>
                 {t('clientForm:categoryManager.editButton')}
               </Button>
-              <Button type="button" variant="outline" size="sm" disabled={!selectedId} onClick={() => setDeleteConfirmOpen(true)}>
+              <Button type="button" variant="outline" size="sm" disabled={!selectedId} onClick={openDeleteConfirm}>
                 {t('clientForm:categoryManager.deleteButton')}
               </Button>
             </div>
@@ -163,9 +175,12 @@ export default function CategoryManagerDialog({ open, onOpenChange, categories, 
           <DialogHeader>
             <DialogTitle>{t('clientForm:categoryManager.deleteConfirmMessage', { name: selectedCategory?.name || '' })}</DialogTitle>
           </DialogHeader>
+          {error && <div className="text-sm text-destructive">{error}</div>}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>{t('common:discard')}</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>{t('clientForm:categoryManager.confirmDeleteButton')}</Button>
+            <Button variant="destructive" disabled={saving} onClick={handleConfirmDelete}>
+              {saving ? t('common:saving') : t('clientForm:categoryManager.confirmDeleteButton')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

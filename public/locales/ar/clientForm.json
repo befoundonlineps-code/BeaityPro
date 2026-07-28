@@ -44,11 +44,15 @@
   "manageAcquisitionSourcesButton": "إدارة المصادر",
   "acquisitionSourceManager": {
     "title": "إدارة مصادر اكتساب العملاء",
-    "namePlaceholder": "اسم المصدر الجديد",
-    "addButton": "إضافة",
-    "deleteButton": "حذف",
     "empty": "ما في مصادر مضافة",
-    "close": "إغلاق"
+    "addSourceButton": "إضافة مصدر جديد",
+    "editButton": "تعديل",
+    "deleteButton": "حذف",
+    "addDialogTitle": "إضافة مصدر جديد",
+    "editDialogTitle": "تعديل المصدر",
+    "namePlaceholder": "اسم المصدر",
+    "deleteConfirmMessage": "متأكد إنك بدك تحذف المصدر \"{{name}}\"؟",
+    "confirmDeleteButton": "تأكيد الحذف"
   },
   "utmCampaignLabel": "UTM Campaign",
   "utmSourceLabel": "UTM Source",
