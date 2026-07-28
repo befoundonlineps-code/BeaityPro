@@ -20,11 +20,15 @@
   "manageCategoriesButton": "إدارة الفئات",
   "categoryManager": {
     "title": "إدارة فئات الزبائن",
-    "namePlaceholder": "اسم الفئة الجديدة",
-    "addButton": "إضافة",
-    "deleteButton": "حذف",
     "empty": "ما في فئات مضافة",
-    "close": "إغلاق"
+    "addCategoryButton": "إضافة فئة جديدة",
+    "editButton": "تعديل",
+    "deleteButton": "حذف",
+    "addDialogTitle": "إضافة فئة جديدة",
+    "editDialogTitle": "تعديل الفئة",
+    "namePlaceholder": "اسم الفئة",
+    "deleteConfirmMessage": "متأكد إنك بدك تحذف الفئة \"{{name}}\"؟",
+    "confirmDeleteButton": "تأكيد الحذف"
   },
   "birthdayLabel": "تاريخ الميلاد",
   "preferredProfessionalLabel": "الاختصاصي المفضل",

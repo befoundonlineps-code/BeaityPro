@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
+import { Pencil } from 'lucide-react'
 import { useAcquisitionSources } from '../hooks/useAcquisitionSources'
 import { useCategories } from '../hooks/useCategories'
 import BField from './BField'
@@ -102,8 +103,8 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
                       />
                     </div>
                     {!readOnly && (
-                      <Button type="button" variant="outline" size="sm" onClick={() => setCategoryManagerOpen(true)}>
-                        {t('manageCategoriesButton')}
+                      <Button type="button" variant="outline" size="icon-sm" title={t('manageCategoriesButton')} onClick={() => setCategoryManagerOpen(true)}>
+                        <Pencil />
                       </Button>
                     )}
                   </div>
