@@ -152,7 +152,6 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
         <div className="text-sm text-muted-foreground">
           <span className="font-semibold text-primary">الزبائن</span> / <span>القائمة</span>
         </div>
-        <Button size="sm" onClick={openNewClientForm}>+ زبون جديد</Button>
       </div>
 
       {error && !formOpen && (
