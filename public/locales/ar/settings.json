@@ -1,0 +1,22 @@
+{
+  "workingHours": {
+    "breadcrumbSettings": "الإعدادات",
+    "breadcrumbWorkingHours": "ساعات العمل",
+    "cardTitle": "ساعات عمل الصالون الأسبوعية",
+    "fromLabel": "من",
+    "toLabel": "إلى",
+    "days": {
+      "0": "الأحد",
+      "1": "الاثنين",
+      "2": "الثلاثاء",
+      "3": "الأربعاء",
+      "4": "الخميس",
+      "5": "الجمعة",
+      "6": "السبت"
+    },
+    "closeBeforeOpenError": "وقت الإغلاق لازم يكون بعد وقت الفتح",
+    "saveButton": "حفظ",
+    "saveSuccessMessage": "تم حفظ ساعات العمل بنجاح",
+    "loadErrorMessage": "تعذّر تحميل ساعات العمل"
+  }
+}

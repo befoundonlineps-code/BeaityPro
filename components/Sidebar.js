@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { SECTIONS } from '../constants'
 import Icon from './Icon'
@@ -8,6 +9,7 @@ const disabledButtonClass = 'flex shrink-0 cursor-not-allowed items-center gap-2
 
 export default function Sidebar({ onDisabledClick }) {
   const { t } = useTranslation(['topBar', 'common'])
+  const router = useRouter()
 
   return (
     <div className="flex flex-col">
@@ -18,7 +20,7 @@ export default function Sidebar({ onDisabledClick }) {
             <button
               key={s.key}
               title={s.active ? label : `${label} — ${t('common:inDevelopmentSuffix')}`}
-              onClick={s.active ? undefined : () => onDisabledClick(label)}
+              onClick={s.active ? (s.route ? () => router.push(s.route) : undefined) : () => onDisabledClick(label)}
               className={s.active ? activeButtonClass : disabledButtonClass}
             >
               <Icon name={s.icon} size={18} />
@@ -27,7 +29,7 @@ export default function Sidebar({ onDisabledClick }) {
           )
         })}
       </div>
-      <ClientsSecondaryBar onDisabledClick={onDisabledClick} />
+      {router.pathname === '/' && <ClientsSecondaryBar onDisabledClick={onDisabledClick} />}
     </div>
   )
 }
