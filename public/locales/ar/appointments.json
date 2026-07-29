@@ -19,6 +19,7 @@
     "serviceLabel": "الخدمة",
     "selectPlaceholder": "اختر...",
     "minutesShort": "د",
+    "noServicesForRoleHint": "دور هاد الموظف مش مرتبط بأي فئة خدمات",
     "waitingToggleLabel": "إضافة لقائمة الانتظار (بدون وقت محدد)",
     "employeeLabel": "الموظف",
     "dateLabel": "التاريخ",
