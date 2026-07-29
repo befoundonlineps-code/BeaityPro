@@ -12,6 +12,20 @@
   "goToEmployeesButton": "روح للموظفين",
   "outsideScheduleHint": "برا دوام الموظف",
   "pastSlotHint": "وقت فات",
+  "pendingBlockHint": "حجز مبدئي — بانتظار التأكيد",
+  "pendingDialog": {
+    "title": "حجز مبدئي",
+    "banner": "هاد الحجز لسّه مش نهائي — محجوز برا دوام الموظف وبانتظار قرارك.",
+    "clientLabel": "الزبون",
+    "serviceLabel": "الخدمة",
+    "employeeLabel": "الموظف",
+    "timeLabel": "الوقت",
+    "confirmEffect": "التأكيد رح يمدّد دوام {{name}} بهذا اليوم بس، من {{from}} لـ{{to}} (متضمّنة 10 دقايق تحضير). دوامه المتكرر ما بيتغير.",
+    "confirmButton": "تأكيد",
+    "cancelButton": "إلغاء",
+    "notPendingError": "هاد الحجز ما عاد بحالة «مبدئي» — يمكن انأكّد أو انلغى من جهاز تاني",
+    "noRowsError": "تعذّر التأكد من نجاح العملية — جرّب مرة تانية"
+  },
   "resourceColumn": {
     "capacityLabel": "مورد · سعة {{count}}",
     "bookedBlock": "مواعيد تم حجزها",
@@ -48,7 +62,9 @@
     "resourcesRemainingText": "متبقي {{free}} من {{total}} من موارد هذي الخدمة بهاد الوقت",
     "allResourcesBusyError": "كل الموارد المرتبطة بهذي الخدمة محجوزة بهذا الوقت، جرّب وقتًا آخر",
     "conflictError": "هاد الموظف محجوز بهاد الوقت — اختر وقت تاني",
-    "outsideScheduleError": "هاد الوقت برا دوام الموظف — اختر وقت تاني",
+    "outsideScheduleWarning": "هذا خارج دوام {{name}}. احجزيه مبدئيًا وأكّدي لاحقًا؟",
+    "bookProvisionallyButton": "احجز مبدئيًا",
+    "backButton": "تراجع",
     "pastTimeError": "هاد الوقت فات — اختر وقت جاي",
     "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
   }

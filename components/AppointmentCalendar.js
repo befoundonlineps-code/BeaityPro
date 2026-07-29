@@ -7,6 +7,7 @@ import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
 import { useAppointments } from '../hooks/useAppointments'
 import { useEmployeeSchedules } from '../hooks/useEmployeeSchedules'
+import { useScheduleExceptions } from '../hooks/useScheduleExceptions'
 import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
 import { useResources } from '../hooks/useResources'
 import {
@@ -20,9 +21,10 @@ import {
   resolveBookingStart,
   SLOT_MINUTES,
 } from '../lib/appointmentGrid'
-import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
+import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvailability'
 import { clusterAppointments } from '../lib/resourceAllocation'
 import AppointmentFormDialog from './AppointmentFormDialog'
+import AppointmentActionsDialog from './AppointmentActionsDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -54,12 +56,14 @@ export default function AppointmentCalendar({ salonId }) {
   const [now, setNow] = useState(new Date())
   const [dialogState, setDialogState] = useState(null) // null closed, {} blank, {employeeId,startTime} prefilled
   const [resourceDetail, setResourceDetail] = useState(null) // { resource, cluster }
+  const [pendingDetail, setPendingDetail] = useState(null) // the appointment awaiting approval
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
   const { clients, loading: clientsLoading } = useClientsLookup()
   const { dayAppointments, waitingAppointments, loading: apptsLoading, reload } = useAppointments(dateISO)
   const { schedulesByEmployee, loading: schedulesLoading } = useEmployeeSchedules()
+  const { exceptionsByEmployee, loading: exceptionsLoading, reload: reloadExceptions } = useScheduleExceptions()
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
   const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
 
@@ -68,7 +72,7 @@ export default function AppointmentCalendar({ salonId }) {
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || roleTypesLoading || resourcesLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || exceptionsLoading || roleTypesLoading || resourcesLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
@@ -77,14 +81,14 @@ export default function AppointmentCalendar({ salonId }) {
   const servicesById = useMemo(() => Object.fromEntries(services.map((s) => [s.id, s])), [services])
 
   const displayedDate = useMemo(() => new Date(`${dateISO}T00:00:00`), [dateISO])
-  const windowByEmployee = useMemo(() => {
+  const windowsByEmployee = useMemo(() => {
     const map = {}
     for (const emp of employees) {
       const entry = schedulesByEmployee[emp.id]
-      map[emp.id] = availableWindowForDate(entry?.schedule, entry?.slots, displayedDate)
+      map[emp.id] = availableWindowsForDate(entry?.schedule, entry?.slots, exceptionsByEmployee[emp.id], displayedDate)
     }
     return map
-  }, [employees, schedulesByEmployee, displayedDate])
+  }, [employees, schedulesByEmployee, exceptionsByEmployee, displayedDate])
 
   const isToday = dateISO === todayISO()
   const nowMinutes = isToday ? minutesFromGridStart(now) : -1
@@ -221,10 +225,14 @@ export default function AppointmentCalendar({ salonId }) {
             </div>
             <div className="relative" style={{ height: gridHeight }}>
               {slots.map((s) => {
-                const window = windowByEmployee[emp.id]
                 const cellEndLabel = minutesToLabel(s.minutesFromStart + SLOT_MINUTES)
                 const past = isSlotPast(slotStartTime(dateISO, s.minutesFromStart + SLOT_MINUTES), now)
-                const available = !past && isWithinWindow(window, s.label, cellEndLabel)
+                // Outside the shift is no longer a wall: the slot stays
+                // shaded so it still reads as unusual, but it opens the
+                // dialog, which is where the provisional-booking question
+                // gets asked. Time that has already passed stays closed —
+                // that one is not a judgement call.
+                const withinShift = isWithinAnyWindow(windowsByEmployee[emp.id], s.label, cellEndLabel)
                 const style = { top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }
                 // Repeat the hour inside every column so the eye can track time
                 // while scanning sideways, without going back to the left rail.
@@ -234,13 +242,13 @@ export default function AppointmentCalendar({ salonId }) {
                   </span>
                 ) : null
 
-                if (!available) {
+                if (past) {
                   return (
                     <div
                       key={s.minutesFromStart}
                       className="absolute inset-x-0 border-b border-border/50 bg-muted/60"
                       style={style}
-                      title={past ? t('appointments:pastSlotHint') : t('appointments:outsideScheduleHint')}
+                      title={t('appointments:pastSlotHint')}
                     >
                       {hourMark}
                     </div>
@@ -250,8 +258,13 @@ export default function AppointmentCalendar({ salonId }) {
                   <button
                     key={s.minutesFromStart}
                     type="button"
-                    className="absolute inset-x-0 border-b border-border/50 hover:bg-muted/40"
+                    className={
+                      withinShift
+                        ? 'absolute inset-x-0 border-b border-border/50 hover:bg-muted/40'
+                        : 'absolute inset-x-0 border-b border-border/50 bg-muted/60 hover:bg-muted/80'
+                    }
                     style={style}
+                    title={withinShift ? undefined : t('appointments:outsideScheduleHint')}
                     onClick={() => handleCellClick(emp.id, s.minutesFromStart)}
                   >
                     {hourMark}
@@ -268,16 +281,38 @@ export default function AppointmentCalendar({ salonId }) {
                 const service = servicesById[a.service_id]
                 const top = (clampedStart / SLOT_MINUTES) * ROW_HEIGHT
                 const height = ((clampedEnd - clampedStart) / SLOT_MINUTES) * ROW_HEIGHT
+                // A provisional booking keeps its service colour — it is a
+                // real hold on the slot — but wears a dashed edge and a
+                // hatch so it never reads as settled. It is also the only
+                // block you can click, since it is the only one still
+                // waiting on a decision.
+                const pending = a.status === 'pending_approval'
+                const Tag = pending ? 'button' : 'div'
                 return (
-                  <div
+                  <Tag
                     key={a.id}
-                    className="pointer-events-none absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-[10px] leading-tight text-white"
-                    style={{ top, height, background: service?.color || 'var(--color-muted-foreground)' }}
-                    title={`${clientName(clientsById, a.client_id)} — ${service?.name || ''}`}
+                    type={pending ? 'button' : undefined}
+                    className={`absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
+                      pending ? 'border-2 border-dashed border-white/90 hover:brightness-110' : 'pointer-events-none'
+                    }`}
+                    style={{
+                      top,
+                      height,
+                      backgroundColor: service?.color || 'var(--color-muted-foreground)',
+                      backgroundImage: pending
+                        ? 'repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0 4px, transparent 4px 10px)'
+                        : undefined,
+                    }}
+                    title={
+                      pending
+                        ? `${t('appointments:pendingBlockHint')} — ${clientName(clientsById, a.client_id)}`
+                        : `${clientName(clientsById, a.client_id)} — ${service?.name || ''}`
+                    }
+                    onClick={pending ? () => setPendingDetail(a) : undefined}
                   >
                     <div className="truncate font-medium">{clientName(clientsById, a.client_id)}</div>
                     <div className="truncate opacity-90">{service?.name}</div>
-                  </div>
+                  </Tag>
                 )
               })}
 
@@ -382,6 +417,18 @@ export default function AppointmentCalendar({ salonId }) {
         servicesById={servicesById}
       />
 
+      <AppointmentActionsDialog
+        open={!!pendingDetail}
+        onOpenChange={(open) => { if (!open) setPendingDetail(null) }}
+        appointment={pendingDetail}
+        employee={pendingDetail ? employeesById[pendingDetail.employee_id] : null}
+        clientName={pendingDetail ? clientName(clientsById, pendingDetail.client_id) : ''}
+        serviceName={pendingDetail ? servicesById[pendingDetail.service_id]?.name : ''}
+        // Confirming writes a shift exception too, so the day's windows have
+        // to be reloaded alongside the bookings.
+        onDone={() => { reload(); reloadExceptions() }}
+      />
+
       <AppointmentFormDialog
         open={!!dialogState}
         onOpenChange={(open) => { if (!open) setDialogState(null) }}
@@ -393,6 +440,7 @@ export default function AppointmentCalendar({ salonId }) {
         categories={categories}
         roleBusinessTypes={roleBusinessTypes}
         schedulesByEmployee={schedulesByEmployee}
+        exceptionsByEmployee={exceptionsByEmployee}
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}

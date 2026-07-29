@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
-import { resolveBookingStart } from '../lib/appointmentGrid'
+import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvailability'
+import { resolveBookingStart, OCCUPYING_STATUSES } from '../lib/appointmentGrid'
 import { servicesForRole } from '../lib/roleServiceFilter'
 import { serviceUsesResources, orderedUnitsForService, availableUnitsFor, conflictKind } from '../lib/resourceAllocation'
 
@@ -22,7 +22,7 @@ function toTimeInputValue(date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, categories, roleBusinessTypes, schedulesByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
+export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
   const { t } = useTranslation(['appointments', 'common'])
 
   const [client, setClient] = useState(null)
@@ -36,6 +36,10 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [remaining, setRemaining] = useState(null)
+  // Set when the requested time falls outside the employee's shift. Booking
+  // then isn't refused — the receptionist is asked whether to hold the slot
+  // provisionally and get it approved later.
+  const [outsideSchedule, setOutsideSchedule] = useState(null)
 
   const activeServices = (services || []).filter((s) => s.is_active)
   const selectedEmployee = (employees || []).find((e) => e.id === employeeId)
@@ -58,10 +62,16 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     setNote('')
     setIsWaiting(false)
     setRemaining(null)
+    setOutsideSchedule(null)
     setEmployeeId(initialEmployeeId || '')
     setDate(initialStartTime ? toDateInputValue(initialStartTime) : '')
     setTime(initialStartTime ? toTimeInputValue(initialStartTime) : '')
   }, [open, initialEmployeeId, initialStartTime])
+
+  // The warning belongs to one specific employee/service/time combination.
+  // Touching any of them makes it stale, so it goes away and has to be
+  // earned again on the next save.
+  useEffect(() => { setOutsideSchedule(null) }, [employeeId, serviceId, date, time, isWaiting])
 
   const selectedService = activeServices.find((s) => s.id === serviceId)
   const computedEndTime = selectedService && date && time
@@ -76,7 +86,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     const { data, error: queryError } = await supabase
       .from('appointments')
       .select('resource_unit_id, start_time, end_time, status')
-      .in('status', ['booked', 'completed'])
+      .in('status', OCCUPYING_STATUSES)
       .not('resource_unit_id', 'is', null)
       .lt('start_time', end.toISOString())
       .gt('end_time', start.toISOString())
@@ -113,7 +123,10 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     return () => { cancelled = true }
   }, [serviceId, date, time, isWaiting, serviceResources, resources, resourceUnits])
 
-  async function handleSave() {
+  // asPending is set only by the "book provisionally" button, which the
+  // receptionist reaches after being warned. It skips the shift check —
+  // that check is the very thing she just answered — and nothing else.
+  async function handleSave(asPending = false) {
     setError('')
 
     if (!client) {
@@ -174,12 +187,20 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     }
     const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
 
-    const scheduleEntry = (schedulesByEmployee || {})[employeeId]
-    const window = availableWindowForDate(scheduleEntry?.schedule, scheduleEntry?.slots, new Date(`${date}T00:00:00`))
-    if (!isWithinWindow(window, toTimeInputValue(start), toTimeInputValue(end))) {
-      setError(t('appointments:formDialog.outsideScheduleError'))
-      return
+    if (!asPending) {
+      const scheduleEntry = (schedulesByEmployee || {})[employeeId]
+      const windows = availableWindowsForDate(
+        scheduleEntry?.schedule,
+        scheduleEntry?.slots,
+        (exceptionsByEmployee || {})[employeeId],
+        new Date(`${date}T00:00:00`)
+      )
+      if (!isWithinAnyWindow(windows, toTimeInputValue(start), toTimeInputValue(end))) {
+        setOutsideSchedule({ employeeName: selectedEmployee?.name || '' })
+        return
+      }
     }
+    setOutsideSchedule(null)
 
     setSaving(true)
 
@@ -187,7 +208,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       .from('appointments')
       .select('id')
       .eq('employee_id', employeeId)
-      .in('status', ['booked', 'completed'])
+      .in('status', OCCUPYING_STATUSES)
       .lt('start_time', end.toISOString())
       .gt('end_time', start.toISOString())
 
@@ -209,7 +230,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       employee_id: employeeId,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
-      status: 'booked',
+      status: asPending ? 'pending_approval' : 'booked',
       note: note.trim() || null,
     }
 
@@ -377,13 +398,35 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
             </div>
           </div>
 
+          {outsideSchedule && (
+            <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+              {t('appointments:formDialog.outsideScheduleWarning', { name: outsideSchedule.employeeName })}
+            </div>
+          )}
+
           {error && <div className="text-sm text-destructive">{error}</div>}
 
+          {/* The warning replaces the footer rather than adding to it: with
+              "save" still sitting there, the answer to "book provisionally?"
+              would have two yes buttons. */}
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>
-            <Button disabled={saving} onClick={handleSave}>
-              {saving ? t('common:saving') : t('common:save')}
-            </Button>
+            {outsideSchedule ? (
+              <>
+                <Button variant="outline" disabled={saving} onClick={() => setOutsideSchedule(null)}>
+                  {t('appointments:formDialog.backButton')}
+                </Button>
+                <Button disabled={saving} onClick={() => handleSave(true)}>
+                  {saving ? t('common:saving') : t('appointments:formDialog.bookProvisionallyButton')}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>
+                <Button disabled={saving} onClick={() => handleSave(false)}>
+                  {saving ? t('common:saving') : t('common:save')}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
