@@ -5,15 +5,16 @@
   "addEmployeeButton": "إضافة موظف",
   "emptyList": "ما في موظفين مضافين",
   "roles": {
-    "cosmetologist": "أخصائي/ة تجميل",
-    "hairdresser": "مصفف/ة شعر",
-    "makeup_artist": "خبير/ة مكياج",
-    "manicure_professional": "أخصائي/ة مانيكير",
-    "masseur": "معالج/ة مساج",
-    "pedicure_professional": "أخصائي/ة باديكير",
-    "stylist": "ستايلست",
-    "administrator": "إداري/ة استقبال",
-    "executive": "مدير تنفيذي"
+    "cosmetologist": "خبير تجميل",
+    "hairdresser": "مصفف شعر",
+    "makeup_artist": "خبير مكياج",
+    "manicure_professional": "أخصائي مانيكير",
+    "masseur": "أخصائي مساج",
+    "pedicure_professional": "أخصائي باديكير",
+    "stylist": "مصمم مظهر",
+    "administrator": "مدير النظام",
+    "executive": "مدير تنفيذي",
+    "owner": "صاحب العمل"
   },
   "formDialog": {
     "addTitle": "إضافة موظف جديد",
