@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 const ROW_HEIGHT = 40 // px per 30-minute row
+const HEADER_HEIGHT = 48 // fits the two-line employee header (role over name)
 
 function todayISO() {
   const d = new Date()
@@ -127,7 +128,7 @@ export default function AppointmentCalendar({ salonId }) {
 
       <div className="flex overflow-x-auto rounded-lg border border-border">
         <div className="sticky start-0 z-20 flex shrink-0 flex-col bg-card" style={{ width: 56 }}>
-          <div className="flex h-10 items-center justify-center border-b border-border text-[11px] text-muted-foreground" />
+          <div className="flex items-center justify-center border-b border-border text-[11px] text-muted-foreground" style={{ height: HEADER_HEIGHT }} />
           {slots.map((s) => (
             <div
               key={s.minutesFromStart}
@@ -140,7 +141,7 @@ export default function AppointmentCalendar({ salonId }) {
         </div>
 
         <div className="flex shrink-0 flex-col border-e border-border bg-muted/20" style={{ width: 180 }}>
-          <div className="flex h-10 items-center justify-center border-b border-border text-xs font-medium">
+          <div className="flex items-center justify-center border-b border-border text-xs font-medium" style={{ height: HEADER_HEIGHT }}>
             {t('appointments:waitingListColumn')}
           </div>
           <div className="flex flex-col gap-1.5 p-1.5">
@@ -167,8 +168,17 @@ export default function AppointmentCalendar({ salonId }) {
 
         {employees.map((emp) => (
           <div key={emp.id} className="flex shrink-0 flex-col border-e border-border" style={{ width: 160 }}>
-            <div className="flex h-10 items-center justify-center truncate border-b border-border px-1 text-xs font-medium">
-              {emp.name}
+            {/* Two stacked cells, not one block: the role sits in its own
+                tinted band above the name, separated by a real divider. */}
+            <div className="flex flex-col border-b border-border" style={{ height: HEADER_HEIGHT }}>
+              <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
+                <span className="truncate text-[11px] leading-none text-primary/80">
+                  {t(`employees:roles.${emp.role}`)}
+                </span>
+              </div>
+              <div className="flex flex-1 items-center justify-center overflow-hidden px-1">
+                <span className="truncate text-xs font-medium leading-none">{emp.name}</span>
+              </div>
             </div>
             <div className="relative" style={{ height: gridHeight }}>
               {slots.map((s) => {
@@ -176,6 +186,14 @@ export default function AppointmentCalendar({ salonId }) {
                 const cellEndLabel = minutesToLabel(s.minutesFromStart + SLOT_MINUTES)
                 const available = isWithinWindow(window, s.label, cellEndLabel)
                 const style = { top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }
+                // Repeat the hour inside every column so the eye can track time
+                // while scanning sideways, without going back to the left rail.
+                const hourMark = s.minutesFromStart % 60 === 0 ? (
+                  <span className="pointer-events-none absolute start-1 top-0.5 text-[10px] leading-none text-primary/30">
+                    {s.label}
+                  </span>
+                ) : null
+
                 if (!available) {
                   return (
                     <div
@@ -183,7 +201,9 @@ export default function AppointmentCalendar({ salonId }) {
                       className="absolute inset-x-0 border-b border-border/50 bg-muted/60"
                       style={style}
                       title={t('appointments:outsideScheduleHint')}
-                    />
+                    >
+                      {hourMark}
+                    </div>
                   )
                 }
                 return (
@@ -193,7 +213,9 @@ export default function AppointmentCalendar({ salonId }) {
                     className="absolute inset-x-0 border-b border-border/50 hover:bg-muted/40"
                     style={style}
                     onClick={() => handleCellClick(emp.id, s.minutesFromStart)}
-                  />
+                  >
+                    {hourMark}
+                  </button>
                 )
               })}
 
