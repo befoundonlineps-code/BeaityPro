@@ -8,6 +8,7 @@ import { useClientsLookup } from '../hooks/useClientsLookup'
 import { useAppointments } from '../hooks/useAppointments'
 import { useEmployeeSchedules } from '../hooks/useEmployeeSchedules'
 import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
+import { useResources } from '../hooks/useResources'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -55,13 +56,14 @@ export default function AppointmentCalendar({ salonId }) {
   const { dayAppointments, waitingAppointments, loading: apptsLoading, reload } = useAppointments(dateISO)
   const { schedulesByEmployee, loading: schedulesLoading } = useEmployeeSchedules()
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
+  const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || roleTypesLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || roleTypesLoading || resourcesLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
@@ -263,6 +265,9 @@ export default function AppointmentCalendar({ salonId }) {
         categories={categories}
         roleBusinessTypes={roleBusinessTypes}
         schedulesByEmployee={schedulesByEmployee}
+        resources={resources}
+        resourceUnits={resourceUnits}
+        serviceResources={serviceResources}
         onSaved={reload}
       />
     </div>

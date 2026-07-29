@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
 import { servicesForRole } from '../lib/roleServiceFilter'
+import { serviceUsesResources, orderedUnitsForService, freeUnits, conflictKind } from '../lib/resourceAllocation'
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -20,7 +21,7 @@ function toTimeInputValue(date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, categories, roleBusinessTypes, schedulesByEmployee, onSaved }) {
+export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, categories, roleBusinessTypes, schedulesByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
   const { t } = useTranslation(['appointments', 'common'])
 
   const [client, setClient] = useState(null)
@@ -33,6 +34,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [remaining, setRemaining] = useState(null)
 
   const activeServices = (services || []).filter((s) => s.is_active)
   const selectedEmployee = (employees || []).find((e) => e.id === employeeId)
@@ -54,6 +56,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     setServiceId('')
     setNote('')
     setIsWaiting(false)
+    setRemaining(null)
     setEmployeeId(initialEmployeeId || '')
     setDate(initialStartTime ? toDateInputValue(initialStartTime) : '')
     setTime(initialStartTime ? toTimeInputValue(initialStartTime) : '')
@@ -63,6 +66,43 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   const computedEndTime = selectedService && date && time
     ? new Date(new Date(`${date}T${time}:00`).getTime() + selectedService.duration_minutes * 60000)
     : null
+
+  // Which units are busy during a window, straight from the appointments
+  // that occupy them. Shared by the "X remaining" readout and by save.
+  async function loadOccupiedUnitIds(start, end) {
+    const { data, error: queryError } = await supabase
+      .from('appointments')
+      .select('resource_unit_id')
+      .in('status', ['booked', 'completed'])
+      .not('resource_unit_id', 'is', null)
+      .lt('start_time', end.toISOString())
+      .gt('end_time', start.toISOString())
+    if (queryError) return { error: queryError }
+    return { ids: new Set((data || []).map((r) => r.resource_unit_id)) }
+  }
+
+  // "X remaining" for the exact window being booked — recomputed whenever
+  // the service or the time changes, and only for services that actually
+  // use resources.
+  useEffect(() => {
+    let cancelled = false
+
+    async function computeRemaining() {
+      if (isWaiting || !selectedService || !date || !time || !serviceUsesResources(serviceId, serviceResources)) {
+        setRemaining(null)
+        return
+      }
+      const start = new Date(`${date}T${time}:00`)
+      const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
+      const ordered = orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
+      const { ids, error: queryError } = await loadOccupiedUnitIds(start, end)
+      if (cancelled || queryError) return
+      setRemaining({ free: freeUnits(ordered, ids).length, total: ordered.length })
+    }
+
+    computeRemaining()
+    return () => { cancelled = true }
+  }, [serviceId, date, time, isWaiting, serviceResources, resources, resourceUnits])
 
   async function handleSave() {
     setError('')
@@ -145,34 +185,81 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       return
     }
 
-    const { data, error: saveError } = await supabase
-      .from('appointments')
-      .insert([{
-        salon_id: salonId,
-        client_id: client.id,
-        service_id: serviceId,
-        employee_id: employeeId,
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        status: 'booked',
-        note: note.trim() || null,
-      }])
-      .select()
+    const basePayload = {
+      salon_id: salonId,
+      client_id: client.id,
+      service_id: serviceId,
+      employee_id: employeeId,
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      status: 'booked',
+      note: note.trim() || null,
+    }
+
+    // Services with no linked resource book straight through; the rest have
+    // to claim one free unit first.
+    let candidateUnits = [null]
+    if (serviceUsesResources(serviceId, serviceResources)) {
+      const ordered = orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
+      const { ids, error: occupiedError } = await loadOccupiedUnitIds(start, end)
+      if (occupiedError) {
+        setSaving(false)
+        setError(occupiedError.message)
+        return
+      }
+      candidateUnits = freeUnits(ordered, ids)
+      if (candidateUnits.length === 0) {
+        setSaving(false)
+        setError(t('appointments:formDialog.allResourcesBusyError'))
+        return
+      }
+    }
+
+    // The scan above can go stale between reading and writing, so a unit
+    // that looked free may be taken by the time we insert. The exclusion
+    // constraint catches that, and we simply move on to the next unit
+    // rather than rejecting a booking that another unit could still take.
+    // Only after every candidate is genuinely gone do we give up.
+    let saved = null
+    let lastError = null
+
+    for (const unit of candidateUnits) {
+      const { data, error: saveError } = await supabase
+        .from('appointments')
+        .insert([{ ...basePayload, resource_unit_id: unit ? unit.id : null }])
+        .select()
+
+      if (!saveError) {
+        if (!data || data.length === 0) {
+          setSaving(false)
+          setError(t('appointments:formDialog.noRowsError'))
+          return
+        }
+        saved = data
+        break
+      }
+
+      lastError = saveError
+      const kind = conflictKind(saveError)
+      if (kind === 'resource') continue // this unit just got taken — try the next
+      if (kind === 'employee') {
+        setSaving(false)
+        setError(t('appointments:formDialog.conflictError'))
+        return
+      }
+      setSaving(false)
+      setError(saveError.message)
+      return
+    }
 
     setSaving(false)
 
-    if (saveError) {
-      // Belt-and-suspenders: if a race condition slipped past the pre-check
-      // above, the database's own exclusion constraint rejects the insert.
-      if (saveError.code === '23P01' || (saveError.message || '').includes('appointments_no_overlap')) {
-        setError(t('appointments:formDialog.conflictError'))
-      } else {
-        setError(saveError.message)
-      }
-      return
-    }
-    if (!data || data.length === 0) {
-      setError(t('appointments:formDialog.noRowsError'))
+    if (!saved) {
+      setError(
+        conflictKind(lastError) === 'resource'
+          ? t('appointments:formDialog.allResourcesBusyError')
+          : t('appointments:formDialog.noRowsError')
+      )
       return
     }
 
@@ -248,6 +335,20 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
                 {computedEndTime && (
                   <div className="text-sm text-muted-foreground">
                     {t('appointments:formDialog.endsAtText', { time: toTimeInputValue(computedEndTime) })}
+                  </div>
+                )}
+
+                {remaining && (
+                  <div
+                    className={
+                      remaining.free === 0
+                        ? 'rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive'
+                        : 'rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground'
+                    }
+                  >
+                    {remaining.free === 0
+                      ? t('appointments:formDialog.allResourcesBusyError')
+                      : t('appointments:formDialog.resourcesRemainingText', { free: remaining.free, total: remaining.total })}
                   </div>
                 )}
               </>
