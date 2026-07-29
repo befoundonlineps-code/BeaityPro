@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
+import { servicesForRole } from '../lib/roleServiceFilter'
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -19,7 +20,7 @@ function toTimeInputValue(date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, schedulesByEmployee, onSaved }) {
+export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, categories, roleBusinessTypes, schedulesByEmployee, onSaved }) {
   const { t } = useTranslation(['appointments', 'common'])
 
   const [client, setClient] = useState(null)
@@ -34,6 +35,17 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   const [error, setError] = useState('')
 
   const activeServices = (services || []).filter((s) => s.is_active)
+  const selectedEmployee = (employees || []).find((e) => e.id === employeeId)
+  const visibleServices = servicesForRole(selectedEmployee?.role, activeServices, categories, roleBusinessTypes)
+
+  function handleEmployeeChange(newEmployeeId) {
+    setEmployeeId(newEmployeeId)
+    const newEmployee = (employees || []).find((e) => e.id === newEmployeeId)
+    const newVisible = servicesForRole(newEmployee?.role, activeServices, categories, roleBusinessTypes)
+    if (serviceId && !newVisible.some((s) => s.id === serviceId)) {
+      setServiceId('')
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -192,10 +204,13 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
                 onChange={(e) => setServiceId(e.target.value)}
               >
                 <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
-                {activeServices.map((s) => (
+                {visibleServices.map((s) => (
                   <option key={s.id} value={s.id}>{s.name} — {s.duration_minutes} {t('appointments:formDialog.minutesShort')}</option>
                 ))}
               </select>
+              {selectedEmployee && visibleServices.length === 0 && (
+                <div className="text-sm text-muted-foreground">{t('appointments:formDialog.noServicesForRoleHint')}</div>
+              )}
             </div>
 
             <label className="flex items-center gap-2 text-sm font-medium">
@@ -210,7 +225,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
                   <select
                     className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
                     value={employeeId}
-                    onChange={(e) => setEmployeeId(e.target.value)}
+                    onChange={(e) => handleEmployeeChange(e.target.value)}
                   >
                     <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
                     {(employees || []).map((emp) => (

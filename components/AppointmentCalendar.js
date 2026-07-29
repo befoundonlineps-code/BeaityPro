@@ -7,6 +7,7 @@ import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
 import { useAppointments } from '../hooks/useAppointments'
 import { useEmployeeSchedules } from '../hooks/useEmployeeSchedules'
+import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -48,17 +49,18 @@ export default function AppointmentCalendar({ salonId }) {
   const [dialogState, setDialogState] = useState(null) // null closed, {} blank, {employeeId,startTime} prefilled
 
   const { employees, loading: employeesLoading } = useEmployees()
-  const { services, loading: servicesLoading } = useServiceCatalog()
+  const { categories, services, loading: servicesLoading } = useServiceCatalog()
   const { clients, loading: clientsLoading } = useClientsLookup()
   const { dayAppointments, waitingAppointments, loading: apptsLoading, reload } = useAppointments(dateISO)
   const { schedulesByEmployee, loading: schedulesLoading } = useEmployeeSchedules()
+  const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || roleTypesLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
@@ -236,6 +238,8 @@ export default function AppointmentCalendar({ salonId }) {
         initialStartTime={dialogState?.startTime}
         employees={employees}
         services={services}
+        categories={categories}
+        roleBusinessTypes={roleBusinessTypes}
         schedulesByEmployee={schedulesByEmployee}
         onSaved={reload}
       />
