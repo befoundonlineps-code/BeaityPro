@@ -141,9 +141,22 @@ export default function AppointmentCalendar({ salonId }) {
         </Button>
       </div>
 
-      <div className="flex overflow-x-auto rounded-lg border border-border">
-        <div className="sticky start-0 z-20 flex shrink-0 flex-col bg-card" style={{ width: 56 }}>
-          <div className="flex items-center justify-center border-b border-border text-[11px] text-muted-foreground" style={{ height: HEADER_HEIGHT }} />
+      {/* Both scrollbars belong to this box, not the page, so the horizontal
+          one stays on screen at any vertical position instead of sitting
+          below a full day's worth of rows. */}
+      {/* items-start matters: without it each column is stretched to the
+          scrollport height rather than its own content height, and a sticky
+          header cannot outlive its containing block — so the headers would
+          scroll away once past that point. */}
+      <div
+        className="flex items-start overflow-auto rounded-lg border border-border"
+        style={{ height: 'calc(100vh - 16rem)', minHeight: 360 }}
+      >
+        <div className="sticky start-0 z-30 flex shrink-0 flex-col bg-card" style={{ width: 56 }}>
+          <div
+            className="sticky top-0 z-40 flex items-center justify-center border-b border-border bg-card text-[11px] text-muted-foreground"
+            style={{ height: HEADER_HEIGHT }}
+          />
           {slots.map((s) => (
             <div
               key={s.minutesFromStart}
@@ -156,10 +169,15 @@ export default function AppointmentCalendar({ salonId }) {
         </div>
 
         <div className="flex shrink-0 flex-col border-e border-border bg-muted/20" style={{ width: 180 }}>
-          <div className="flex items-center justify-center border-b border-border text-xs font-medium" style={{ height: HEADER_HEIGHT }}>
+          <div
+            className="sticky top-0 z-20 flex items-center justify-center border-b border-border bg-card text-xs font-medium"
+            style={{ height: HEADER_HEIGHT }}
+          >
             {t('appointments:waitingListColumn')}
           </div>
-          <div className="flex flex-col gap-1.5 p-1.5">
+          {/* Explicit height keeps this column the same length as the grid
+              ones now that they size to their content. */}
+          <div className="flex flex-col gap-1.5 overflow-y-auto p-1.5" style={{ height: gridHeight }}>
             {waitingAppointments.length === 0 ? (
               <div className="p-2 text-center text-xs text-muted-foreground">{t('appointments:waitingListEmpty')}</div>
             ) : (
@@ -185,7 +203,7 @@ export default function AppointmentCalendar({ salonId }) {
           <div key={emp.id} className="flex shrink-0 flex-col border-e border-border" style={{ width: 160 }}>
             {/* Two stacked cells, not one block: the role sits in its own
                 tinted band above the name, separated by a real divider. */}
-            <div className="flex flex-col border-b border-border" style={{ height: HEADER_HEIGHT }}>
+            <div className="sticky top-0 z-20 flex flex-col border-b border-border bg-card" style={{ height: HEADER_HEIGHT }}>
               <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
                 <span className="truncate text-[11px] leading-none text-primary/80">
                   {t(`employees:roles.${emp.role}`)}
@@ -258,7 +276,7 @@ export default function AppointmentCalendar({ salonId }) {
 
               {showNowLine && (
                 <div
-                  className="pointer-events-none absolute inset-x-0 z-20 h-0.5 bg-destructive"
+                  className="pointer-events-none absolute inset-x-0 z-[15] h-0.5 bg-destructive"
                   style={{ top: (nowMinutes / SLOT_MINUTES) * ROW_HEIGHT }}
                 />
               )}
@@ -273,7 +291,7 @@ export default function AppointmentCalendar({ salonId }) {
           const clusters = clusterAppointments(appointmentsForResource(resource.id))
           return (
             <div key={resource.id} className="flex shrink-0 flex-col border-e border-border bg-muted/10" style={{ width: 160 }}>
-              <div className="flex flex-col border-b border-border" style={{ height: HEADER_HEIGHT }}>
+              <div className="sticky top-0 z-20 flex flex-col border-b border-border bg-card" style={{ height: HEADER_HEIGHT }}>
                 <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
                   <span className="truncate text-[11px] leading-none text-primary/80">
                     {t('appointments:resourceColumn.capacityLabel', { count: resource.capacity })}
@@ -336,7 +354,7 @@ export default function AppointmentCalendar({ salonId }) {
 
                 {showNowLine && (
                   <div
-                    className="pointer-events-none absolute inset-x-0 z-20 h-0.5 bg-destructive"
+                    className="pointer-events-none absolute inset-x-0 z-[15] h-0.5 bg-destructive"
                     style={{ top: (nowMinutes / SLOT_MINUTES) * ROW_HEIGHT }}
                   />
                 )}
