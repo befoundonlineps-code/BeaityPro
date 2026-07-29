@@ -8,6 +8,7 @@ import { useClientsLookup } from '../hooks/useClientsLookup'
 import { useAppointments } from '../hooks/useAppointments'
 import { useEmployeeSchedules } from '../hooks/useEmployeeSchedules'
 import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
+import { useResources } from '../hooks/useResources'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -15,10 +16,14 @@ import {
   minutesFromGridStart,
   minutesToLabel,
   isWithinGrid,
+  isSlotPast,
+  resolveBookingStart,
   SLOT_MINUTES,
 } from '../lib/appointmentGrid'
 import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
+import { clusterAppointments } from '../lib/resourceAllocation'
 import AppointmentFormDialog from './AppointmentFormDialog'
+import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +53,7 @@ export default function AppointmentCalendar({ salonId }) {
   const [dateISO, setDateISO] = useState(todayISO())
   const [now, setNow] = useState(new Date())
   const [dialogState, setDialogState] = useState(null) // null closed, {} blank, {employeeId,startTime} prefilled
+  const [resourceDetail, setResourceDetail] = useState(null) // { resource, cluster }
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -55,13 +61,14 @@ export default function AppointmentCalendar({ salonId }) {
   const { dayAppointments, waitingAppointments, loading: apptsLoading, reload } = useAppointments(dateISO)
   const { schedulesByEmployee, loading: schedulesLoading } = useEmployeeSchedules()
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
+  const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || roleTypesLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || roleTypesLoading || resourcesLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
@@ -83,12 +90,26 @@ export default function AppointmentCalendar({ salonId }) {
   const nowMinutes = isToday ? minutesFromGridStart(now) : -1
   const showNowLine = isToday && isWithinGrid(nowMinutes)
 
+  const employeesById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
+  const unitsById = useMemo(() => Object.fromEntries(resourceUnits.map((u) => [u.id, u])), [resourceUnits])
+
   function appointmentsForEmployee(employeeId) {
     return dayAppointments.filter((a) => a.employee_id === employeeId && a.status !== 'cancelled')
   }
 
+  function appointmentsForResource(resourceId) {
+    return dayAppointments.filter((a) => {
+      if (a.status === 'cancelled' || !a.resource_unit_id) return false
+      return unitsById[a.resource_unit_id]?.resource_id === resourceId
+    })
+  }
+
   function handleCellClick(employeeId, minutesFromStart) {
-    setDialogState({ employeeId, startTime: slotStartTime(dateISO, minutesFromStart) })
+    // Prefill what will actually be booked: a slot already under way starts
+    // from this moment, not from the boundary drawn on the grid. Save
+    // re-derives it against a fresh clock.
+    const slotStart = slotStartTime(dateISO, minutesFromStart)
+    setDialogState({ employeeId, startTime: resolveBookingStart(slotStart, new Date()) || slotStart })
   }
 
   if (loading) {
@@ -126,9 +147,22 @@ export default function AppointmentCalendar({ salonId }) {
         </Button>
       </div>
 
-      <div className="flex overflow-x-auto rounded-lg border border-border">
-        <div className="sticky start-0 z-20 flex shrink-0 flex-col bg-card" style={{ width: 56 }}>
-          <div className="flex items-center justify-center border-b border-border text-[11px] text-muted-foreground" style={{ height: HEADER_HEIGHT }} />
+      {/* Both scrollbars belong to this box, not the page, so the horizontal
+          one stays on screen at any vertical position instead of sitting
+          below a full day's worth of rows. */}
+      {/* items-start matters: without it each column is stretched to the
+          scrollport height rather than its own content height, and a sticky
+          header cannot outlive its containing block — so the headers would
+          scroll away once past that point. */}
+      <div
+        className="flex items-start overflow-auto rounded-lg border border-border"
+        style={{ height: 'calc(100vh - 16rem)', minHeight: 360 }}
+      >
+        <div className="sticky start-0 z-30 flex shrink-0 flex-col bg-card" style={{ width: 56 }}>
+          <div
+            className="sticky top-0 z-40 flex items-center justify-center border-b border-border bg-card text-[11px] text-muted-foreground"
+            style={{ height: HEADER_HEIGHT }}
+          />
           {slots.map((s) => (
             <div
               key={s.minutesFromStart}
@@ -141,10 +175,15 @@ export default function AppointmentCalendar({ salonId }) {
         </div>
 
         <div className="flex shrink-0 flex-col border-e border-border bg-muted/20" style={{ width: 180 }}>
-          <div className="flex items-center justify-center border-b border-border text-xs font-medium" style={{ height: HEADER_HEIGHT }}>
+          <div
+            className="sticky top-0 z-20 flex items-center justify-center border-b border-border bg-card text-xs font-medium"
+            style={{ height: HEADER_HEIGHT }}
+          >
             {t('appointments:waitingListColumn')}
           </div>
-          <div className="flex flex-col gap-1.5 p-1.5">
+          {/* Explicit height keeps this column the same length as the grid
+              ones now that they size to their content. */}
+          <div className="flex flex-col gap-1.5 overflow-y-auto p-1.5" style={{ height: gridHeight }}>
             {waitingAppointments.length === 0 ? (
               <div className="p-2 text-center text-xs text-muted-foreground">{t('appointments:waitingListEmpty')}</div>
             ) : (
@@ -170,7 +209,7 @@ export default function AppointmentCalendar({ salonId }) {
           <div key={emp.id} className="flex shrink-0 flex-col border-e border-border" style={{ width: 160 }}>
             {/* Two stacked cells, not one block: the role sits in its own
                 tinted band above the name, separated by a real divider. */}
-            <div className="flex flex-col border-b border-border" style={{ height: HEADER_HEIGHT }}>
+            <div className="sticky top-0 z-20 flex flex-col border-b border-border bg-card" style={{ height: HEADER_HEIGHT }}>
               <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
                 <span className="truncate text-[11px] leading-none text-primary/80">
                   {t(`employees:roles.${emp.role}`)}
@@ -184,7 +223,8 @@ export default function AppointmentCalendar({ salonId }) {
               {slots.map((s) => {
                 const window = windowByEmployee[emp.id]
                 const cellEndLabel = minutesToLabel(s.minutesFromStart + SLOT_MINUTES)
-                const available = isWithinWindow(window, s.label, cellEndLabel)
+                const past = isSlotPast(slotStartTime(dateISO, s.minutesFromStart + SLOT_MINUTES), now)
+                const available = !past && isWithinWindow(window, s.label, cellEndLabel)
                 const style = { top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }
                 // Repeat the hour inside every column so the eye can track time
                 // while scanning sideways, without going back to the left rail.
@@ -200,7 +240,7 @@ export default function AppointmentCalendar({ salonId }) {
                       key={s.minutesFromStart}
                       className="absolute inset-x-0 border-b border-border/50 bg-muted/60"
                       style={style}
-                      title={t('appointments:outsideScheduleHint')}
+                      title={past ? t('appointments:pastSlotHint') : t('appointments:outsideScheduleHint')}
                     >
                       {hourMark}
                     </div>
@@ -243,14 +283,104 @@ export default function AppointmentCalendar({ salonId }) {
 
               {showNowLine && (
                 <div
-                  className="pointer-events-none absolute inset-x-0 z-20 h-0.5 bg-destructive"
+                  className="pointer-events-none absolute inset-x-0 z-[15] h-0.5 bg-destructive"
                   style={{ top: (nowMinutes / SLOT_MINUTES) * ROW_HEIGHT }}
                 />
               )}
             </div>
           </div>
         ))}
+
+        {/* Resource columns are a read-only mirror: bookings land here
+            automatically when a resource-linked service is booked from an
+            employee column, so these cells are inert by design. */}
+        {resources.map((resource) => {
+          const clusters = clusterAppointments(appointmentsForResource(resource.id))
+          return (
+            <div key={resource.id} className="flex shrink-0 flex-col border-e border-border bg-muted/10" style={{ width: 160 }}>
+              <div className="sticky top-0 z-20 flex flex-col border-b border-border bg-card" style={{ height: HEADER_HEIGHT }}>
+                <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
+                  <span className="truncate text-[11px] leading-none text-primary/80">
+                    {t('appointments:resourceColumn.capacityLabel', { count: resource.capacity })}
+                  </span>
+                </div>
+                <div className="flex flex-1 items-center justify-center overflow-hidden px-1">
+                  <span className="truncate text-xs font-medium leading-none">{resource.name}</span>
+                </div>
+              </div>
+
+              <div className="relative" style={{ height: gridHeight }}>
+                {slots.map((s) => (
+                  <div
+                    key={s.minutesFromStart}
+                    className="absolute inset-x-0 border-b border-border/50"
+                    style={{ top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }}
+                  >
+                    {s.minutesFromStart % 60 === 0 && (
+                      <span className="pointer-events-none absolute start-1 top-0.5 text-[10px] leading-none text-primary/30">
+                        {s.label}
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+                {clusters.map((cluster) => {
+                  const clampedStart = Math.max(minutesFromGridStart(cluster.start), 0)
+                  const clampedEnd = Math.min(minutesFromGridStart(cluster.end), gridMinutes)
+                  if (clampedEnd <= clampedStart) return null
+                  const single = cluster.items.length === 1
+                  const service = single ? servicesById[cluster.items[0].service_id] : null
+                  return (
+                    <button
+                      key={`${resource.id}-${cluster.start.getTime()}`}
+                      type="button"
+                      className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:opacity-90"
+                      style={{
+                        top: (clampedStart / SLOT_MINUTES) * ROW_HEIGHT,
+                        height: ((clampedEnd - clampedStart) / SLOT_MINUTES) * ROW_HEIGHT,
+                        background: single ? service?.color || 'var(--color-muted-foreground)' : 'var(--color-primary)',
+                      }}
+                      onClick={() => setResourceDetail({ resource, cluster })}
+                    >
+                      {single ? (
+                        <>
+                          <div className="truncate font-medium">{clientName(clientsById, cluster.items[0].client_id)}</div>
+                          <div className="truncate opacity-90">{service?.name}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="truncate font-medium">{t('appointments:resourceColumn.bookedBlock')}</div>
+                          <div className="truncate opacity-90">
+                            {t('appointments:resourceColumn.bookedCount', { count: cluster.items.length })}
+                          </div>
+                        </>
+                      )}
+                    </button>
+                  )
+                })}
+
+                {showNowLine && (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 z-[15] h-0.5 bg-destructive"
+                    style={{ top: (nowMinutes / SLOT_MINUTES) * ROW_HEIGHT }}
+                  />
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
+
+      <ResourceBookingsDialog
+        open={!!resourceDetail}
+        onOpenChange={(open) => { if (!open) setResourceDetail(null) }}
+        resource={resourceDetail?.resource}
+        cluster={resourceDetail?.cluster}
+        unitsById={unitsById}
+        employeesById={employeesById}
+        clientsById={clientsById}
+        servicesById={servicesById}
+      />
 
       <AppointmentFormDialog
         open={!!dialogState}
@@ -263,6 +393,9 @@ export default function AppointmentCalendar({ salonId }) {
         categories={categories}
         roleBusinessTypes={roleBusinessTypes}
         schedulesByEmployee={schedulesByEmployee}
+        resources={resources}
+        resourceUnits={resourceUnits}
+        serviceResources={serviceResources}
         onSaved={reload}
       />
     </div>

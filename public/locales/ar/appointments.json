@@ -11,6 +11,21 @@
   "noEmployeesMessage": "روح على الموظفون وأضف موظف أول، وبتقدر تحجز إله مواعيد هون.",
   "goToEmployeesButton": "روح للموظفين",
   "outsideScheduleHint": "برا دوام الموظف",
+  "pastSlotHint": "وقت فات",
+  "resourceColumn": {
+    "capacityLabel": "مورد · سعة {{count}}",
+    "bookedBlock": "مواعيد تم حجزها",
+    "bookedCount": "{{count}} مواعيد"
+  },
+  "resourceDialog": {
+    "title": "مواعيد {{name}}",
+    "unitColumn": "الوحدة",
+    "unitLabel": "وحدة {{index}}",
+    "timeColumn": "الوقت",
+    "employeeColumn": "الموظف",
+    "clientColumn": "الزبون",
+    "serviceColumn": "الخدمة"
+  },
   "formDialog": {
     "title": "حجز موعد",
     "clientLabel": "الزبون",
@@ -30,8 +45,11 @@
     "serviceRequiredError": "لازم تختار الخدمة",
     "employeeRequiredError": "لازم تختار الموظف",
     "dateTimeRequiredError": "لازم تحدد التاريخ والوقت",
+    "resourcesRemainingText": "متبقي {{free}} من {{total}} من موارد هذي الخدمة بهاد الوقت",
+    "allResourcesBusyError": "كل الموارد المرتبطة بهذي الخدمة محجوزة بهذا الوقت، جرّب وقتًا آخر",
     "conflictError": "هاد الموظف محجوز بهاد الوقت — اختر وقت تاني",
     "outsideScheduleError": "هاد الوقت برا دوام الموظف — اختر وقت تاني",
+    "pastTimeError": "هاد الوقت فات — اختر وقت جاي",
     "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
   }
 }

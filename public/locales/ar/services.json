@@ -2,9 +2,29 @@
   "breadcrumbServices": "الخدمات",
   "breadcrumbCatalog": "كتالوج الخدمات",
   "breadcrumbPricing": "التسعير حسب الدور",
+  "breadcrumbResources": "الموارد",
   "tabs": {
     "catalog": "كتالوج الخدمات",
-    "rolePricing": "التسعير حسب الدور"
+    "rolePricing": "التسعير حسب الدور",
+    "resources": "الموارد"
+  },
+  "resources": {
+    "hint": "المورد مكان أو جهاز له سعة محددة (مثلاً غرفة علاج فيها 3 أسرّة). الخدمة المرتبطة بمورد ما بتنحجز إلا إذا في مكان فاضي فيه.",
+    "addButton": "إضافة مورد",
+    "empty": "ما في موارد مضافة",
+    "addTitle": "إضافة مورد جديد",
+    "editTitle": "تعديل المورد",
+    "nameLabel": "اسم المورد",
+    "capacityLabel": "السعة",
+    "capacityHint": "السعة = كم زبون بيقدروا يستخدموا هاد المورد بنفس الوقت.",
+    "capacityBadge": "السعة: {{count}}",
+    "linkedBadge": "{{count}} خدمة مرتبطة",
+    "linkedServicesLabel": "الخدمات المرتبطة ({{count}} مختارة)",
+    "searchServicesPlaceholder": "بحث بالخدمات...",
+    "nameRequiredError": "اسم المورد إجباري",
+    "capacityInvalidError": "السعة لازم تكون رقم صحيح أكبر من صفر",
+    "capacityBelowBookedError": "ما بتقدر تنزّل السعة — في حجوزات قائمة على الأماكن اللي بدك تشيلها",
+    "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
   },
   "noBusinessTypesTitle": "ما في نوع نشاط محدد",
   "noBusinessTypesMessage": "روح على الإعدادات ← نوع النشاط، واختر نوع أو أكتر، وبتظهرلك خدماتهم هون.",
