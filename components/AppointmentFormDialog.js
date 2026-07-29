@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
+import { resolveBookingStart } from '../lib/appointmentGrid'
 import { servicesForRole } from '../lib/roleServiceFilter'
 import { serviceUsesResources, orderedUnitsForService, availableUnitsFor, conflictKind } from '../lib/resourceAllocation'
 
@@ -94,7 +95,13 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
         setRemaining(null)
         return
       }
-      const start = new Date(`${date}T${time}:00`)
+      // Same resolved window the save will use, so the count reflects what
+      // actually gets booked rather than the slot boundary on screen.
+      const start = resolveBookingStart(new Date(`${date}T${time}:00`), new Date())
+      if (!start) {
+        setRemaining(null)
+        return
+      }
       const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
       const ordered = orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
       const { rows, error: queryError } = await loadUnitAppointments(start, end)
@@ -156,12 +163,20 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       return
     }
 
-    const start = new Date(`${date}T${time}:00`)
+    // Resolve against the clock as it is right now, not as it was when the
+    // dialog opened — a booking that sat unsaved for a few minutes should
+    // record when it actually starts. Everything below checks the resolved
+    // window, so a service that no longer fits before closing is caught.
+    const start = resolveBookingStart(new Date(`${date}T${time}:00`), new Date())
+    if (!start) {
+      setError(t('appointments:formDialog.pastTimeError'))
+      return
+    }
     const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
 
     const scheduleEntry = (schedulesByEmployee || {})[employeeId]
     const window = availableWindowForDate(scheduleEntry?.schedule, scheduleEntry?.slots, new Date(`${date}T00:00:00`))
-    if (!isWithinWindow(window, time, toTimeInputValue(end))) {
+    if (!isWithinWindow(window, toTimeInputValue(start), toTimeInputValue(end))) {
       setError(t('appointments:formDialog.outsideScheduleError'))
       return
     }

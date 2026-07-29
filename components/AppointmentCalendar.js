@@ -16,6 +16,8 @@ import {
   minutesFromGridStart,
   minutesToLabel,
   isWithinGrid,
+  isSlotPast,
+  resolveBookingStart,
   SLOT_MINUTES,
 } from '../lib/appointmentGrid'
 import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
@@ -103,7 +105,11 @@ export default function AppointmentCalendar({ salonId }) {
   }
 
   function handleCellClick(employeeId, minutesFromStart) {
-    setDialogState({ employeeId, startTime: slotStartTime(dateISO, minutesFromStart) })
+    // Prefill what will actually be booked: a slot already under way starts
+    // from this moment, not from the boundary drawn on the grid. Save
+    // re-derives it against a fresh clock.
+    const slotStart = slotStartTime(dateISO, minutesFromStart)
+    setDialogState({ employeeId, startTime: resolveBookingStart(slotStart, new Date()) || slotStart })
   }
 
   if (loading) {
@@ -217,7 +223,8 @@ export default function AppointmentCalendar({ salonId }) {
               {slots.map((s) => {
                 const window = windowByEmployee[emp.id]
                 const cellEndLabel = minutesToLabel(s.minutesFromStart + SLOT_MINUTES)
-                const available = isWithinWindow(window, s.label, cellEndLabel)
+                const past = isSlotPast(slotStartTime(dateISO, s.minutesFromStart + SLOT_MINUTES), now)
+                const available = !past && isWithinWindow(window, s.label, cellEndLabel)
                 const style = { top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }
                 // Repeat the hour inside every column so the eye can track time
                 // while scanning sideways, without going back to the left rail.
@@ -233,7 +240,7 @@ export default function AppointmentCalendar({ salonId }) {
                       key={s.minutesFromStart}
                       className="absolute inset-x-0 border-b border-border/50 bg-muted/60"
                       style={style}
-                      title={t('appointments:outsideScheduleHint')}
+                      title={past ? t('appointments:pastSlotHint') : t('appointments:outsideScheduleHint')}
                     >
                       {hourMark}
                     </div>
