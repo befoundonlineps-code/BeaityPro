@@ -19,7 +19,9 @@ import {
   SLOT_MINUTES,
 } from '../lib/appointmentGrid'
 import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
+import { clusterAppointments } from '../lib/resourceAllocation'
 import AppointmentFormDialog from './AppointmentFormDialog'
+import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -49,6 +51,7 @@ export default function AppointmentCalendar({ salonId }) {
   const [dateISO, setDateISO] = useState(todayISO())
   const [now, setNow] = useState(new Date())
   const [dialogState, setDialogState] = useState(null) // null closed, {} blank, {employeeId,startTime} prefilled
+  const [resourceDetail, setResourceDetail] = useState(null) // { resource, cluster }
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -85,8 +88,18 @@ export default function AppointmentCalendar({ salonId }) {
   const nowMinutes = isToday ? minutesFromGridStart(now) : -1
   const showNowLine = isToday && isWithinGrid(nowMinutes)
 
+  const employeesById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
+  const unitsById = useMemo(() => Object.fromEntries(resourceUnits.map((u) => [u.id, u])), [resourceUnits])
+
   function appointmentsForEmployee(employeeId) {
     return dayAppointments.filter((a) => a.employee_id === employeeId && a.status !== 'cancelled')
+  }
+
+  function appointmentsForResource(resourceId) {
+    return dayAppointments.filter((a) => {
+      if (a.status === 'cancelled' || !a.resource_unit_id) return false
+      return unitsById[a.resource_unit_id]?.resource_id === resourceId
+    })
   }
 
   function handleCellClick(employeeId, minutesFromStart) {
@@ -252,7 +265,97 @@ export default function AppointmentCalendar({ salonId }) {
             </div>
           </div>
         ))}
+
+        {/* Resource columns are a read-only mirror: bookings land here
+            automatically when a resource-linked service is booked from an
+            employee column, so these cells are inert by design. */}
+        {resources.map((resource) => {
+          const clusters = clusterAppointments(appointmentsForResource(resource.id))
+          return (
+            <div key={resource.id} className="flex shrink-0 flex-col border-e border-border bg-muted/10" style={{ width: 160 }}>
+              <div className="flex flex-col border-b border-border" style={{ height: HEADER_HEIGHT }}>
+                <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
+                  <span className="truncate text-[11px] leading-none text-primary/80">
+                    {t('appointments:resourceColumn.capacityLabel', { count: resource.capacity })}
+                  </span>
+                </div>
+                <div className="flex flex-1 items-center justify-center overflow-hidden px-1">
+                  <span className="truncate text-xs font-medium leading-none">{resource.name}</span>
+                </div>
+              </div>
+
+              <div className="relative" style={{ height: gridHeight }}>
+                {slots.map((s) => (
+                  <div
+                    key={s.minutesFromStart}
+                    className="absolute inset-x-0 border-b border-border/50"
+                    style={{ top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }}
+                  >
+                    {s.minutesFromStart % 60 === 0 && (
+                      <span className="pointer-events-none absolute start-1 top-0.5 text-[10px] leading-none text-primary/30">
+                        {s.label}
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+                {clusters.map((cluster) => {
+                  const clampedStart = Math.max(minutesFromGridStart(cluster.start), 0)
+                  const clampedEnd = Math.min(minutesFromGridStart(cluster.end), gridMinutes)
+                  if (clampedEnd <= clampedStart) return null
+                  const single = cluster.items.length === 1
+                  const service = single ? servicesById[cluster.items[0].service_id] : null
+                  return (
+                    <button
+                      key={`${resource.id}-${cluster.start.getTime()}`}
+                      type="button"
+                      className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:opacity-90"
+                      style={{
+                        top: (clampedStart / SLOT_MINUTES) * ROW_HEIGHT,
+                        height: ((clampedEnd - clampedStart) / SLOT_MINUTES) * ROW_HEIGHT,
+                        background: single ? service?.color || 'var(--color-muted-foreground)' : 'var(--color-primary)',
+                      }}
+                      onClick={() => setResourceDetail({ resource, cluster })}
+                    >
+                      {single ? (
+                        <>
+                          <div className="truncate font-medium">{clientName(clientsById, cluster.items[0].client_id)}</div>
+                          <div className="truncate opacity-90">{service?.name}</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="truncate font-medium">{t('appointments:resourceColumn.bookedBlock')}</div>
+                          <div className="truncate opacity-90">
+                            {t('appointments:resourceColumn.bookedCount', { count: cluster.items.length })}
+                          </div>
+                        </>
+                      )}
+                    </button>
+                  )
+                })}
+
+                {showNowLine && (
+                  <div
+                    className="pointer-events-none absolute inset-x-0 z-20 h-0.5 bg-destructive"
+                    style={{ top: (nowMinutes / SLOT_MINUTES) * ROW_HEIGHT }}
+                  />
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
+
+      <ResourceBookingsDialog
+        open={!!resourceDetail}
+        onOpenChange={(open) => { if (!open) setResourceDetail(null) }}
+        resource={resourceDetail?.resource}
+        cluster={resourceDetail?.cluster}
+        unitsById={unitsById}
+        employeesById={employeesById}
+        clientsById={clientsById}
+        servicesById={servicesById}
+      />
 
       <AppointmentFormDialog
         open={!!dialogState}
