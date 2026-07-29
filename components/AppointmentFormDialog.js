@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { availableWindowForDate, isWithinWindow } from '../lib/employeeAvailability'
 import { servicesForRole } from '../lib/roleServiceFilter'
-import { serviceUsesResources, orderedUnitsForService, freeUnits, conflictKind } from '../lib/resourceAllocation'
+import { serviceUsesResources, orderedUnitsForService, availableUnitsFor, conflictKind } from '../lib/resourceAllocation'
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -67,18 +67,20 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     ? new Date(new Date(`${date}T${time}:00`).getTime() + selectedService.duration_minutes * 60000)
     : null
 
-  // Which units are busy during a window, straight from the appointments
-  // that occupy them. Shared by the "X remaining" readout and by save.
-  async function loadOccupiedUnitIds(start, end) {
+  // Candidate rows for a window. The filter here only narrows what gets
+  // fetched — whether a row actually occupies the window is decided by
+  // availableUnitsFor, so the half-open rule lives in one tested place
+  // rather than being duplicated in query syntax.
+  async function loadUnitAppointments(start, end) {
     const { data, error: queryError } = await supabase
       .from('appointments')
-      .select('resource_unit_id')
+      .select('resource_unit_id, start_time, end_time, status')
       .in('status', ['booked', 'completed'])
       .not('resource_unit_id', 'is', null)
       .lt('start_time', end.toISOString())
       .gt('end_time', start.toISOString())
     if (queryError) return { error: queryError }
-    return { ids: new Set((data || []).map((r) => r.resource_unit_id)) }
+    return { rows: data || [] }
   }
 
   // "X remaining" for the exact window being booked — recomputed whenever
@@ -95,9 +97,9 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       const start = new Date(`${date}T${time}:00`)
       const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
       const ordered = orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
-      const { ids, error: queryError } = await loadOccupiedUnitIds(start, end)
+      const { rows, error: queryError } = await loadUnitAppointments(start, end)
       if (cancelled || queryError) return
-      setRemaining({ free: freeUnits(ordered, ids).length, total: ordered.length })
+      setRemaining({ free: availableUnitsFor(ordered, rows, start, end).length, total: ordered.length })
     }
 
     computeRemaining()
@@ -201,13 +203,13 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     let candidateUnits = [null]
     if (serviceUsesResources(serviceId, serviceResources)) {
       const ordered = orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
-      const { ids, error: occupiedError } = await loadOccupiedUnitIds(start, end)
+      const { rows, error: occupiedError } = await loadUnitAppointments(start, end)
       if (occupiedError) {
         setSaving(false)
         setError(occupiedError.message)
         return
       }
-      candidateUnits = freeUnits(ordered, ids)
+      candidateUnits = availableUnitsFor(ordered, rows, start, end)
       if (candidateUnits.length === 0) {
         setSaving(false)
         setError(t('appointments:formDialog.allResourcesBusyError'))
