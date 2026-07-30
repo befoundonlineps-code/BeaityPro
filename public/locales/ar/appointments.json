@@ -13,6 +13,21 @@
   "outsideScheduleHint": "برا دوام الموظف",
   "pastSlotHint": "وقت فات",
   "pendingBlockHint": "حجز مبدئي — بانتظار التأكيد",
+  "statusLabels": {
+    "booked": "محجوز",
+    "completed": "مكتمل",
+    "pending_approval": "معلّق",
+    "no_show": "لم يحضر"
+  },
+  "employeeCluster": {
+    "blockLabel": "مواعيد متعددة",
+    "blockCount": "{{count}} مواعيد",
+    "dialogTitle": "مواعيد متراكبة — {{name}}",
+    "timeColumn": "الوقت",
+    "clientColumn": "الزبون",
+    "serviceColumn": "الخدمة",
+    "statusColumn": "الحالة"
+  },
   "actionsDialog": {
     "pendingTitle": "حجز مبدئي",
     "bookedTitle": "تفاصيل الحجز",

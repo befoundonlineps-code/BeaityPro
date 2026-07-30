@@ -26,6 +26,7 @@ import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvail
 import { clusterAppointments } from '../lib/resourceAllocation'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
+import AppointmentClusterDialog from './AppointmentClusterDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -58,6 +59,7 @@ export default function AppointmentCalendar({ salonId }) {
   const [dialogState, setDialogState] = useState(null) // null closed, {} blank, {employeeId,startTime} prefilled
   const [resourceDetail, setResourceDetail] = useState(null) // { resource, cluster }
   const [actionDetail, setActionDetail] = useState(null) // the pending/booked appointment being acted on
+  const [employeeClusterDetail, setEmployeeClusterDetail] = useState(null) // { employee, cluster } — overlapping employee blocks
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -274,15 +276,39 @@ export default function AppointmentCalendar({ salonId }) {
                 )
               })}
 
-              {appointmentsForEmployee(emp.id).map((a) => {
-                const startMin = minutesFromGridStart(new Date(a.start_time))
-                const endMin = minutesFromGridStart(new Date(a.end_time))
-                const clampedStart = Math.max(startMin, 0)
-                const clampedEnd = Math.min(endMin, gridMinutes)
+              {/* Almost every cluster holds exactly one appointment and
+                  renders exactly as before. More than one only happens when
+                  a no_show and a live booking land on the same slot — the
+                  only overlap the database allows, since booked/completed/
+                  pending_approval can never overlap each other for the same
+                  employee. That case gets one merged block that opens a
+                  picker instead of guessing which appointment you meant. */}
+              {clusterAppointments(appointmentsForEmployee(emp.id)).map((cluster) => {
+                const clampedStart = Math.max(minutesFromGridStart(cluster.start), 0)
+                const clampedEnd = Math.min(minutesFromGridStart(cluster.end), gridMinutes)
                 if (clampedEnd <= clampedStart) return null
-                const service = servicesById[a.service_id]
                 const top = (clampedStart / SLOT_MINUTES) * ROW_HEIGHT
                 const height = ((clampedEnd - clampedStart) / SLOT_MINUTES) * ROW_HEIGHT
+
+                if (cluster.items.length > 1) {
+                  return (
+                    <button
+                      key={`cluster-${emp.id}-${cluster.start.getTime()}`}
+                      type="button"
+                      className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:brightness-110"
+                      style={{ top, height, background: 'var(--color-primary)' }}
+                      onClick={() => setEmployeeClusterDetail({ employee: emp, cluster })}
+                    >
+                      <div className="truncate font-medium">{t('appointments:employeeCluster.blockLabel')}</div>
+                      <div className="truncate opacity-90">
+                        {t('appointments:employeeCluster.blockCount', { count: cluster.items.length })}
+                      </div>
+                    </button>
+                  )
+                }
+
+                const a = cluster.items[0]
+                const service = servicesById[a.service_id]
                 // A provisional booking keeps its service colour — it is a
                 // real hold on the slot — but wears a dashed edge and a
                 // hatch so it never reads as settled. A confirmed booking is
@@ -423,6 +449,18 @@ export default function AppointmentCalendar({ salonId }) {
         employeesById={employeesById}
         clientsById={clientsById}
         servicesById={servicesById}
+      />
+
+      <AppointmentClusterDialog
+        open={!!employeeClusterDetail}
+        onOpenChange={(open) => { if (!open) setEmployeeClusterDetail(null) }}
+        employee={employeeClusterDetail?.employee}
+        cluster={employeeClusterDetail?.cluster}
+        clientsById={clientsById}
+        servicesById={servicesById}
+        // Sequential, not stacked: the picker closes itself, then the usual
+        // actions dialog opens for the one appointment that was picked.
+        onPick={(a) => { setEmployeeClusterDetail(null); setActionDetail(a) }}
       />
 
       <AppointmentActionsDialog
