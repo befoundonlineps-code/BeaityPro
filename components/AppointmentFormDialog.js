@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button'
 import { availableWindowsForDate } from '../lib/employeeAvailability'
 import { servicesForRole } from '../lib/roleServiceFilter'
 import { serviceUsesResources, orderedUnitsForService, availableUnitsFor } from '../lib/resourceAllocation'
-import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole } from '../lib/bookingPlacement'
-import { loadOccupancy, attemptOnEachUnit } from '../lib/placementIO'
+import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole, combineGroupPlacement } from '../lib/bookingPlacement'
+import { loadOccupancy, loadGroupOccupancy, attemptOnEachUnit } from '../lib/placementIO'
+import { Plus, X } from 'lucide-react'
 
 // Which message each refusal from the pure layer turns into.
 const PLACEMENT_ERROR_KEYS = {
@@ -31,7 +32,7 @@ function toTimeInputValue(date) {
 }
 
 export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
-  const { t } = useTranslation(['appointments', 'common'])
+  const { t } = useTranslation(['appointments', 'employees', 'common'])
 
   const [client, setClient] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -48,10 +49,26 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   // then isn't refused — the receptionist is asked whether to hold the slot
   // provisionally and get it approved later.
   const [outsideSchedule, setOutsideSchedule] = useState(null)
+  // Extra professionals on the same session. Each becomes its own
+  // appointment row sharing a group_id, so each one's time is protected by
+  // the very same exclusion constraint the main professional's is.
+  const [extraEmployeeIds, setExtraEmployeeIds] = useState([])
 
   const activeServices = (services || []).filter((s) => s.is_active)
   const selectedEmployee = (employees || []).find((e) => e.id === employeeId)
+  const selectedService = activeServices.find((s) => s.id === serviceId)
   const visibleServices = servicesForRole(selectedEmployee?.role, activeServices, categories, roleBusinessTypes)
+
+  // Anyone whose role covers the chosen service, minus the people already on
+  // it. is_assistant plays no part here: it hides a calendar column, it does
+  // not limit who may work.
+  const eligibleExtras = selectedService
+    ? (employees || []).filter(
+        (e) =>
+          e.id !== employeeId &&
+          isServiceAllowedForRole(e.role, selectedService, activeServices, categories, roleBusinessTypes)
+      )
+    : []
 
   function handleEmployeeChange(newEmployeeId) {
     setEmployeeId(newEmployeeId)
@@ -60,6 +77,21 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     if (serviceId && !newVisible.some((s) => s.id === serviceId)) {
       setServiceId('')
     }
+    // Whoever just became the main professional can't also be an extra.
+    setExtraEmployeeIds((prev) => prev.filter((id) => id !== newEmployeeId))
+  }
+
+  function handleServiceChange(newServiceId) {
+    setServiceId(newServiceId)
+    // A different service can mean a different set of qualified roles, so
+    // anyone who no longer covers it drops off rather than failing on save.
+    const newService = activeServices.find((s) => s.id === newServiceId)
+    setExtraEmployeeIds((prev) =>
+      prev.filter((id) => {
+        const emp = (employees || []).find((e) => e.id === id)
+        return newService && isServiceAllowedForRole(emp?.role, newService, activeServices, categories, roleBusinessTypes)
+      })
+    )
   }
 
   useEffect(() => {
@@ -71,6 +103,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     setIsWaiting(false)
     setRemaining(null)
     setOutsideSchedule(null)
+    setExtraEmployeeIds([])
     setEmployeeId(initialEmployeeId || '')
     setDate(initialStartTime ? toDateInputValue(initialStartTime) : '')
     setTime(initialStartTime ? toTimeInputValue(initialStartTime) : '')
@@ -79,9 +112,8 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   // The warning belongs to one specific employee/service/time combination.
   // Touching any of them makes it stale, so it goes away and has to be
   // earned again on the next save.
-  useEffect(() => { setOutsideSchedule(null) }, [employeeId, serviceId, date, time, isWaiting])
+  useEffect(() => { setOutsideSchedule(null) }, [employeeId, serviceId, date, time, isWaiting, extraEmployeeIds])
 
-  const selectedService = activeServices.find((s) => s.id === serviceId)
   const computedEndTime = selectedService && date && time
     ? new Date(new Date(`${date}T${time}:00`).getTime() + selectedService.duration_minutes * 60000)
     : null
@@ -181,62 +213,112 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
 
     setSaving(true)
 
-    const { employeeRows, unitRows, error: loadError } = await loadOccupancy({ employeeId, start, end })
+    // A row left on the placeholder is simply not a participant yet.
+    const participantIds = [employeeId, ...extraEmployeeIds.filter(Boolean)]
+    const { rowsByEmployee, unitRows, error: loadError } = await loadGroupOccupancy({
+      employeeIds: participantIds,
+      start,
+      end,
+    })
     if (loadError) {
       setSaving(false)
       setError(loadError.message)
       return
     }
 
-    const scheduleEntry = (schedulesByEmployee || {})[employeeId]
-    const plan = evaluatePlacement({
-      start,
-      end,
-      windows: availableWindowsForDate(
-        scheduleEntry?.schedule,
-        scheduleEntry?.slots,
-        (exceptionsByEmployee || {})[employeeId],
-        new Date(`${date}T00:00:00`)
-      ),
-      roleAllowed: isServiceAllowedForRole(selectedEmployee?.role, selectedService, activeServices, categories, roleBusinessTypes),
-      employeeAppointments: employeeRows,
-      orderedUnits: serviceUsesResources(serviceId, serviceResources)
-        ? orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
-        : [],
-      unitAppointments: unitRows,
+    // Every participant goes through the very same evaluatePlacement as a
+    // lone booking, once each. Only the main professional can claim a
+    // resource unit — the room follows the client's session, not each pair
+    // of hands in it — so the others are evaluated with no units at all.
+    const dayStart = new Date(`${date}T00:00:00`)
+    const entries = participantIds.map((id, index) => {
+      const employee = (employees || []).find((e) => e.id === id)
+      const scheduleEntry = (schedulesByEmployee || {})[id]
+      const isPrimary = index === 0
+      return {
+        key: id,
+        employeeName: employee?.name || '',
+        isPrimary,
+        plan: evaluatePlacement({
+          start,
+          end,
+          windows: availableWindowsForDate(
+            scheduleEntry?.schedule,
+            scheduleEntry?.slots,
+            (exceptionsByEmployee || {})[id],
+            dayStart
+          ),
+          roleAllowed: isServiceAllowedForRole(employee?.role, selectedService, activeServices, categories, roleBusinessTypes),
+          employeeAppointments: rowsByEmployee[id] || [],
+          orderedUnits: isPrimary && serviceUsesResources(serviceId, serviceResources)
+            ? orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
+            : [],
+          unitAppointments: unitRows,
+        }),
+      }
     })
 
-    if (!plan.ok) {
+    const group = combineGroupPlacement(entries)
+
+    if (!group.ok) {
       setSaving(false)
-      setError(t(PLACEMENT_ERROR_KEYS[plan.reason]))
+      const { reason, failed } = group
+      if (!failed.isPrimary && (reason === 'conflict' || reason === 'roleMismatch')) {
+        // Name the person: with several on one session, "the employee is
+        // busy" would leave the receptionist guessing which one.
+        setError(t(`appointments:formDialog.participant.${reason}Error`, { name: failed.employeeName }))
+      } else {
+        setError(t(PLACEMENT_ERROR_KEYS[reason]))
+      }
       return
     }
 
     // Outside the shift is a question, not a refusal — unless it has already
-    // been asked and answered by the "book provisionally" button.
-    if (plan.outsideSchedule && !asPending) {
+    // been asked and answered by the "book provisionally" button. A session
+    // can be mixed: whoever is on shift books outright, whoever is not is
+    // held pending approval.
+    if (group.outsideKeys.length > 0 && !asPending) {
       setSaving(false)
-      setOutsideSchedule({ employeeName: selectedEmployee?.name || '' })
+      setOutsideSchedule({
+        names: group.outsideKeys
+          .map((id) => (employees || []).find((e) => e.id === id)?.name || '')
+          .filter(Boolean)
+          .join('، '),
+      })
       return
     }
     setOutsideSchedule(null)
 
-    const basePayload = {
+    // The main professional's row carries its own id as group_id, which is
+    // what makes the composite foreign key work without deferral: it exists
+    // the moment the row does, and the others point at a row already there.
+    const groupId = crypto.randomUUID()
+    const outside = new Set(group.outsideKeys)
+    const statusFor = (id) => (outside.has(id) ? 'pending_approval' : 'booked')
+
+    const groupRows = participantIds.map((id, index) => ({
+      id: index === 0 ? groupId : crypto.randomUUID(),
       salon_id: salonId,
       client_id: client.id,
       service_id: serviceId,
-      employee_id: employeeId,
+      employee_id: id,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
-      status: plan.outsideSchedule ? 'pending_approval' : 'booked',
+      status: statusFor(id),
       note: note.trim() || null,
-    }
+      group_id: groupId,
+      is_primary: index === 0,
+    }))
 
+    // One insert for the whole session. Several rows in a single insert are
+    // atomic in Postgres by nature — they all land or none do — so creating
+    // a group needs no database function of its own, unlike cancelling or
+    // rescheduling which have to update and insert together.
     const { data, error: saveError, kind, exhausted } = await attemptOnEachUnit(
-      plan.candidateUnits,
+      entries[0].plan.candidateUnits,
       (unit) => supabase
         .from('appointments')
-        .insert([{ ...basePayload, resource_unit_id: unit ? unit.id : null }])
+        .insert(groupRows.map((row) => ({ ...row, resource_unit_id: row.is_primary && unit ? unit.id : null })))
         .select()
     )
 
@@ -248,7 +330,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       else setError(saveError.message)
       return
     }
-    if (!data || data.length === 0) {
+    if (!data || data.length !== groupRows.length) {
       setError(t('appointments:formDialog.noRowsError'))
       return
     }
@@ -278,7 +360,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
               <select
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
                 value={serviceId}
-                onChange={(e) => setServiceId(e.target.value)}
+                onChange={(e) => handleServiceChange(e.target.value)}
               >
                 <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
                 {visibleServices.map((s) => (
@@ -310,6 +392,54 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
                     ))}
                   </select>
                 </div>
+
+                {/* Extra professionals on the same session. Each one becomes
+                    its own appointment row, so each one's time is protected
+                    by the same constraint as the main professional's — a
+                    four-hands massage genuinely occupies both of them. */}
+                {extraEmployeeIds.map((extraId, index) => (
+                  <div key={index} className="flex flex-col gap-1.5">
+                    <Label>{t('appointments:formDialog.extraEmployeeLabel', { number: index + 2 })}</Label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                        value={extraId}
+                        onChange={(e) => setExtraEmployeeIds((prev) => prev.map((v, i) => (i === index ? e.target.value : v)))}
+                      >
+                        <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
+                        {eligibleExtras
+                          .filter((emp) => emp.id === extraId || !extraEmployeeIds.includes(emp.id))
+                          .map((emp) => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name}{emp.is_assistant ? ` — ${t('employees:formDialog.isAssistantLabel')}` : ''}
+                            </option>
+                          ))}
+                      </select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-sm"
+                        title={t('appointments:formDialog.removeExtraEmployeeTitle')}
+                        onClick={() => setExtraEmployeeIds((prev) => prev.filter((_, i) => i !== index))}
+                      >
+                        <X />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+
+                {selectedService && eligibleExtras.some((emp) => !extraEmployeeIds.includes(emp.id)) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit"
+                    onClick={() => setExtraEmployeeIds((prev) => [...prev, ''])}
+                  >
+                    <Plus />
+                    {t('appointments:formDialog.addProfessionalButton')}
+                  </Button>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
@@ -352,7 +482,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
 
           {outsideSchedule && (
             <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
-              {t('appointments:formDialog.outsideScheduleWarning', { name: outsideSchedule.employeeName })}
+              {t('appointments:formDialog.outsideScheduleWarning', { name: outsideSchedule.names })}
             </div>
           )}
 

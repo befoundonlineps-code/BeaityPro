@@ -19,6 +19,7 @@ export default function EmployeeFormDialog({ open, onOpenChange, employee, salon
 
   const [name, setName] = useState('')
   const [role, setRole] = useState(EMPLOYEE_ROLES[0])
+  const [isAssistant, setIsAssistant] = useState(false)
   const [scheduleId, setScheduleId] = useState(null)
   const [pattern, setPattern] = useState('weekly')
   const [startsOn, setStartsOn] = useState('')
@@ -37,6 +38,7 @@ export default function EmployeeFormDialog({ open, onOpenChange, employee, salon
       setError('')
       setName(employee ? employee.name : '')
       setRole(employee ? employee.role : EMPLOYEE_ROLES[0])
+      setIsAssistant(employee ? !!employee.is_assistant : false)
 
       if (!employee) {
         setScheduleId(null)
@@ -121,7 +123,7 @@ export default function EmployeeFormDialog({ open, onOpenChange, employee, salon
     setError('')
     setSaving(true)
 
-    const employeePayload = { name: name.trim(), role }
+    const employeePayload = { name: name.trim(), role, is_assistant: isAssistant }
     const { data: employeeData, error: employeeError } = isEdit
       ? await supabase.from('employees').update(employeePayload).eq('id', employee.id).select()
       : await supabase.from('employees').insert([{ ...employeePayload, salon_id: salonId }]).select()
@@ -240,6 +242,12 @@ export default function EmployeeFormDialog({ open, onOpenChange, employee, salon
               </select>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" className="accent-primary" checked={isAssistant} onChange={(e) => setIsAssistant(e.target.checked)} />
+            {t('employees:formDialog.isAssistantLabel')}
+          </label>
+          <p className="-mt-2 text-xs text-muted-foreground">{t('employees:formDialog.isAssistantHint')}</p>
 
           {loadingSchedule ? (
             <div className="text-sm text-muted-foreground">{t('common:loading')}</div>
