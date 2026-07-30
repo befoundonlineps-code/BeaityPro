@@ -12,6 +12,7 @@ import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
 import { useResources } from '../hooks/useResources'
 import { useCancellationReasons } from '../hooks/useCancellationReasons'
 import { useRescheduleReasons } from '../hooks/useRescheduleReasons'
+import { useAdjustmentReasons } from '../hooks/useAdjustmentReasons'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -31,6 +32,7 @@ import AppointmentActionsDialog from './AppointmentActionsDialog'
 import AppointmentClusterDialog from './AppointmentClusterDialog'
 import RescheduleDialog from './RescheduleDialog'
 import RescheduleConfirmDialog from './RescheduleConfirmDialog'
+import AdjustDurationDialog from './AdjustDurationDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -65,6 +67,7 @@ export default function AppointmentCalendar({ salonId }) {
   const [actionDetail, setActionDetail] = useState(null) // the pending/booked appointment being acted on
   const [employeeClusterDetail, setEmployeeClusterDetail] = useState(null) // { employee, cluster } — overlapping employee blocks
   const [rescheduleDetail, setRescheduleDetail] = useState(null) // the appointment being moved to a new date/time/employee
+  const [adjustDetail, setAdjustDetail] = useState(null) // the running session whose real end is being recorded
   const [dragState, setDragState] = useState(null) // { appointment, grabOffsetY, durationMinutes } while a block is in hand
   const [dragOverEmployeeId, setDragOverEmployeeId] = useState(null)
   const [dropTarget, setDropTarget] = useState(null) // { appointment, employeeId, start } awaiting confirmation
@@ -83,13 +86,14 @@ export default function AppointmentCalendar({ salonId }) {
   const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
   const { reasons: cancellationReasons, loading: cancellationReasonsLoading, reload: reloadCancellationReasons } = useCancellationReasons()
   const { reasons: rescheduleReasons, loading: rescheduleReasonsLoading, reload: reloadRescheduleReasons } = useRescheduleReasons()
+  const { reasons: adjustmentReasons, loading: adjustmentReasonsLoading, reload: reloadAdjustmentReasons } = useAdjustmentReasons()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || exceptionsLoading || roleTypesLoading || resourcesLoading || rescheduleReasonsLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || exceptionsLoading || roleTypesLoading || resourcesLoading || rescheduleReasonsLoading || adjustmentReasonsLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
@@ -120,32 +124,29 @@ export default function AppointmentCalendar({ salonId }) {
   const hasAssistants = employees.some((e) => e.is_assistant)
   const visibleEmployees = showAssistants ? employees : employees.filter((e) => !e.is_assistant)
 
-  // A rescheduled row keeps its original start/end forever — it is history,
-  // not a slot still on the board — so it stays hidden here exactly like a
-  // cancelled one, and only ever surfaces through rescheduled_to_id.
+  // A row that has been superseded — rescheduled to another time, or
+  // adjusted to a different end — keeps its original span forever. It is
+  // history, not a slot still on the board, so it stays hidden here exactly
+  // like a cancelled one and only surfaces through superseded_by_id.
+  const isHistorical = (a) => a.status === 'cancelled' || a.status === 'rescheduled' || a.status === 'adjusted'
+
   function appointmentsForEmployee(employeeId) {
-    return dayAppointments.filter((a) => a.employee_id === employeeId && a.status !== 'cancelled' && a.status !== 'rescheduled')
+    return dayAppointments.filter((a) => a.employee_id === employeeId && !isHistorical(a))
   }
 
-  // The other people on the same session, for the actions dialog to name.
-  // Without it, cancelling from one block would visibly clear other columns
-  // with no explanation of why.
-  function groupMemberNames(appointment) {
+  // The other rows on the same session. The actions dialog names them, and
+  // the adjust dialog needs them whole — every participant's end moves
+  // together, so every participant's availability has to be checked.
+  function groupMembers(appointment) {
     if (!appointment) return []
     return dayAppointments
-      .filter((a) =>
-        a.group_id === appointment.group_id &&
-        a.id !== appointment.id &&
-        a.status !== 'cancelled' &&
-        a.status !== 'rescheduled'
-      )
-      .map((a) => employeesById[a.employee_id]?.name)
-      .filter(Boolean)
+      .filter((a) => a.group_id === appointment.group_id && a.id !== appointment.id && !isHistorical(a))
+      .map((a) => ({ ...a, employeeName: employeesById[a.employee_id]?.name || '' }))
   }
 
   function appointmentsForResource(resourceId) {
     return dayAppointments.filter((a) => {
-      if (a.status === 'cancelled' || a.status === 'rescheduled' || !a.resource_unit_id) return false
+      if (isHistorical(a) || !a.resource_unit_id) return false
       return unitsById[a.resource_unit_id]?.resource_id === resourceId
     })
   }
@@ -598,7 +599,7 @@ export default function AppointmentCalendar({ salonId }) {
         employee={actionDetail ? employeesById[actionDetail.employee_id] : null}
         clientName={actionDetail ? clientName(clientsById, actionDetail.client_id) : ''}
         serviceName={actionDetail ? servicesById[actionDetail.service_id]?.name : ''}
-        groupMemberNames={groupMemberNames(actionDetail)}
+        groupMemberNames={groupMembers(actionDetail).map((m) => m.employeeName).filter(Boolean)}
         cancellationReasons={cancellationReasons}
         cancellationReasonsLoading={cancellationReasonsLoading}
         reloadCancellationReasons={reloadCancellationReasons}
@@ -606,6 +607,7 @@ export default function AppointmentCalendar({ salonId }) {
         // Sequential, not stacked: this dialog closes itself before handing
         // the appointment off to the reschedule dialog.
         onReschedule={(a) => setRescheduleDetail(a)}
+        onAdjustDuration={(a) => setAdjustDetail(a)}
         // Confirming writes a shift exception, and cancelling can remove
         // one — either way the day's windows have to be reloaded alongside
         // the bookings themselves.
@@ -633,6 +635,22 @@ export default function AppointmentCalendar({ salonId }) {
         salonId={salonId}
         // The old row becomes a rescheduled history entry and may have shed
         // a shift exception, exactly like confirming and cancelling do.
+        onDone={() => { reload(); reloadExceptions() }}
+      />
+
+      <AdjustDurationDialog
+        open={!!adjustDetail}
+        onOpenChange={(open) => { if (!open) setAdjustDetail(null) }}
+        appointment={adjustDetail}
+        service={adjustDetail ? servicesById[adjustDetail.service_id] : null}
+        clientName={adjustDetail ? clientName(clientsById, adjustDetail.client_id) : ''}
+        groupMembers={groupMembers(adjustDetail)}
+        adjustmentReasons={adjustmentReasons}
+        adjustmentReasonsLoading={adjustmentReasonsLoading}
+        reloadAdjustmentReasons={reloadAdjustmentReasons}
+        salonId={salonId}
+        // The old rows become adjusted history and may carry a shift
+        // exception across to the new ones, so windows reload too.
         onDone={() => { reload(); reloadExceptions() }}
       />
 

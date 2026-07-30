@@ -23,6 +23,7 @@ export default function AppointmentActionsDialog({
   open, onOpenChange, appointment, employee, clientName, serviceName, groupMemberNames,
   cancellationReasons, cancellationReasonsLoading, reloadCancellationReasons, salonId,
   onReschedule,
+  onAdjustDuration,
   onDone,
 }) {
   const { t } = useTranslation(['appointments', 'common'])
@@ -122,6 +123,16 @@ export default function AppointmentActionsDialog({
     onOpenChange(false)
     onReschedule(appointment)
   }
+
+  function handleAdjustDuration() {
+    onOpenChange(false)
+    onAdjustDuration(appointment)
+  }
+
+  // Only a session that has actually begun can have its real end recorded.
+  // Before it starts there is nothing to adjust — moving it is what
+  // "reschedule" is for.
+  const hasStarted = new Date(appointment.start_time) <= new Date()
 
   const rows = [
     [t('appointments:actionsDialog.clientLabel'), clientName],
@@ -236,6 +247,11 @@ export default function AppointmentActionsDialog({
                 <Button variant="outline" disabled={busy} onClick={handleNoShow}>
                   {t('appointments:actionsDialog.noShowButton')}
                 </Button>
+                {hasStarted && (
+                  <Button variant="outline" disabled={busy} onClick={handleAdjustDuration}>
+                    {t('appointments:actionsDialog.adjustDurationButton')}
+                  </Button>
+                )}
                 <Button variant="outline" disabled={busy} onClick={handleReschedule}>
                   {t('appointments:actionsDialog.rescheduleButton')}
                 </Button>
