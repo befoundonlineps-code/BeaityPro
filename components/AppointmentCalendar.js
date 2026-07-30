@@ -296,15 +296,19 @@ export default function AppointmentCalendar({ salonId }) {
               waitingAppointments.map((a) => {
                 const service = servicesById[a.service_id]
                 return (
-                  <div
+                  <button
                     key={a.id}
-                    className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+                    type="button"
+                    className="rounded-md border border-border bg-card px-2 py-1.5 text-start text-xs hover:bg-muted"
                     style={{ borderInlineStartWidth: 3, borderInlineStartColor: service?.color || 'var(--color-muted-foreground)' }}
-                    title={a.note || ''}
+                    title={a.note || t('appointments:waitingListConvertHint')}
+                    // Opens the booking dialog in conversion mode, carrying
+                    // the client along so it can be shown without a lookup.
+                    onClick={() => setDialogState({ waitingAppointment: { ...a, client: clientsById[a.client_id] || null } })}
                   >
                     <div className="truncate font-medium">{clientName(clientsById, a.client_id)}</div>
                     <div className="truncate text-muted-foreground">{service?.name}</div>
-                  </div>
+                  </button>
                 )
               })
             )}
@@ -684,6 +688,7 @@ export default function AppointmentCalendar({ salonId }) {
         salonId={salonId}
         initialEmployeeId={dialogState?.employeeId}
         initialStartTime={dialogState?.startTime}
+        waitingAppointment={dialogState?.waitingAppointment}
         employees={employees}
         services={services}
         categories={categories}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { exceptionWindowFor } from '../lib/employeeAvailability'
+import { reportDbError } from '../lib/dbErrors'
 import CancellationReasonManagerDialog from './CancellationReasonManagerDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -59,9 +60,9 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        rpcError.message.includes('appointment_not_pending')
+        rpcError.message?.includes('appointment_not_pending')
           ? t('appointments:actionsDialog.notPendingError')
-          : rpcError.message
+          : t(reportDbError(rpcError, 'confirmPendingAppointment'))
       )
       return
     }
@@ -84,9 +85,9 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        rpcError.message.includes('appointment_not_cancellable')
+        rpcError.message?.includes('appointment_not_cancellable')
           ? t('appointments:actionsDialog.notCancellableError')
-          : rpcError.message
+          : t(reportDbError(rpcError, 'cancelAppointment'))
       )
       return
     }
@@ -108,7 +109,7 @@ export default function AppointmentActionsDialog({
       .select()
     setBusy(false)
     if (updateError) {
-      setError(updateError.message)
+      setError(t(reportDbError(updateError, 'markNoShow')))
       return
     }
     if (!data || data.length === 0) {

@@ -12,6 +12,7 @@ import { servicesForRole } from '../lib/roleServiceFilter'
 import { serviceUsesResources, orderedUnitsForService, availableUnitsFor } from '../lib/resourceAllocation'
 import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole, combineGroupPlacement } from '../lib/bookingPlacement'
 import { loadOccupancy, loadGroupOccupancy, attemptOnEachUnit } from '../lib/placementIO'
+import { reportDbError } from '../lib/dbErrors'
 import { Plus, X } from 'lucide-react'
 
 // Which message each refusal from the pure layer turns into.
@@ -31,7 +32,13 @@ function toTimeInputValue(date) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
+// waitingAppointment turns this into conversion mode: the same dialog, but
+// filling in a waiting-list entry that already exists rather than creating
+// something new. The client is fixed (a different client would be somebody
+// else's place in the queue), the service is not, and every placement rule
+// runs exactly as it does for a fresh booking — only the final write
+// differs, updating the row in place instead of inserting one.
+export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, waitingAppointment, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
   const { t } = useTranslation(['appointments', 'employees', 'common'])
 
   const [client, setClient] = useState(null)
@@ -54,6 +61,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   // the very same exclusion constraint the main professional's is.
   const [extraEmployeeIds, setExtraEmployeeIds] = useState([])
 
+  const isConverting = !!waitingAppointment
   const activeServices = (services || []).filter((s) => s.is_active)
   const selectedEmployee = (employees || []).find((e) => e.id === employeeId)
   const selectedService = activeServices.find((s) => s.id === serviceId)
@@ -97,17 +105,21 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   useEffect(() => {
     if (!open) return
     setError('')
-    setClient(null)
-    setServiceId('')
-    setNote('')
-    setIsWaiting(false)
     setRemaining(null)
     setOutsideSchedule(null)
     setExtraEmployeeIds([])
     setEmployeeId(initialEmployeeId || '')
     setDate(initialStartTime ? toDateInputValue(initialStartTime) : '')
     setTime(initialStartTime ? toTimeInputValue(initialStartTime) : '')
-  }, [open, initialEmployeeId, initialStartTime])
+
+    // Converting carries the entry's own client, service and note across;
+    // the waiting toggle is meaningless here, since this is the way *out*
+    // of the waiting list.
+    setClient(waitingAppointment ? waitingAppointment.client || null : null)
+    setServiceId(waitingAppointment ? waitingAppointment.service_id || '' : '')
+    setNote(waitingAppointment ? waitingAppointment.note || '' : '')
+    setIsWaiting(false)
+  }, [open, initialEmployeeId, initialStartTime, waitingAppointment])
 
   // The warning belongs to one specific employee/service/time combination.
   // Touching any of them makes it stale, so it goes away and has to be
@@ -187,7 +199,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
         .select()
       setSaving(false)
       if (saveError) {
-        setError(saveError.message)
+        setError(t(reportDbError(saveError, 'createWaitingEntry')))
         return
       }
       if (!data || data.length === 0) {
@@ -297,12 +309,56 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     }
     setOutsideSchedule(null)
 
+    const outside = new Set(group.outsideKeys)
+    const statusFor = (id) => (outside.has(id) ? 'pending_approval' : 'booked')
+
+    // Converting fills in a row that already exists, so it updates in place
+    // rather than inserting: the entry keeps its id and its created_at, and
+    // "how long did this client wait?" stays answerable afterwards. The
+    // function refuses if the entry stopped being `waiting` in the
+    // meantime, which is what stops two devices converting the same one.
+    if (isConverting) {
+      const { data, error: saveError, kind, exhausted } = await attemptOnEachUnit(
+        entries[0].plan.candidateUnits,
+        (unit) => supabase.rpc('convert_waiting_appointment', {
+          p_appointment_id: waitingAppointment.id,
+          p_employee_id: employeeId,
+          p_service_id: serviceId,
+          p_start: start.toISOString(),
+          p_end: end.toISOString(),
+          p_provisional: outside.has(employeeId),
+          p_resource_unit_id: unit ? unit.id : null,
+          p_participants: extraEmployeeIds.filter(Boolean).map((id) => ({
+            employee_id: id,
+            provisional: outside.has(id),
+          })),
+        })
+      )
+
+      setSaving(false)
+
+      if (saveError) {
+        if (exhausted) setError(t('appointments:formDialog.allResourcesBusyError'))
+        else if (kind === 'employee') setError(t('appointments:formDialog.conflictError'))
+        else if (saveError.message?.includes('appointment_not_waiting')) {
+          setError(t('appointments:formDialog.notWaitingError'))
+        } else setError(t(reportDbError(saveError, 'convertWaitingAppointment')))
+        return
+      }
+      if (!data) {
+        setError(t('appointments:formDialog.noRowsError'))
+        return
+      }
+
+      onSaved()
+      onOpenChange(false)
+      return
+    }
+
     // The main professional's row carries its own id as group_id, which is
     // what makes the composite foreign key work without deferral: it exists
     // the moment the row does, and the others point at a row already there.
     const groupId = crypto.randomUUID()
-    const outside = new Set(group.outsideKeys)
-    const statusFor = (id) => (outside.has(id) ? 'pending_approval' : 'booked')
 
     const groupRows = participantIds.map((id, index) => ({
       id: index === 0 ? groupId : crypto.randomUUID(),
@@ -335,7 +391,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     if (saveError) {
       if (exhausted) setError(t('appointments:formDialog.allResourcesBusyError'))
       else if (kind === 'employee') setError(t('appointments:formDialog.conflictError'))
-      else setError(saveError.message)
+      else setError(t(reportDbError(saveError, 'createBooking')))
       return
     }
     if (!data || data.length !== groupRows.length) {
@@ -352,15 +408,25 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg max-h-[88vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t('appointments:formDialog.title')}</DialogTitle>
+            <DialogTitle>
+              {isConverting ? t('appointments:formDialog.convertTitle') : t('appointments:formDialog.title')}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label>{t('appointments:formDialog.clientLabel')}</Label>
-              <Button type="button" variant="outline" className="justify-start" onClick={() => setPickerOpen(true)}>
-                {client ? `${client.first_name} ${client.last_name}` : t('appointments:formDialog.chooseClientButton')}
-              </Button>
+              {/* Fixed while converting: a different client would be a
+                  different person's place in the queue, not this one. */}
+              {isConverting ? (
+                <div className="rounded-lg bg-muted px-3 py-1.5 text-sm font-medium">
+                  {client ? `${client.first_name} ${client.last_name || ''}`.trim() : ''}
+                </div>
+              ) : (
+                <Button type="button" variant="outline" className="justify-start" onClick={() => setPickerOpen(true)}>
+                  {client ? `${client.first_name} ${client.last_name}` : t('appointments:formDialog.chooseClientButton')}
+                </Button>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -380,7 +446,9 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
               )}
             </div>
 
-            <label className="flex items-center gap-2 text-sm font-medium">
+            {/* Meaningless while converting: this is the way out of the
+                waiting list, not into it. */}
+            <label className={`flex items-center gap-2 text-sm font-medium ${isConverting ? 'hidden' : ''}`}>
               <input type="checkbox" className="accent-primary" checked={isWaiting} onChange={(e) => setIsWaiting(e.target.checked)} />
               {t('appointments:formDialog.waitingToggleLabel')}
             </label>
@@ -513,7 +581,11 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
               <>
                 <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>
                 <Button disabled={saving} onClick={() => handleSave(false)}>
-                  {saving ? t('common:saving') : t('common:save')}
+                  {saving
+                    ? t('common:saving')
+                    : isConverting
+                    ? t('appointments:formDialog.convertButton')
+                    : t('common:save')}
                 </Button>
               </>
             )}
