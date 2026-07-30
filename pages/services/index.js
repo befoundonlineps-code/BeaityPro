@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
-import { useAuthSession } from '../../hooks/useAuthSession'
-import LoginScreen from '../../components/LoginScreen'
+import AuthGate from '../../components/AuthGate'
 import AppShell from '../../components/AppShell'
 import ServicesTree from '../../components/ServicesTree'
 import ServiceRolePricing from '../../components/ServiceRolePricing'
@@ -19,39 +18,34 @@ export async function getServerSideProps({ locale }) {
 
 export default function ServicesPage() {
   const { t } = useTranslation(['services', 'common'])
-  const { session, salonId, loading, logout } = useAuthSession()
   const [tab, setTab] = useState('tree')
 
-  const PAGE_LOADING = (
-    <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">{t('common:loading')}</div>
-  )
-
-  if (session === undefined) return PAGE_LOADING
-  if (!session) return <LoginScreen />
-  if (loading) return PAGE_LOADING
-
   return (
-    <AppShell userEmail={session.user.email} onLogout={logout}>
-      <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
-        <div className="text-sm text-muted-foreground">
-          <span className="font-semibold text-primary">{t('services:breadcrumbServices')}</span>
-          {' / '}<span>{t(`services:breadcrumb${tab === 'tree' ? 'Catalog' : tab === 'pricing' ? 'Pricing' : 'Resources'}`)}</span>
-        </div>
-      </div>
+    <AuthGate>
+      {({ session, salonId, logout }) => (
+        <AppShell userEmail={session.user.email} onLogout={logout}>
+          <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
+            <div className="text-sm text-muted-foreground">
+              <span className="font-semibold text-primary">{t('services:breadcrumbServices')}</span>
+              {' / '}<span>{t(`services:breadcrumb${tab === 'tree' ? 'Catalog' : tab === 'pricing' ? 'Pricing' : 'Resources'}`)}</span>
+            </div>
+          </div>
 
-      <div className="flex flex-col gap-4 p-5">
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="tree">{t('services:tabs.catalog')}</TabsTrigger>
-            <TabsTrigger value="pricing">{t('services:tabs.rolePricing')}</TabsTrigger>
-            <TabsTrigger value="resources">{t('services:tabs.resources')}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+          <div className="flex flex-col gap-4 p-5">
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList>
+                <TabsTrigger value="tree">{t('services:tabs.catalog')}</TabsTrigger>
+                <TabsTrigger value="pricing">{t('services:tabs.rolePricing')}</TabsTrigger>
+                <TabsTrigger value="resources">{t('services:tabs.resources')}</TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-        {tab === 'tree' && <ServicesTree salonId={salonId} />}
-        {tab === 'pricing' && <ServiceRolePricing />}
-        {tab === 'resources' && <ResourcesManager salonId={salonId} />}
-      </div>
-    </AppShell>
+            {tab === 'tree' && <ServicesTree salonId={salonId} />}
+            {tab === 'pricing' && <ServiceRolePricing />}
+            {tab === 'resources' && <ResourcesManager salonId={salonId} />}
+          </div>
+        </AppShell>
+      )}
+    </AuthGate>
   )
 }

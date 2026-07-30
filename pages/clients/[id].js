@@ -2,14 +2,13 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
-import { useAuthSession } from '../../hooks/useAuthSession'
 import { supabase } from '../../lib/supabaseClient'
 import { buildClientPayload, clientToForm } from '../../lib/clientMapping'
 import { getDuplicateWarningMessage } from '../../lib/duplicateCheck'
 import { getAvatarColor, getInitials } from '../../lib/avatarColor'
 import { computeBalance } from '../../lib/ledger'
 import { getPublicFileUrl } from '../../lib/clientFiles'
-import LoginScreen from '../../components/LoginScreen'
+import AuthGate from '../../components/AuthGate'
 import AppShell from '../../components/AppShell'
 import ClientForm from '../../components/ClientForm'
 import ClientBalanceSummary from '../../components/ClientBalanceSummary'
@@ -34,10 +33,6 @@ export default function ClientProfilePage() {
   const { t } = useTranslation(['clientProfile', 'common', 'clientsList'])
   const router = useRouter()
   const { id } = router.query
-  const { session, salonId, loading, logout } = useAuthSession()
-  const PAGE_LOADING = (
-    <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">{t('common:loading')}</div>
-  )
 
   const [client, setClient] = useState(null)
   const [form, setForm] = useState(null)
@@ -112,80 +107,93 @@ export default function ClientProfilePage() {
     else loadClient()
   }
 
-  if (session === undefined) return PAGE_LOADING
-  if (!session) return <LoginScreen />
-  if (loading || !client || !form) return PAGE_LOADING
-
-  const initials = getInitials(client.first_name, client.last_name)
-  const color = getAvatarColor(client.id)
-  const photoUrl = client.photo_path ? getPublicFileUrl(supabase, client.photo_path) : null
-
   return (
-    <AppShell userEmail={session.user.email} onLogout={logout}>
-      <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
-        <div className="text-sm text-muted-foreground">
-          <button className="font-semibold text-primary hover:underline" onClick={() => router.push('/')}>{t('clientsList:breadcrumbClients')}</button>
-          {' / '}<span>{client.first_name} {client.last_name}</span>
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('credit')}>{t('clientProfile:addBalanceButton')}</Button>
-          <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('debit')}>{t('clientProfile:removeBalanceButton')}</Button>
-          <Button size="sm" disabled={saving} onClick={save}>{saving ? t('common:saving') : t('clientProfile:saveChangesButton')}</Button>
-        </div>
-      </div>
+    <AuthGate>
+      {({ session, salonId, logout }) => {
+        // This page's own record-readiness gate, separate from AuthGate's:
+        // it depends on `id` (which client), not on the signed-in identity,
+        // so it belongs here rather than in the shared component.
+        if (!client || !form) {
+          return (
+            <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+              {t('common:loading')}
+            </div>
+          )
+        }
 
-      <BalanceDialog
-        open={!!balanceDialogType}
-        type={balanceDialogType}
-        onOpenChange={(open) => { if (!open) setBalanceDialogType(null) }}
-        onSubmit={addLedgerEntry}
-      />
+        const initials = getInitials(client.first_name, client.last_name)
+        const color = getAvatarColor(client.id)
+        const photoUrl = client.photo_path ? getPublicFileUrl(supabase, client.photo_path) : null
 
-      {error && (
-        <div className="mx-5 mt-4 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div>
-      )}
+        return (
+          <AppShell userEmail={session.user.email} onLogout={logout}>
+            <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
+              <div className="text-sm text-muted-foreground">
+                <button className="font-semibold text-primary hover:underline" onClick={() => router.push('/')}>{t('clientsList:breadcrumbClients')}</button>
+                {' / '}<span>{client.first_name} {client.last_name}</span>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('credit')}>{t('clientProfile:addBalanceButton')}</Button>
+                <Button size="sm" variant="outline" onClick={() => setBalanceDialogType('debit')}>{t('clientProfile:removeBalanceButton')}</Button>
+                <Button size="sm" disabled={saving} onClick={save}>{saving ? t('common:saving') : t('clientProfile:saveChangesButton')}</Button>
+              </div>
+            </div>
 
-      <div className="p-5">
-        <div className="mb-5 flex items-center gap-3">
-          <Avatar size="lg">
-            {photoUrl && <AvatarImage src={photoUrl} alt="" />}
-            <AvatarFallback style={{ background: color, color: '#fff' }}>{initials}</AvatarFallback>
-          </Avatar>
-          <div>
-            <div className="text-lg font-semibold text-foreground">{client.first_name} {client.last_name}</div>
-            <div className="text-sm text-muted-foreground">{client.phone_number}</div>
-          </div>
-        </div>
+            <BalanceDialog
+              open={!!balanceDialogType}
+              type={balanceDialogType}
+              onOpenChange={(open) => { if (!open) setBalanceDialogType(null) }}
+              onSubmit={addLedgerEntry}
+            />
 
-        <Tabs value={tab} onValueChange={setTab} className="mb-4">
-          <TabsList>
-            <TabsTrigger value="information">{t('clientProfile:tabs.information')}</TabsTrigger>
-            <TabsTrigger value="cards">{t('clientProfile:tabs.cards')}</TabsTrigger>
-            <TabsTrigger value="history">{t('clientProfile:tabs.history')}</TabsTrigger>
-            <TabsTrigger value="files">{t('clientProfile:tabs.files')}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+            {error && (
+              <div className="mx-5 mt-4 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive">{error}</div>
+            )}
 
-        {tab === 'information' && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
-            <div className="flex flex-col gap-4">
-              {duplicateWarning && (
-                <div className="text-sm text-destructive">⚠ {t('common:validation.phoneAlreadyUsed', { name: duplicateWarning })}</div>
+            <div className="p-5">
+              <div className="mb-5 flex items-center gap-3">
+                <Avatar size="lg">
+                  {photoUrl && <AvatarImage src={photoUrl} alt="" />}
+                  <AvatarFallback style={{ background: color, color: '#fff' }}>{initials}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="text-lg font-semibold text-foreground">{client.first_name} {client.last_name}</div>
+                  <div className="text-sm text-muted-foreground">{client.phone_number}</div>
+                </div>
+              </div>
+
+              <Tabs value={tab} onValueChange={setTab} className="mb-4">
+                <TabsList>
+                  <TabsTrigger value="information">{t('clientProfile:tabs.information')}</TabsTrigger>
+                  <TabsTrigger value="cards">{t('clientProfile:tabs.cards')}</TabsTrigger>
+                  <TabsTrigger value="history">{t('clientProfile:tabs.history')}</TabsTrigger>
+                  <TabsTrigger value="files">{t('clientProfile:tabs.files')}</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {tab === 'information' && (
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_300px]">
+                  <div className="flex flex-col gap-4">
+                    {duplicateWarning && (
+                      <div className="text-sm text-destructive">⚠ {t('common:validation.phoneAlreadyUsed', { name: duplicateWarning })}</div>
+                    )}
+                    <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} salonId={salonId} />
+                  </div>
+                  <div className="flex flex-col gap-4">
+                    <ClientBalanceSummary balance={computeBalance(ledgerRows)} />
+                    <ClientRelationships clientId={id} />
+                  </div>
+                </div>
               )}
-              <ClientForm form={form} update={update} activeTab={formTab} setActiveTab={setFormTab} salonId={salonId} />
+              {tab === 'cards' && <ClientCardsTab />}
+              {tab === 'history' && <ClientHistoryTab />}
+              {tab === 'files' && (
+                <ClientFilesTab client={client} onPhotoUpdated={loadClient} />
+              )}
             </div>
-            <div className="flex flex-col gap-4">
-              <ClientBalanceSummary balance={computeBalance(ledgerRows)} />
-              <ClientRelationships clientId={id} />
-            </div>
-          </div>
-        )}
-        {tab === 'cards' && <ClientCardsTab />}
-        {tab === 'history' && <ClientHistoryTab />}
-        {tab === 'files' && (
-          <ClientFilesTab client={client} onPhotoUpdated={loadClient} />
-        )}
-      </div>
-    </AppShell>
+          </AppShell>
+        )
+      }}
+    </AuthGate>
   )
 }
