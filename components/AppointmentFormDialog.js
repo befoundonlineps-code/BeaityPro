@@ -164,9 +164,15 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
 
     if (isWaiting) {
       setSaving(true)
+      // A waiting entry is a group of one, exactly like a booked primary.
+      // group_id is NOT NULL with no default — a column default cannot
+      // reference the row's own id — so it has to be generated here, the
+      // same way the booking path below does it.
+      const waitingId = crypto.randomUUID()
       const { data, error: saveError } = await supabase
         .from('appointments')
         .insert([{
+          id: waitingId,
           salon_id: salonId,
           client_id: client.id,
           service_id: serviceId,
@@ -175,6 +181,8 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
           end_time: null,
           status: 'waiting',
           note: note.trim() || null,
+          group_id: waitingId,
+          is_primary: true,
         }])
         .select()
       setSaving(false)
