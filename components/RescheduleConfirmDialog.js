@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { planReschedule, commitReschedule, rescheduleErrorKey, RESCHEDULE_ERROR_KEYS } from '../lib/rescheduleFlow'
+import { reportDbError } from '../lib/dbErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
@@ -57,7 +58,7 @@ export default function RescheduleConfirmDialog({
       if (cancelled) return
       setChecking(false)
       if (result.error) {
-        setError(result.error.message)
+        setError(t(reportDbError(result.error, 'rescheduleAppointment.drag')))
         return
       }
       setEvaluated(result)
@@ -91,7 +92,7 @@ export default function RescheduleConfirmDialog({
       return
     }
     if (result.error) {
-      setError(result.error.message)
+      setError(t(reportDbError(result.error, 'rescheduleAppointment.drag')))
       return
     }
 

@@ -9,6 +9,7 @@
   "nextDayTitle": "اليوم التالي",
   "waitingListColumn": "قائمة الانتظار",
   "waitingListEmpty": "ما في زبائن بقائمة الانتظار",
+  "waitingListConvertHint": "اضغط لتحويله لحجز فعلي",
   "noEmployeesTitle": "ما في موظفين مضافين",
   "noEmployeesMessage": "روح على الموظفون وأضف موظف أول، وبتقدر تحجز إله مواعيد هون.",
   "goToEmployeesButton": "روح للموظفين",
@@ -171,6 +172,9 @@
   },
   "formDialog": {
     "title": "حجز موعد",
+    "convertTitle": "تحويل لحجز فعلي",
+    "convertButton": "تحويل لحجز",
+    "notWaitingError": "هذا العنصر ما عاد بقائمة الانتظار — يمكن اتحوّل من جهاز تاني",
     "clientLabel": "الزبون",
     "chooseClientButton": "اختر الزبون",
     "pickerTitle": "اختيار الزبون",

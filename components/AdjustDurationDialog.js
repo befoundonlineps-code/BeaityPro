@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { resolveAdjustedEnd, planDurationAdjustment } from '../lib/durationAdjustment'
 import { evaluatePlacement, combineGroupPlacement } from '../lib/bookingPlacement'
 import { loadGroupOccupancy } from '../lib/placementIO'
+import { reportDbError } from '../lib/dbErrors'
 import AdjustmentReasonManagerDialog from './AdjustmentReasonManagerDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -80,7 +81,7 @@ export default function AdjustDurationDialog({
       })
       if (loadError) {
         setSaving(false)
-        setError(loadError.message)
+        setError(t(reportDbError(loadError, 'adjustDuration.loadOccupancy')))
         return
       }
 
@@ -140,7 +141,7 @@ export default function AdjustDurationDialog({
         // exclusion constraint is the real guarantee, as everywhere else.
         setError(t('appointments:adjustDialog.conflictGenericError'))
       } else {
-        setError(rpcError.message)
+        setError(t(reportDbError(rpcError, 'adjustAppointmentDuration')))
       }
       return
     }
