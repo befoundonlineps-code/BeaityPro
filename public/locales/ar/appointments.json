@@ -107,6 +107,7 @@
     "resourcesRemainingText": "متبقي {{free}} من {{total}} من موارد هذي الخدمة بهاد الوقت",
     "allResourcesBusyError": "كل الموارد المرتبطة بهذي الخدمة محجوزة بهذا الوقت، جرّب وقتًا آخر",
     "conflictError": "هاد الموظف محجوز بهاد الوقت — اختر وقت تاني",
+    "roleMismatchError": "دور هاد الموظف ما بيغطي هاي الخدمة",
     "outsideScheduleWarning": "هذا خارج دوام {{name}}. احجزيه مبدئيًا وأكّدي لاحقًا؟",
     "bookProvisionallyButton": "احجز مبدئيًا",
     "backButton": "تراجع",

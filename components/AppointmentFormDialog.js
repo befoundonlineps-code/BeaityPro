@@ -7,10 +7,18 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvailability'
-import { resolveBookingStart, OCCUPYING_STATUSES } from '../lib/appointmentGrid'
+import { availableWindowsForDate } from '../lib/employeeAvailability'
 import { servicesForRole } from '../lib/roleServiceFilter'
-import { serviceUsesResources, orderedUnitsForService, availableUnitsFor, conflictKind } from '../lib/resourceAllocation'
+import { serviceUsesResources, orderedUnitsForService, availableUnitsFor } from '../lib/resourceAllocation'
+import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole } from '../lib/bookingPlacement'
+import { loadOccupancy, attemptOnEachUnit } from '../lib/placementIO'
+
+// Which message each refusal from the pure layer turns into.
+const PLACEMENT_ERROR_KEYS = {
+  roleMismatch: 'appointments:formDialog.roleMismatchError',
+  conflict: 'appointments:formDialog.conflictError',
+  resourcesBusy: 'appointments:formDialog.allResourcesBusyError',
+}
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -78,22 +86,6 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     ? new Date(new Date(`${date}T${time}:00`).getTime() + selectedService.duration_minutes * 60000)
     : null
 
-  // Candidate rows for a window. The filter here only narrows what gets
-  // fetched — whether a row actually occupies the window is decided by
-  // availableUnitsFor, so the half-open rule lives in one tested place
-  // rather than being duplicated in query syntax.
-  async function loadUnitAppointments(start, end) {
-    const { data, error: queryError } = await supabase
-      .from('appointments')
-      .select('resource_unit_id, start_time, end_time, status')
-      .in('status', OCCUPYING_STATUSES)
-      .not('resource_unit_id', 'is', null)
-      .lt('start_time', end.toISOString())
-      .gt('end_time', start.toISOString())
-    if (queryError) return { error: queryError }
-    return { rows: data || [] }
-  }
-
   // "X remaining" for the exact window being booked — recomputed whenever
   // the service or the time changes, and only for services that actually
   // use resources.
@@ -107,16 +99,16 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       }
       // Same resolved window the save will use, so the count reflects what
       // actually gets booked rather than the slot boundary on screen.
-      const start = resolveBookingStart(new Date(`${date}T${time}:00`), new Date())
-      if (!start) {
+      const placement = resolvePlacementWindow(new Date(`${date}T${time}:00`), selectedService, new Date())
+      if (!placement) {
         setRemaining(null)
         return
       }
-      const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
+      const { start, end } = placement
       const ordered = orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
-      const { rows, error: queryError } = await loadUnitAppointments(start, end)
+      const { unitRows, error: queryError } = await loadOccupancy({ employeeId: null, start, end })
       if (cancelled || queryError) return
-      setRemaining({ free: availableUnitsFor(ordered, rows, start, end).length, total: ordered.length })
+      setRemaining({ free: availableUnitsFor(ordered, unitRows, start, end).length, total: ordered.length })
     }
 
     computeRemaining()
@@ -180,48 +172,54 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     // dialog opened — a booking that sat unsaved for a few minutes should
     // record when it actually starts. Everything below checks the resolved
     // window, so a service that no longer fits before closing is caught.
-    const start = resolveBookingStart(new Date(`${date}T${time}:00`), new Date())
-    if (!start) {
+    const placement = resolvePlacementWindow(new Date(`${date}T${time}:00`), selectedService, new Date())
+    if (!placement) {
       setError(t('appointments:formDialog.pastTimeError'))
       return
     }
-    const end = new Date(start.getTime() + selectedService.duration_minutes * 60000)
+    const { start, end } = placement
 
-    if (!asPending) {
-      const scheduleEntry = (schedulesByEmployee || {})[employeeId]
-      const windows = availableWindowsForDate(
+    setSaving(true)
+
+    const { employeeRows, unitRows, error: loadError } = await loadOccupancy({ employeeId, start, end })
+    if (loadError) {
+      setSaving(false)
+      setError(loadError.message)
+      return
+    }
+
+    const scheduleEntry = (schedulesByEmployee || {})[employeeId]
+    const plan = evaluatePlacement({
+      start,
+      end,
+      windows: availableWindowsForDate(
         scheduleEntry?.schedule,
         scheduleEntry?.slots,
         (exceptionsByEmployee || {})[employeeId],
         new Date(`${date}T00:00:00`)
-      )
-      if (!isWithinAnyWindow(windows, toTimeInputValue(start), toTimeInputValue(end))) {
-        setOutsideSchedule({ employeeName: selectedEmployee?.name || '' })
-        return
-      }
+      ),
+      roleAllowed: isServiceAllowedForRole(selectedEmployee?.role, selectedService, activeServices, categories, roleBusinessTypes),
+      employeeAppointments: employeeRows,
+      orderedUnits: serviceUsesResources(serviceId, serviceResources)
+        ? orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
+        : [],
+      unitAppointments: unitRows,
+    })
+
+    if (!plan.ok) {
+      setSaving(false)
+      setError(t(PLACEMENT_ERROR_KEYS[plan.reason]))
+      return
+    }
+
+    // Outside the shift is a question, not a refusal — unless it has already
+    // been asked and answered by the "book provisionally" button.
+    if (plan.outsideSchedule && !asPending) {
+      setSaving(false)
+      setOutsideSchedule({ employeeName: selectedEmployee?.name || '' })
+      return
     }
     setOutsideSchedule(null)
-
-    setSaving(true)
-
-    const { data: conflicts, error: conflictCheckError } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('employee_id', employeeId)
-      .in('status', OCCUPYING_STATUSES)
-      .lt('start_time', end.toISOString())
-      .gt('end_time', start.toISOString())
-
-    if (conflictCheckError) {
-      setSaving(false)
-      setError(conflictCheckError.message)
-      return
-    }
-    if (conflicts && conflicts.length > 0) {
-      setSaving(false)
-      setError(t('appointments:formDialog.conflictError'))
-      return
-    }
 
     const basePayload = {
       salon_id: salonId,
@@ -230,74 +228,28 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       employee_id: employeeId,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
-      status: asPending ? 'pending_approval' : 'booked',
+      status: plan.outsideSchedule ? 'pending_approval' : 'booked',
       note: note.trim() || null,
     }
 
-    // Services with no linked resource book straight through; the rest have
-    // to claim one free unit first.
-    let candidateUnits = [null]
-    if (serviceUsesResources(serviceId, serviceResources)) {
-      const ordered = orderedUnitsForService(serviceId, serviceResources, resources, resourceUnits)
-      const { rows, error: occupiedError } = await loadUnitAppointments(start, end)
-      if (occupiedError) {
-        setSaving(false)
-        setError(occupiedError.message)
-        return
-      }
-      candidateUnits = availableUnitsFor(ordered, rows, start, end)
-      if (candidateUnits.length === 0) {
-        setSaving(false)
-        setError(t('appointments:formDialog.allResourcesBusyError'))
-        return
-      }
-    }
-
-    // The scan above can go stale between reading and writing, so a unit
-    // that looked free may be taken by the time we insert. The exclusion
-    // constraint catches that, and we simply move on to the next unit
-    // rather than rejecting a booking that another unit could still take.
-    // Only after every candidate is genuinely gone do we give up.
-    let saved = null
-    let lastError = null
-
-    for (const unit of candidateUnits) {
-      const { data, error: saveError } = await supabase
+    const { data, error: saveError, kind, exhausted } = await attemptOnEachUnit(
+      plan.candidateUnits,
+      (unit) => supabase
         .from('appointments')
         .insert([{ ...basePayload, resource_unit_id: unit ? unit.id : null }])
         .select()
-
-      if (!saveError) {
-        if (!data || data.length === 0) {
-          setSaving(false)
-          setError(t('appointments:formDialog.noRowsError'))
-          return
-        }
-        saved = data
-        break
-      }
-
-      lastError = saveError
-      const kind = conflictKind(saveError)
-      if (kind === 'resource') continue // this unit just got taken — try the next
-      if (kind === 'employee') {
-        setSaving(false)
-        setError(t('appointments:formDialog.conflictError'))
-        return
-      }
-      setSaving(false)
-      setError(saveError.message)
-      return
-    }
+    )
 
     setSaving(false)
 
-    if (!saved) {
-      setError(
-        conflictKind(lastError) === 'resource'
-          ? t('appointments:formDialog.allResourcesBusyError')
-          : t('appointments:formDialog.noRowsError')
-      )
+    if (saveError) {
+      if (exhausted) setError(t('appointments:formDialog.allResourcesBusyError'))
+      else if (kind === 'employee') setError(t('appointments:formDialog.conflictError'))
+      else setError(saveError.message)
+      return
+    }
+    if (!data || data.length === 0) {
+      setError(t('appointments:formDialog.noRowsError'))
       return
     }
 
