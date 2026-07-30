@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { isServiceAllowedForRole } from '../lib/bookingPlacement'
 import { planReschedule, commitReschedule, rescheduleErrorKey, RESCHEDULE_ERROR_KEYS } from '../lib/rescheduleFlow'
+import RescheduleReasonManagerDialog from './RescheduleReasonManagerDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Pencil } from 'lucide-react'
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -32,6 +34,7 @@ export default function RescheduleDialog({
   employees, services, categories, roleBusinessTypes,
   schedulesByEmployee, exceptionsByEmployee,
   resources, resourceUnits, serviceResources,
+  rescheduleReasons, rescheduleReasonsLoading, reloadRescheduleReasons, salonId,
   onDone,
 }) {
   const { t } = useTranslation(['appointments', 'common'])
@@ -39,14 +42,19 @@ export default function RescheduleDialog({
   const [employeeId, setEmployeeId] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+  const [reasonId, setReasonId] = useState('')
+  const [reasonManagerOpen, setReasonManagerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [outsideSchedule, setOutsideSchedule] = useState(null)
+
+  const activeReasons = (rescheduleReasons || []).filter((r) => r.is_active)
 
   useEffect(() => {
     if (!open || !appointment) return
     setError('')
     setOutsideSchedule(null)
+    setReasonId('')
     setEmployeeId(appointment.employee_id || '')
     setDate(toDateInputValue(appointment.start_time))
     setTime(toTimeInputValue(appointment.start_time))
@@ -73,6 +81,10 @@ export default function RescheduleDialog({
     }
     if (!date || !time) {
       setError(t('appointments:formDialog.dateTimeRequiredError'))
+      return
+    }
+    if (!reasonId) {
+      setError(t('appointments:rescheduleDialog.reasonRequiredError'))
       return
     }
 
@@ -105,7 +117,7 @@ export default function RescheduleDialog({
     }
     setOutsideSchedule(null)
 
-    const result = await commitReschedule({ appointment, employeeId, start, end, plan })
+    const result = await commitReschedule({ appointment, employeeId, start, end, plan, rescheduleReasonId: reasonId })
     setSaving(false)
 
     const errorKey = rescheduleErrorKey(result)
@@ -123,6 +135,7 @@ export default function RescheduleDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
         <DialogHeader>
@@ -165,6 +178,31 @@ export default function RescheduleDialog({
           </div>
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <Label>{t('appointments:rescheduleDialog.reasonLabel')}</Label>
+          <div className="flex items-center gap-2">
+            <select
+              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+              value={reasonId}
+              onChange={(e) => setReasonId(e.target.value)}
+            >
+              <option value="">{t('appointments:rescheduleDialog.reasonPlaceholder')}</option>
+              {activeReasons.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              title={t('appointments:rescheduleReasonManager.title')}
+              onClick={() => setReasonManagerOpen(true)}
+            >
+              <Pencil />
+            </Button>
+          </div>
+        </div>
+
         {outsideSchedule && (
           <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
             {t('appointments:formDialog.outsideScheduleWarning', { name: outsideSchedule.employeeName })}
@@ -179,14 +217,14 @@ export default function RescheduleDialog({
               <Button variant="outline" disabled={saving} onClick={() => setOutsideSchedule(null)}>
                 {t('appointments:formDialog.backButton')}
               </Button>
-              <Button disabled={saving} onClick={() => handleSave(true)}>
+              <Button disabled={saving || !reasonId} onClick={() => handleSave(true)}>
                 {saving ? t('common:saving') : t('appointments:formDialog.bookProvisionallyButton')}
               </Button>
             </>
           ) : (
             <>
               <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>
-              <Button disabled={saving} onClick={() => handleSave(false)}>
+              <Button disabled={saving || !reasonId} onClick={() => handleSave(false)}>
                 {saving ? t('common:saving') : t('appointments:rescheduleDialog.saveButton')}
               </Button>
             </>
@@ -194,5 +232,15 @@ export default function RescheduleDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <RescheduleReasonManagerDialog
+      open={reasonManagerOpen}
+      onOpenChange={setReasonManagerOpen}
+      reasons={rescheduleReasons}
+      loading={rescheduleReasonsLoading}
+      onChanged={reloadRescheduleReasons}
+      salonId={salonId}
+    />
+    </>
   )
 }

@@ -11,6 +11,7 @@ import { useScheduleExceptions } from '../hooks/useScheduleExceptions'
 import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
 import { useResources } from '../hooks/useResources'
 import { useCancellationReasons } from '../hooks/useCancellationReasons'
+import { useRescheduleReasons } from '../hooks/useRescheduleReasons'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -81,13 +82,14 @@ export default function AppointmentCalendar({ salonId }) {
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
   const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
   const { reasons: cancellationReasons, loading: cancellationReasonsLoading, reload: reloadCancellationReasons } = useCancellationReasons()
+  const { reasons: rescheduleReasons, loading: rescheduleReasonsLoading, reload: reloadRescheduleReasons } = useRescheduleReasons()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || exceptionsLoading || roleTypesLoading || resourcesLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || exceptionsLoading || roleTypesLoading || resourcesLoading || rescheduleReasonsLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
@@ -625,6 +627,10 @@ export default function AppointmentCalendar({ salonId }) {
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
+        rescheduleReasons={rescheduleReasons}
+        rescheduleReasonsLoading={rescheduleReasonsLoading}
+        reloadRescheduleReasons={reloadRescheduleReasons}
+        salonId={salonId}
         // The old row becomes a rescheduled history entry and may have shed
         // a shift exception, exactly like confirming and cancelling do.
         onDone={() => { reload(); reloadExceptions() }}
@@ -650,6 +656,7 @@ export default function AppointmentCalendar({ salonId }) {
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
+        rescheduleReasons={rescheduleReasons}
         onDone={() => { reload(); reloadExceptions() }}
       />
 

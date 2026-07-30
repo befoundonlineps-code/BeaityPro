@@ -23,14 +23,18 @@ export default function RescheduleConfirmDialog({
   employees, services, categories, roleBusinessTypes,
   schedulesByEmployee, exceptionsByEmployee,
   resources, resourceUnits, serviceResources,
+  rescheduleReasons,
   fromEmployee, clientName, service,
   onDone,
 }) {
   const { t } = useTranslation(['appointments', 'common'])
   const [checking, setChecking] = useState(false)
   const [evaluated, setEvaluated] = useState(null) // { plan, start, end, employee }
+  const [reasonId, setReasonId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const activeReasons = (rescheduleReasons || []).filter((r) => r.is_active)
 
   useEffect(() => {
     let cancelled = false
@@ -38,6 +42,7 @@ export default function RescheduleConfirmDialog({
 
     setError('')
     setEvaluated(null)
+    setReasonId('')
     setChecking(true)
 
     planReschedule({
@@ -76,6 +81,7 @@ export default function RescheduleConfirmDialog({
       start: evaluated.start,
       end: evaluated.end,
       plan,
+      rescheduleReasonId: reasonId,
     })
     setSaving(false)
 
@@ -124,6 +130,22 @@ export default function RescheduleConfirmDialog({
 
         {checking && <div className="text-sm text-muted-foreground">{t('common:loading')}</div>}
 
+        {/* The one extra control the drag path adds — a required reason,
+            not a form. The manage-reasons pencil lives only in the full
+            "reschedule" dialog, so this stays a single line. */}
+        {canProceed && (
+          <select
+            className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+            value={reasonId}
+            onChange={(e) => setReasonId(e.target.value)}
+          >
+            <option value="">{t('appointments:rescheduleDialog.reasonPlaceholder')}</option>
+            {activeReasons.map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </select>
+        )}
+
         {plan?.ok && plan.outsideSchedule && (
           <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
             {t('appointments:formDialog.outsideScheduleWarning', { name: toEmployee?.name || '' })}
@@ -137,7 +159,7 @@ export default function RescheduleConfirmDialog({
             {t('appointments:formDialog.backButton')}
           </Button>
           {canProceed && (
-            <Button disabled={saving || checking} onClick={handleConfirm}>
+            <Button disabled={saving || checking || !reasonId} onClick={handleConfirm}>
               {saving
                 ? t('common:saving')
                 : plan.outsideSchedule
