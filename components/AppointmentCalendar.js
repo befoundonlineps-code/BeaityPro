@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Users } from 'lucide-react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -67,6 +67,10 @@ export default function AppointmentCalendar({ salonId }) {
   const [dragState, setDragState] = useState(null) // { appointment, grabOffsetY, durationMinutes } while a block is in hand
   const [dragOverEmployeeId, setDragOverEmployeeId] = useState(null)
   const [dropTarget, setDropTarget] = useState(null) // { appointment, employeeId, start } awaiting confirmation
+  // Assistant columns are hidden by default — the calendar reads as the
+  // roster of people who take their own appointments; a helper only shows
+  // up here when someone deliberately asks to book one directly.
+  const [showAssistants, setShowAssistants] = useState(false)
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -108,11 +112,33 @@ export default function AppointmentCalendar({ salonId }) {
   const employeesById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
   const unitsById = useMemo(() => Object.fromEntries(resourceUnits.map((u) => [u.id, u])), [resourceUnits])
 
+  // Hiding is display-only: an assistant's column disappears, but the
+  // employee is still fully bookable as an added professional on someone
+  // else's session, and this list is what the toggle button reveals.
+  const hasAssistants = employees.some((e) => e.is_assistant)
+  const visibleEmployees = showAssistants ? employees : employees.filter((e) => !e.is_assistant)
+
   // A rescheduled row keeps its original start/end forever — it is history,
   // not a slot still on the board — so it stays hidden here exactly like a
   // cancelled one, and only ever surfaces through rescheduled_to_id.
   function appointmentsForEmployee(employeeId) {
     return dayAppointments.filter((a) => a.employee_id === employeeId && a.status !== 'cancelled' && a.status !== 'rescheduled')
+  }
+
+  // The other people on the same session, for the actions dialog to name.
+  // Without it, cancelling from one block would visibly clear other columns
+  // with no explanation of why.
+  function groupMemberNames(appointment) {
+    if (!appointment) return []
+    return dayAppointments
+      .filter((a) =>
+        a.group_id === appointment.group_id &&
+        a.id !== appointment.id &&
+        a.status !== 'cancelled' &&
+        a.status !== 'rescheduled'
+      )
+      .map((a) => employeesById[a.employee_id]?.name)
+      .filter(Boolean)
   }
 
   function appointmentsForResource(resourceId) {
@@ -206,10 +232,22 @@ export default function AppointmentCalendar({ salonId }) {
             <ChevronLeft />
           </Button>
         </div>
-        <Button onClick={() => setDialogState({})}>
-          <Plus />
-          {t('appointments:newAppointmentButton')}
-        </Button>
+        <div className="flex items-center gap-2">
+          {hasAssistants && (
+            <Button
+              variant={showAssistants ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => setShowAssistants((v) => !v)}
+            >
+              <Users />
+              {showAssistants ? t('appointments:hideAssistantsButton') : t('appointments:showAssistantsButton')}
+            </Button>
+          )}
+          <Button onClick={() => setDialogState({})}>
+            <Plus />
+            {t('appointments:newAppointmentButton')}
+          </Button>
+        </div>
       </div>
 
       {/* Both scrollbars belong to this box, not the page, so the horizontal
@@ -270,7 +308,7 @@ export default function AppointmentCalendar({ salonId }) {
           </div>
         </div>
 
-        {employees.map((emp) => (
+        {visibleEmployees.map((emp) => (
           <div key={emp.id} className="flex shrink-0 flex-col border-e border-border" style={{ width: 160 }}>
             {/* Two stacked cells, not one block: the role sits in its own
                 tinted band above the name, separated by a real divider. */}
@@ -386,6 +424,12 @@ export default function AppointmentCalendar({ salonId }) {
                 const pending = a.status === 'pending_approval'
                 const actionable = pending || a.status === 'booked'
                 const beingDragged = dragState?.appointment.id === a.id
+                // An added professional's row is a full booking holding its
+                // own slot, so it draws at full size — the calendar answers
+                // "is this person busy?", and the answer is yes either way.
+                // It is only toned down and labelled so the main
+                // professional's row stays the one that reads first.
+                const isParticipant = a.is_primary === false
                 const Tag = actionable ? 'button' : 'div'
                 return (
                   <Tag
@@ -402,7 +446,9 @@ export default function AppointmentCalendar({ salonId }) {
                         : actionable
                         ? 'hover:brightness-110'
                         : 'pointer-events-none'
-                    } ${actionable ? 'cursor-grab active:cursor-grabbing' : ''} ${beingDragged ? 'opacity-40' : ''}`}
+                    } ${actionable ? 'cursor-grab active:cursor-grabbing' : ''} ${
+                      beingDragged ? 'opacity-40' : isParticipant ? 'opacity-70' : ''
+                    }`}
                     style={{
                       top,
                       height,
@@ -411,15 +457,21 @@ export default function AppointmentCalendar({ salonId }) {
                         ? 'repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0 4px, transparent 4px 10px)'
                         : undefined,
                     }}
-                    title={
-                      pending
-                        ? `${t('appointments:pendingBlockHint')} — ${clientName(clientsById, a.client_id)}`
-                        : `${clientName(clientsById, a.client_id)} — ${service?.name || ''}`
-                    }
+                    title={[
+                      isParticipant ? t('appointments:participantBlockHint') : null,
+                      pending ? t('appointments:pendingBlockHint') : null,
+                      clientName(clientsById, a.client_id),
+                      service?.name || null,
+                    ].filter(Boolean).join(' — ')}
                     onClick={actionable ? () => setActionDetail(a) : undefined}
                   >
                     <div className="truncate font-medium">{clientName(clientsById, a.client_id)}</div>
                     <div className="truncate opacity-90">{service?.name}</div>
+                    {isParticipant && (
+                      <span className="pointer-events-none absolute bottom-0.5 end-1 rounded bg-black/30 px-1 text-[9px] leading-tight">
+                        {t('appointments:participantBadge')}
+                      </span>
+                    )}
                   </Tag>
                 )
               })}
@@ -544,6 +596,7 @@ export default function AppointmentCalendar({ salonId }) {
         employee={actionDetail ? employeesById[actionDetail.employee_id] : null}
         clientName={actionDetail ? clientName(clientsById, actionDetail.client_id) : ''}
         serviceName={actionDetail ? servicesById[actionDetail.service_id]?.name : ''}
+        groupMemberNames={groupMemberNames(actionDetail)}
         cancellationReasons={cancellationReasons}
         cancellationReasonsLoading={cancellationReasonsLoading}
         reloadCancellationReasons={reloadCancellationReasons}

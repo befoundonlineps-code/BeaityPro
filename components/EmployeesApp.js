@@ -43,7 +43,12 @@ export default function EmployeesApp({ salonId }) {
             <Card key={emp.id} className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => openEdit(emp)}>
               <CardContent className="flex flex-col gap-2 p-4">
                 <div className="truncate font-medium text-foreground">{emp.name}</div>
-                <Badge variant="secondary" className="w-fit">{t(`employees:roles.${emp.role}`)}</Badge>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="secondary" className="w-fit">{t(`employees:roles.${emp.role}`)}</Badge>
+                  {emp.is_assistant && (
+                    <Badge variant="outline" className="w-fit">{t('employees:formDialog.isAssistantLabel')}</Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}

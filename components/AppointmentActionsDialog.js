@@ -20,7 +20,7 @@ function timeRange(appointment) {
 // pending_approval gets confirm/cancel; booked gets cancel/didn't-show;
 // everything else (completed, cancelled, no_show) is view-only.
 export default function AppointmentActionsDialog({
-  open, onOpenChange, appointment, employee, clientName, serviceName,
+  open, onOpenChange, appointment, employee, clientName, serviceName, groupMemberNames,
   cancellationReasons, cancellationReasonsLoading, reloadCancellationReasons, salonId,
   onReschedule,
   onDone,
@@ -156,6 +156,17 @@ export default function AppointmentActionsDialog({
               </div>
             ))}
           </dl>
+
+          {/* Named because every action here applies to the whole session:
+              cancelling from this block clears the others too, and seeing
+              only one name would make that look like a bug. */}
+          {(groupMemberNames || []).length > 0 && (
+            <div className="rounded-lg bg-muted px-3 py-2 text-sm">
+              <span className="text-muted-foreground">{t('appointments:actionsDialog.alsoOnSessionLabel')}</span>
+              {' '}
+              <span className="font-medium">{groupMemberNames.join('، ')}</span>
+            </div>
+          )}
 
           {mode === 'view' && status === 'pending_approval' && (
             <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
