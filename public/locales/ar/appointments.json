@@ -72,6 +72,12 @@
     "deleteInUseMessage": "سبب \"{{name}}\" مستخدم بحجوزات ملغية سابقة، فما بينحذف — بس بتقدر تعطّله فيختفي من قائمة الاختيار.",
     "deactivateInsteadButton": "تعطيل بدل الحذف"
   },
+  "dropConfirm": {
+    "title": "نقل الحجز؟",
+    "fromLabel": "من",
+    "toLabel": "إلى",
+    "confirmButton": "تأكيد النقل"
+  },
   "rescheduleDialog": {
     "title": "إعادة جدولة الحجز",
     "clientLabel": "الزبون",

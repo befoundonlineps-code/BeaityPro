@@ -1,20 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
-import { supabase } from '../lib/supabaseClient'
-import { availableWindowsForDate } from '../lib/employeeAvailability'
-import { serviceUsesResources, orderedUnitsForService } from '../lib/resourceAllocation'
-import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole } from '../lib/bookingPlacement'
-import { loadOccupancy, attemptOnEachUnit } from '../lib/placementIO'
+import { isServiceAllowedForRole } from '../lib/bookingPlacement'
+import { planReschedule, commitReschedule, rescheduleErrorKey, RESCHEDULE_ERROR_KEYS } from '../lib/rescheduleFlow'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-
-const PLACEMENT_ERROR_KEYS = {
-  roleMismatch: 'appointments:formDialog.roleMismatchError',
-  conflict: 'appointments:formDialog.conflictError',
-  resourcesBusy: 'appointments:formDialog.allResourcesBusyError',
-}
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -85,47 +76,28 @@ export default function RescheduleDialog({
       return
     }
 
-    const placement = resolvePlacementWindow(new Date(`${date}T${time}:00`), service, new Date())
-    if (!placement) {
-      setError(t('appointments:formDialog.pastTimeError'))
-      return
-    }
-    const { start, end } = placement
-
     setSaving(true)
 
-    const { employeeRows, unitRows, error: loadError } = await loadOccupancy({ employeeId, start, end })
-    if (loadError) {
-      setSaving(false)
-      setError(loadError.message)
-      return
-    }
-
-    const scheduleEntry = (schedulesByEmployee || {})[employeeId]
-    const plan = evaluatePlacement({
-      start,
-      end,
-      windows: availableWindowsForDate(
-        scheduleEntry?.schedule,
-        scheduleEntry?.slots,
-        (exceptionsByEmployee || {})[employeeId],
-        new Date(`${date}T00:00:00`)
-      ),
-      roleAllowed: isServiceAllowedForRole(selectedEmployee?.role, service, services, categories, roleBusinessTypes),
-      employeeAppointments: employeeRows,
-      excludeAppointmentId: appointment.id,
-      orderedUnits: serviceUsesResources(service.id, serviceResources)
-        ? orderedUnitsForService(service.id, serviceResources, resources, resourceUnits)
-        : [],
-      unitAppointments: unitRows,
+    const { plan, start, end, error: planError } = await planReschedule({
+      appointment,
+      service,
+      employeeId,
+      requestedStart: new Date(`${date}T${time}:00`),
+      employees, services, categories, roleBusinessTypes,
+      schedulesByEmployee, exceptionsByEmployee,
+      resources, resourceUnits, serviceResources,
     })
 
-    if (!plan.ok) {
+    if (planError) {
       setSaving(false)
-      setError(t(PLACEMENT_ERROR_KEYS[plan.reason]))
+      setError(planError.message)
       return
     }
-
+    if (!plan.ok) {
+      setSaving(false)
+      setError(t(RESCHEDULE_ERROR_KEYS[plan.reason]))
+      return
+    }
     if (plan.outsideSchedule && !asPending) {
       setSaving(false)
       setOutsideSchedule({ employeeName: selectedEmployee?.name || '' })
@@ -133,29 +105,16 @@ export default function RescheduleDialog({
     }
     setOutsideSchedule(null)
 
-    const { data, error: saveError, kind, exhausted } = await attemptOnEachUnit(
-      plan.candidateUnits,
-      (unit) => supabase.rpc('reschedule_appointment', {
-        p_appointment_id: appointment.id,
-        p_new_start: start.toISOString(),
-        p_new_end: end.toISOString(),
-        p_new_employee_id: employeeId,
-        p_provisional: plan.outsideSchedule,
-        p_resource_unit_id: unit ? unit.id : null,
-      })
-    )
-
+    const result = await commitReschedule({ appointment, employeeId, start, end, plan })
     setSaving(false)
 
-    if (saveError) {
-      if (exhausted) setError(t('appointments:formDialog.allResourcesBusyError'))
-      else if (kind === 'employee') setError(t('appointments:formDialog.conflictError'))
-      else if (saveError.message?.includes('appointment_not_reschedulable')) setError(t('appointments:rescheduleDialog.notReschedulableError'))
-      else setError(saveError.message)
+    const errorKey = rescheduleErrorKey(result)
+    if (errorKey) {
+      setError(t(errorKey))
       return
     }
-    if (!data) {
-      setError(t('appointments:rescheduleDialog.noRowsError'))
+    if (result.error) {
+      setError(result.error.message)
       return
     }
 

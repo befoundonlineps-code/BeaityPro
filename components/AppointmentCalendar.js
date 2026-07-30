@@ -20,6 +20,7 @@ import {
   isWithinGrid,
   isSlotPast,
   resolveBookingStart,
+  dropTargetMinutes,
   SLOT_MINUTES,
 } from '../lib/appointmentGrid'
 import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvailability'
@@ -28,6 +29,7 @@ import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
 import AppointmentClusterDialog from './AppointmentClusterDialog'
 import RescheduleDialog from './RescheduleDialog'
+import RescheduleConfirmDialog from './RescheduleConfirmDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -62,6 +64,9 @@ export default function AppointmentCalendar({ salonId }) {
   const [actionDetail, setActionDetail] = useState(null) // the pending/booked appointment being acted on
   const [employeeClusterDetail, setEmployeeClusterDetail] = useState(null) // { employee, cluster } — overlapping employee blocks
   const [rescheduleDetail, setRescheduleDetail] = useState(null) // the appointment being moved to a new date/time/employee
+  const [dragState, setDragState] = useState(null) // { appointment, grabOffsetY, durationMinutes } while a block is in hand
+  const [dragOverEmployeeId, setDragOverEmployeeId] = useState(null)
+  const [dropTarget, setDropTarget] = useState(null) // { appointment, employeeId, start } awaiting confirmation
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -115,6 +120,53 @@ export default function AppointmentCalendar({ salonId }) {
       if (a.status === 'cancelled' || a.status === 'rescheduled' || !a.resource_unit_id) return false
       return unitsById[a.resource_unit_id]?.resource_id === resourceId
     })
+  }
+
+  function handleDragStart(event, appointment) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setDragState({
+      appointment,
+      grabOffsetY: event.clientY - rect.top,
+      durationMinutes: (new Date(appointment.end_time) - new Date(appointment.start_time)) / 60000,
+    })
+    event.dataTransfer.effectAllowed = 'move'
+    // Firefox refuses to start a drag unless some data is carried.
+    event.dataTransfer.setData('text/plain', appointment.id)
+  }
+
+  function handleDragEnd() {
+    setDragState(null)
+    setDragOverEmployeeId(null)
+  }
+
+  // dragover/drop bubble up from the slot cells and blocks inside, so the
+  // column body hears them without any of its children needing to opt out
+  // of pointer events. currentTarget is always this container, which is
+  // what the drop offset has to be measured against.
+  function handleDrop(event, employee) {
+    event.preventDefault()
+    if (!dragState) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const minutes = dropTargetMinutes({
+      pointerOffsetY: event.clientY - rect.top,
+      grabOffsetY: dragState.grabOffsetY,
+      rowHeight: ROW_HEIGHT,
+      durationMinutes: dragState.durationMinutes,
+    })
+    const start = slotStartTime(dateISO, minutes)
+    const { appointment } = dragState
+
+    setDragState(null)
+    setDragOverEmployeeId(null)
+
+    // Picked up and put back exactly where it was: nothing moved, so no
+    // history entry should be written for it.
+    if (employee.id === appointment.employee_id && start.getTime() === new Date(appointment.start_time).getTime()) {
+      return
+    }
+
+    setDropTarget({ appointment, employeeId: employee.id, start })
   }
 
   function handleCellClick(employeeId, minutesFromStart) {
@@ -232,7 +284,18 @@ export default function AppointmentCalendar({ salonId }) {
                 <span className="truncate text-xs font-medium leading-none">{emp.name}</span>
               </div>
             </div>
-            <div className="relative" style={{ height: gridHeight }}>
+            <div
+              className={`relative ${dragOverEmployeeId === emp.id ? 'bg-primary/5 ring-2 ring-inset ring-primary/40' : ''}`}
+              style={{ height: gridHeight }}
+              onDragOver={(event) => {
+                if (!dragState) return
+                event.preventDefault() // without this the drop is never allowed
+                event.dataTransfer.dropEffect = 'move'
+                setDragOverEmployeeId(emp.id)
+              }}
+              onDragLeave={() => setDragOverEmployeeId((current) => (current === emp.id ? null : current))}
+              onDrop={(event) => handleDrop(event, emp)}
+            >
               {slots.map((s) => {
                 const cellEndLabel = minutesToLabel(s.minutesFromStart + SLOT_MINUTES)
                 const past = isSlotPast(slotStartTime(dateISO, s.minutesFromStart + SLOT_MINUTES), now)
@@ -322,18 +385,24 @@ export default function AppointmentCalendar({ salonId }) {
                 // inert since this dialog offers them nothing to do.
                 const pending = a.status === 'pending_approval'
                 const actionable = pending || a.status === 'booked'
+                const beingDragged = dragState?.appointment.id === a.id
                 const Tag = actionable ? 'button' : 'div'
                 return (
                   <Tag
                     key={a.id}
                     type={actionable ? 'button' : undefined}
+                    // Only a booking that can still be acted on can be moved,
+                    // the same rule that decides whether it opens a dialog.
+                    draggable={actionable}
+                    onDragStart={actionable ? (event) => handleDragStart(event, a) : undefined}
+                    onDragEnd={actionable ? handleDragEnd : undefined}
                     className={`absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
                       pending
                         ? 'border-2 border-dashed border-white/90 hover:brightness-110'
                         : actionable
                         ? 'hover:brightness-110'
                         : 'pointer-events-none'
-                    }`}
+                    } ${actionable ? 'cursor-grab active:cursor-grabbing' : ''} ${beingDragged ? 'opacity-40' : ''}`}
                     style={{
                       top,
                       height,
@@ -505,6 +574,29 @@ export default function AppointmentCalendar({ salonId }) {
         serviceResources={serviceResources}
         // The old row becomes a rescheduled history entry and may have shed
         // a shift exception, exactly like confirming and cancelling do.
+        onDone={() => { reload(); reloadExceptions() }}
+      />
+
+      {/* Where a drag lands. Resource columns carry no drop handlers at
+          all, so they simply never accept one — a resource cannot answer
+          "who performs this?", and it follows the booking rather than
+          being something you drag onto. */}
+      <RescheduleConfirmDialog
+        open={!!dropTarget}
+        onOpenChange={(open) => { if (!open) setDropTarget(null) }}
+        target={dropTarget}
+        service={dropTarget ? servicesById[dropTarget.appointment.service_id] : null}
+        clientName={dropTarget ? clientName(clientsById, dropTarget.appointment.client_id) : ''}
+        fromEmployee={dropTarget ? employeesById[dropTarget.appointment.employee_id] : null}
+        employees={employees}
+        services={services}
+        categories={categories}
+        roleBusinessTypes={roleBusinessTypes}
+        schedulesByEmployee={schedulesByEmployee}
+        exceptionsByEmployee={exceptionsByEmployee}
+        resources={resources}
+        resourceUnits={resourceUnits}
+        serviceResources={serviceResources}
         onDone={() => { reload(); reloadExceptions() }}
       />
 
