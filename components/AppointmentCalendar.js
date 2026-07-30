@@ -27,6 +27,7 @@ import { clusterAppointments } from '../lib/resourceAllocation'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
 import AppointmentClusterDialog from './AppointmentClusterDialog'
+import RescheduleDialog from './RescheduleDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -60,6 +61,7 @@ export default function AppointmentCalendar({ salonId }) {
   const [resourceDetail, setResourceDetail] = useState(null) // { resource, cluster }
   const [actionDetail, setActionDetail] = useState(null) // the pending/booked appointment being acted on
   const [employeeClusterDetail, setEmployeeClusterDetail] = useState(null) // { employee, cluster } — overlapping employee blocks
+  const [rescheduleDetail, setRescheduleDetail] = useState(null) // the appointment being moved to a new date/time/employee
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -101,13 +103,16 @@ export default function AppointmentCalendar({ salonId }) {
   const employeesById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
   const unitsById = useMemo(() => Object.fromEntries(resourceUnits.map((u) => [u.id, u])), [resourceUnits])
 
+  // A rescheduled row keeps its original start/end forever — it is history,
+  // not a slot still on the board — so it stays hidden here exactly like a
+  // cancelled one, and only ever surfaces through rescheduled_to_id.
   function appointmentsForEmployee(employeeId) {
-    return dayAppointments.filter((a) => a.employee_id === employeeId && a.status !== 'cancelled')
+    return dayAppointments.filter((a) => a.employee_id === employeeId && a.status !== 'cancelled' && a.status !== 'rescheduled')
   }
 
   function appointmentsForResource(resourceId) {
     return dayAppointments.filter((a) => {
-      if (a.status === 'cancelled' || !a.resource_unit_id) return false
+      if (a.status === 'cancelled' || a.status === 'rescheduled' || !a.resource_unit_id) return false
       return unitsById[a.resource_unit_id]?.resource_id === resourceId
     })
   }
@@ -474,9 +479,32 @@ export default function AppointmentCalendar({ salonId }) {
         cancellationReasonsLoading={cancellationReasonsLoading}
         reloadCancellationReasons={reloadCancellationReasons}
         salonId={salonId}
+        // Sequential, not stacked: this dialog closes itself before handing
+        // the appointment off to the reschedule dialog.
+        onReschedule={(a) => setRescheduleDetail(a)}
         // Confirming writes a shift exception, and cancelling can remove
         // one — either way the day's windows have to be reloaded alongside
         // the bookings themselves.
+        onDone={() => { reload(); reloadExceptions() }}
+      />
+
+      <RescheduleDialog
+        open={!!rescheduleDetail}
+        onOpenChange={(open) => { if (!open) setRescheduleDetail(null) }}
+        appointment={rescheduleDetail}
+        service={rescheduleDetail ? servicesById[rescheduleDetail.service_id] : null}
+        clientName={rescheduleDetail ? clientName(clientsById, rescheduleDetail.client_id) : ''}
+        employees={employees}
+        services={services}
+        categories={categories}
+        roleBusinessTypes={roleBusinessTypes}
+        schedulesByEmployee={schedulesByEmployee}
+        exceptionsByEmployee={exceptionsByEmployee}
+        resources={resources}
+        resourceUnits={resourceUnits}
+        serviceResources={serviceResources}
+        // The old row becomes a rescheduled history entry and may have shed
+        // a shift exception, exactly like confirming and cancelling do.
         onDone={() => { reload(); reloadExceptions() }}
       />
 

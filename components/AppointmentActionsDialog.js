@@ -22,6 +22,7 @@ function timeRange(appointment) {
 export default function AppointmentActionsDialog({
   open, onOpenChange, appointment, employee, clientName, serviceName,
   cancellationReasons, cancellationReasonsLoading, reloadCancellationReasons, salonId,
+  onReschedule,
   onDone,
 }) {
   const { t } = useTranslation(['appointments', 'common'])
@@ -117,6 +118,11 @@ export default function AppointmentActionsDialog({
     onOpenChange(false)
   }
 
+  function handleReschedule() {
+    onOpenChange(false)
+    onReschedule(appointment)
+  }
+
   const rows = [
     [t('appointments:actionsDialog.clientLabel'), clientName],
     [t('appointments:actionsDialog.serviceLabel'), serviceName],
@@ -207,6 +213,9 @@ export default function AppointmentActionsDialog({
                 <Button variant="outline" disabled={busy} onClick={() => setMode('cancelling')}>
                   {t('appointments:actionsDialog.cancelButton')}
                 </Button>
+                <Button variant="outline" disabled={busy} onClick={handleReschedule}>
+                  {t('appointments:actionsDialog.rescheduleButton')}
+                </Button>
                 <Button disabled={busy} onClick={handleConfirm}>
                   {busy ? t('common:saving') : t('appointments:actionsDialog.confirmButton')}
                 </Button>
@@ -215,6 +224,9 @@ export default function AppointmentActionsDialog({
               <>
                 <Button variant="outline" disabled={busy} onClick={handleNoShow}>
                   {t('appointments:actionsDialog.noShowButton')}
+                </Button>
+                <Button variant="outline" disabled={busy} onClick={handleReschedule}>
+                  {t('appointments:actionsDialog.rescheduleButton')}
                 </Button>
                 <Button variant="destructive" disabled={busy} onClick={() => setMode('cancelling')}>
                   {t('appointments:actionsDialog.cancelButton')}
