@@ -10,6 +10,7 @@ import { useEmployeeSchedules } from '../hooks/useEmployeeSchedules'
 import { useScheduleExceptions } from '../hooks/useScheduleExceptions'
 import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
 import { useResources } from '../hooks/useResources'
+import { useCancellationReasons } from '../hooks/useCancellationReasons'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -25,6 +26,7 @@ import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvail
 import { clusterAppointments } from '../lib/resourceAllocation'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
+import AppointmentClusterDialog from './AppointmentClusterDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -56,7 +58,8 @@ export default function AppointmentCalendar({ salonId }) {
   const [now, setNow] = useState(new Date())
   const [dialogState, setDialogState] = useState(null) // null closed, {} blank, {employeeId,startTime} prefilled
   const [resourceDetail, setResourceDetail] = useState(null) // { resource, cluster }
-  const [pendingDetail, setPendingDetail] = useState(null) // the appointment awaiting approval
+  const [actionDetail, setActionDetail] = useState(null) // the pending/booked appointment being acted on
+  const [employeeClusterDetail, setEmployeeClusterDetail] = useState(null) // { employee, cluster } — overlapping employee blocks
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -66,6 +69,7 @@ export default function AppointmentCalendar({ salonId }) {
   const { exceptionsByEmployee, loading: exceptionsLoading, reload: reloadExceptions } = useScheduleExceptions()
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
   const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
+  const { reasons: cancellationReasons, loading: cancellationReasonsLoading, reload: reloadCancellationReasons } = useCancellationReasons()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60000)
@@ -272,28 +276,58 @@ export default function AppointmentCalendar({ salonId }) {
                 )
               })}
 
-              {appointmentsForEmployee(emp.id).map((a) => {
-                const startMin = minutesFromGridStart(new Date(a.start_time))
-                const endMin = minutesFromGridStart(new Date(a.end_time))
-                const clampedStart = Math.max(startMin, 0)
-                const clampedEnd = Math.min(endMin, gridMinutes)
+              {/* Almost every cluster holds exactly one appointment and
+                  renders exactly as before. More than one only happens when
+                  a no_show and a live booking land on the same slot — the
+                  only overlap the database allows, since booked/completed/
+                  pending_approval can never overlap each other for the same
+                  employee. That case gets one merged block that opens a
+                  picker instead of guessing which appointment you meant. */}
+              {clusterAppointments(appointmentsForEmployee(emp.id)).map((cluster) => {
+                const clampedStart = Math.max(minutesFromGridStart(cluster.start), 0)
+                const clampedEnd = Math.min(minutesFromGridStart(cluster.end), gridMinutes)
                 if (clampedEnd <= clampedStart) return null
-                const service = servicesById[a.service_id]
                 const top = (clampedStart / SLOT_MINUTES) * ROW_HEIGHT
                 const height = ((clampedEnd - clampedStart) / SLOT_MINUTES) * ROW_HEIGHT
+
+                if (cluster.items.length > 1) {
+                  return (
+                    <button
+                      key={`cluster-${emp.id}-${cluster.start.getTime()}`}
+                      type="button"
+                      className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:brightness-110"
+                      style={{ top, height, background: 'var(--color-primary)' }}
+                      onClick={() => setEmployeeClusterDetail({ employee: emp, cluster })}
+                    >
+                      <div className="truncate font-medium">{t('appointments:employeeCluster.blockLabel')}</div>
+                      <div className="truncate opacity-90">
+                        {t('appointments:employeeCluster.blockCount', { count: cluster.items.length })}
+                      </div>
+                    </button>
+                  )
+                }
+
+                const a = cluster.items[0]
+                const service = servicesById[a.service_id]
                 // A provisional booking keeps its service colour — it is a
                 // real hold on the slot — but wears a dashed edge and a
-                // hatch so it never reads as settled. It is also the only
-                // block you can click, since it is the only one still
-                // waiting on a decision.
+                // hatch so it never reads as settled. A confirmed booking is
+                // solid, but now opens the same actions dialog (cancel /
+                // didn't-show); completed, cancelled and no-show blocks stay
+                // inert since this dialog offers them nothing to do.
                 const pending = a.status === 'pending_approval'
-                const Tag = pending ? 'button' : 'div'
+                const actionable = pending || a.status === 'booked'
+                const Tag = actionable ? 'button' : 'div'
                 return (
                   <Tag
                     key={a.id}
-                    type={pending ? 'button' : undefined}
+                    type={actionable ? 'button' : undefined}
                     className={`absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
-                      pending ? 'border-2 border-dashed border-white/90 hover:brightness-110' : 'pointer-events-none'
+                      pending
+                        ? 'border-2 border-dashed border-white/90 hover:brightness-110'
+                        : actionable
+                        ? 'hover:brightness-110'
+                        : 'pointer-events-none'
                     }`}
                     style={{
                       top,
@@ -308,7 +342,7 @@ export default function AppointmentCalendar({ salonId }) {
                         ? `${t('appointments:pendingBlockHint')} — ${clientName(clientsById, a.client_id)}`
                         : `${clientName(clientsById, a.client_id)} — ${service?.name || ''}`
                     }
-                    onClick={pending ? () => setPendingDetail(a) : undefined}
+                    onClick={actionable ? () => setActionDetail(a) : undefined}
                   >
                     <div className="truncate font-medium">{clientName(clientsById, a.client_id)}</div>
                     <div className="truncate opacity-90">{service?.name}</div>
@@ -417,15 +451,32 @@ export default function AppointmentCalendar({ salonId }) {
         servicesById={servicesById}
       />
 
+      <AppointmentClusterDialog
+        open={!!employeeClusterDetail}
+        onOpenChange={(open) => { if (!open) setEmployeeClusterDetail(null) }}
+        employee={employeeClusterDetail?.employee}
+        cluster={employeeClusterDetail?.cluster}
+        clientsById={clientsById}
+        servicesById={servicesById}
+        // Sequential, not stacked: the picker closes itself, then the usual
+        // actions dialog opens for the one appointment that was picked.
+        onPick={(a) => { setEmployeeClusterDetail(null); setActionDetail(a) }}
+      />
+
       <AppointmentActionsDialog
-        open={!!pendingDetail}
-        onOpenChange={(open) => { if (!open) setPendingDetail(null) }}
-        appointment={pendingDetail}
-        employee={pendingDetail ? employeesById[pendingDetail.employee_id] : null}
-        clientName={pendingDetail ? clientName(clientsById, pendingDetail.client_id) : ''}
-        serviceName={pendingDetail ? servicesById[pendingDetail.service_id]?.name : ''}
-        // Confirming writes a shift exception too, so the day's windows have
-        // to be reloaded alongside the bookings.
+        open={!!actionDetail}
+        onOpenChange={(open) => { if (!open) setActionDetail(null) }}
+        appointment={actionDetail}
+        employee={actionDetail ? employeesById[actionDetail.employee_id] : null}
+        clientName={actionDetail ? clientName(clientsById, actionDetail.client_id) : ''}
+        serviceName={actionDetail ? servicesById[actionDetail.service_id]?.name : ''}
+        cancellationReasons={cancellationReasons}
+        cancellationReasonsLoading={cancellationReasonsLoading}
+        reloadCancellationReasons={reloadCancellationReasons}
+        salonId={salonId}
+        // Confirming writes a shift exception, and cancelling can remove
+        // one — either way the day's windows have to be reloaded alongside
+        // the bookings themselves.
         onDone={() => { reload(); reloadExceptions() }}
       />
 

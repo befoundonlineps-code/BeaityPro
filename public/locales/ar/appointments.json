@@ -13,8 +13,24 @@
   "outsideScheduleHint": "برا دوام الموظف",
   "pastSlotHint": "وقت فات",
   "pendingBlockHint": "حجز مبدئي — بانتظار التأكيد",
-  "pendingDialog": {
-    "title": "حجز مبدئي",
+  "statusLabels": {
+    "booked": "محجوز",
+    "completed": "مكتمل",
+    "pending_approval": "معلّق",
+    "no_show": "لم يحضر"
+  },
+  "employeeCluster": {
+    "blockLabel": "مواعيد متعددة",
+    "blockCount": "{{count}} مواعيد",
+    "dialogTitle": "مواعيد متراكبة — {{name}}",
+    "timeColumn": "الوقت",
+    "clientColumn": "الزبون",
+    "serviceColumn": "الخدمة",
+    "statusColumn": "الحالة"
+  },
+  "actionsDialog": {
+    "pendingTitle": "حجز مبدئي",
+    "bookedTitle": "تفاصيل الحجز",
     "banner": "هاد الحجز لسّه مش نهائي — محجوز برا دوام الموظف وبانتظار قرارك.",
     "clientLabel": "الزبون",
     "serviceLabel": "الخدمة",
@@ -23,8 +39,37 @@
     "confirmEffect": "التأكيد رح يمدّد دوام {{name}} بهذا اليوم بس، من {{from}} لـ{{to}} (متضمّنة 10 دقايق تحضير). دوامه المتكرر ما بيتغير.",
     "confirmButton": "تأكيد",
     "cancelButton": "إلغاء",
+    "noShowButton": "لم يحضر",
+    "closeButton": "إغلاق",
     "notPendingError": "هاد الحجز ما عاد بحالة «مبدئي» — يمكن انأكّد أو انلغى من جهاز تاني",
-    "noRowsError": "تعذّر التأكد من نجاح العملية — جرّب مرة تانية"
+    "notCancellableError": "هاد الحجز ما عاد قابل للإلغاء بهذا المسار — يمكن تغيّرت حالته من جهاز تاني",
+    "noRowsError": "تعذّر التأكد من نجاح العملية — جرّب مرة تانية",
+    "cancelStep": {
+      "title": "إلغاء الحجز؟",
+      "reasonPlaceholder": "اختر سبب الإلغاء...",
+      "manageReasonsTitle": "إدارة أسباب الإلغاء",
+      "backButton": "تراجع",
+      "confirmButton": "تأكيد الإلغاء"
+    }
+  },
+  "cancellationReasonManager": {
+    "title": "إدارة أسباب الإلغاء",
+    "empty": "ما في أسباب مضافة",
+    "addReasonButton": "إضافة سبب جديد",
+    "editButton": "تعديل",
+    "deleteButton": "حذف",
+    "activateButton": "تفعيل",
+    "deactivateButton": "تعطيل",
+    "inactiveBadge": "معطّل",
+    "addDialogTitle": "إضافة سبب جديد",
+    "editDialogTitle": "تعديل السبب",
+    "namePlaceholder": "سبب الإلغاء",
+    "deleteConfirmMessage": "متأكد إنك بدك تحذف سبب \"{{name}}\"؟",
+    "confirmDeleteButton": "تأكيد الحذف",
+    "deleteSuccessMessage": "تم حذف سبب \"{{name}}\" بنجاح",
+    "deleteNoRowsMessage": "تعذّر التأكد من نجاح الحذف — جرّب مرة تانية",
+    "deleteInUseMessage": "سبب \"{{name}}\" مستخدم بحجوزات ملغية سابقة، فما بينحذف — بس بتقدر تعطّله فيختفي من قائمة الاختيار.",
+    "deactivateInsteadButton": "تعطيل بدل الحذف"
   },
   "resourceColumn": {
     "capacityLabel": "مورد · سعة {{count}}",
