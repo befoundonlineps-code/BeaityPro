@@ -134,13 +134,24 @@ export default function AppointmentCalendar({ salonId }) {
     return dayAppointments.filter((a) => a.employee_id === employeeId && !isHistorical(a))
   }
 
-  // The other rows on the same session. The actions dialog names them, and
-  // the adjust dialog needs them whole — every participant's end moves
-  // together, so every participant's availability has to be checked.
+  // The other rows on the same session. The adjust dialog needs them whole —
+  // every participant's end moves together, so every participant's
+  // availability has to be checked.
   function groupMembers(appointment) {
     if (!appointment) return []
     return dayAppointments
       .filter((a) => a.group_id === appointment.group_id && a.id !== appointment.id && !isHistorical(a))
+      .map((a) => ({ ...a, employeeName: employeesById[a.employee_id]?.name || '' }))
+  }
+
+  // The same session including the row that was clicked. The actions dialog
+  // lists it as a roster, so it has to read the same whether the receptionist
+  // opened the primary's block or an assistant's — and removing somebody
+  // means finding them in that list either way.
+  function sessionMembers(appointment) {
+    if (!appointment) return []
+    return dayAppointments
+      .filter((a) => a.group_id === appointment.group_id && !isHistorical(a))
       .map((a) => ({ ...a, employeeName: employeesById[a.employee_id]?.name || '' }))
   }
 
@@ -603,7 +614,7 @@ export default function AppointmentCalendar({ salonId }) {
         employee={actionDetail ? employeesById[actionDetail.employee_id] : null}
         clientName={actionDetail ? clientName(clientsById, actionDetail.client_id) : ''}
         serviceName={actionDetail ? servicesById[actionDetail.service_id]?.name : ''}
-        groupMemberNames={groupMembers(actionDetail).map((m) => m.employeeName).filter(Boolean)}
+        sessionMembers={sessionMembers(actionDetail)}
         cancellationReasons={cancellationReasons}
         cancellationReasonsLoading={cancellationReasonsLoading}
         reloadCancellationReasons={reloadCancellationReasons}

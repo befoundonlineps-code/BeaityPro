@@ -3,10 +3,11 @@ import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { exceptionWindowFor } from '../lib/employeeAvailability'
 import { reportDbError } from '../lib/dbErrors'
+import { canRemoveParticipant, sortPrimaryFirst } from '../lib/participants'
 import CancellationReasonManagerDialog from './CancellationReasonManagerDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Pencil } from 'lucide-react'
+import { Pencil, UserMinus } from 'lucide-react'
 
 function timeRange(appointment) {
   const hhmm = (value) => {
@@ -21,14 +22,15 @@ function timeRange(appointment) {
 // pending_approval gets confirm/cancel; booked gets cancel/didn't-show;
 // everything else (completed, cancelled, no_show) is view-only.
 export default function AppointmentActionsDialog({
-  open, onOpenChange, appointment, employee, clientName, serviceName, groupMemberNames,
+  open, onOpenChange, appointment, employee, clientName, serviceName, sessionMembers,
   cancellationReasons, cancellationReasonsLoading, reloadCancellationReasons, salonId,
   onReschedule,
   onAdjustDuration,
   onDone,
 }) {
   const { t } = useTranslation(['appointments', 'common'])
-  const [mode, setMode] = useState('view') // 'view' | 'cancelling'
+  const [mode, setMode] = useState('view') // 'view' | 'cancelling' | 'removing'
+  const [removeTarget, setRemoveTarget] = useState(null)
   const [reasonId, setReasonId] = useState('')
   const [reasonManagerOpen, setReasonManagerOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -37,6 +39,7 @@ export default function AppointmentActionsDialog({
   useEffect(() => {
     if (open) {
       setMode('view')
+      setRemoveTarget(null)
       setReasonId('')
       setError('')
     }
@@ -46,6 +49,9 @@ export default function AppointmentActionsDialog({
 
   const status = appointment.status
   const activeReasons = (cancellationReasons || []).filter((r) => r.is_active)
+  // The whole session, the clicked row included, so the roster reads the
+  // same whichever block on the calendar opened this.
+  const members = sortPrimaryFirst(sessionMembers)
 
   async function handleConfirm() {
     setError('')
@@ -120,6 +126,37 @@ export default function AppointmentActionsDialog({
     onOpenChange(false)
   }
 
+  // Removal is cancellation scoped to one row: the same two writes the
+  // whole session gets, applied to a single participant. The rest of the
+  // session carries on, and the freed time reopens immediately because the
+  // overlap constraint stops counting a cancelled row.
+  async function handleRemoveConfirm() {
+    if (!reasonId || !removeTarget) return
+    setError('')
+    setBusy(true)
+    const { data, error: rpcError } = await supabase.rpc('remove_participant', {
+      p_appointment_id: removeTarget.id,
+      p_cancellation_reason_id: reasonId,
+    })
+    setBusy(false)
+    if (rpcError) {
+      setError(
+        rpcError.message?.includes('participant_is_primary')
+          ? t('appointments:actionsDialog.isPrimaryError')
+          : rpcError.message?.includes('participant_not_removable')
+          ? t('appointments:actionsDialog.notRemovableError')
+          : t(reportDbError(rpcError, 'removeParticipant'))
+      )
+      return
+    }
+    if (!data) {
+      setError(t('appointments:actionsDialog.noRowsError'))
+      return
+    }
+    onDone()
+    onOpenChange(false)
+  }
+
   function handleReschedule() {
     onOpenChange(false)
     onReschedule(appointment)
@@ -146,12 +183,18 @@ export default function AppointmentActionsDialog({
     ? t('appointments:actionsDialog.pendingTitle')
     : t('appointments:actionsDialog.bookedTitle')
 
+  const stepTitle = mode === 'cancelling'
+    ? t('appointments:actionsDialog.cancelStep.title')
+    : mode === 'removing'
+    ? t('appointments:actionsDialog.removeStep.title')
+    : title
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{mode === 'cancelling' ? t('appointments:actionsDialog.cancelStep.title') : title}</DialogTitle>
+            <DialogTitle>{stepTitle}</DialogTitle>
           </DialogHeader>
 
           {status === 'pending_approval' && mode === 'view' && (
@@ -171,13 +214,57 @@ export default function AppointmentActionsDialog({
 
           {/* Named because every action here applies to the whole session:
               cancelling from this block clears the others too, and seeing
-              only one name would make that look like a bug. */}
-          {(groupMemberNames || []).length > 0 && (
-            <div className="rounded-lg bg-muted px-3 py-2 text-sm">
-              <span className="text-muted-foreground">{t('appointments:actionsDialog.alsoOnSessionLabel')}</span>
-              {' '}
-              <span className="font-medium">{groupMemberNames.join('، ')}</span>
+              only one name would make that look like a bug.
+
+              Removal is the one exception, so it lives here rather than in
+              the footer — beside the person it takes off, not beside the
+              buttons that move everybody. */}
+          {members.length > 1 && mode === 'view' && (
+            <div className="flex flex-col gap-1 rounded-lg bg-muted px-3 py-2 text-sm">
+              <span className="text-xs text-muted-foreground">
+                {t('appointments:actionsDialog.sessionMembersLabel')}
+              </span>
+              {members.map((m) => (
+                <div key={m.id} className="flex min-h-8 items-center justify-between gap-2">
+                  <span>
+                    <span className="font-medium">{m.employeeName}</span>
+                    <span className="ms-1.5 text-xs text-muted-foreground">
+                      {t(m.is_primary
+                        ? 'appointments:actionsDialog.primaryBadge'
+                        : 'appointments:actionsDialog.participantBadge')}
+                    </span>
+                  </span>
+                  {canRemoveParticipant(m) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={busy}
+                      title={t('appointments:actionsDialog.removeParticipantTitle')}
+                      onClick={() => {
+                        setRemoveTarget(m)
+                        setReasonId('')
+                        setError('')
+                        setMode('removing')
+                      }}
+                    >
+                      <UserMinus />
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
+          )}
+
+          {mode === 'removing' && (
+            <>
+              <div className="text-sm font-medium">
+                {t('appointments:actionsDialog.removeStep.question', { name: removeTarget?.employeeName || '' })}
+              </div>
+              <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+                {t('appointments:actionsDialog.removeStep.effect')}
+              </div>
+            </>
           )}
 
           {mode === 'view' && status === 'pending_approval' && (
@@ -190,7 +277,12 @@ export default function AppointmentActionsDialog({
             </div>
           )}
 
-          {mode === 'cancelling' && (
+          {/* One picker for both steps — removal reuses the cancellation
+              list because a removed row *is* a cancelled row, and the
+              biconditional check makes cancellation_reason_id the only
+              column it can be recorded in. A fifth reasons table would say
+              the same thing twice. */}
+          {(mode === 'cancelling' || mode === 'removing') && (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
                 <select
@@ -199,7 +291,11 @@ export default function AppointmentActionsDialog({
                   onChange={(e) => setReasonId(e.target.value)}
                   autoFocus
                 >
-                  <option value="">{t('appointments:actionsDialog.cancelStep.reasonPlaceholder')}</option>
+                  <option value="">
+                    {t(mode === 'removing'
+                      ? 'appointments:actionsDialog.removeStep.reasonPlaceholder'
+                      : 'appointments:actionsDialog.cancelStep.reasonPlaceholder')}
+                  </option>
                   {activeReasons.map((r) => (
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
@@ -222,7 +318,20 @@ export default function AppointmentActionsDialog({
           {/* Buttons swap by mode/status rather than stacking, so there is
               never more than one obvious next step in the footer. */}
           <DialogFooter>
-            {mode === 'cancelling' ? (
+            {mode === 'removing' ? (
+              <>
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => { setMode('view'); setRemoveTarget(null); setError('') }}
+                >
+                  {t('appointments:actionsDialog.removeStep.backButton')}
+                </Button>
+                <Button variant="destructive" disabled={busy || !reasonId} onClick={handleRemoveConfirm}>
+                  {busy ? t('common:saving') : t('appointments:actionsDialog.removeStep.confirmButton')}
+                </Button>
+              </>
+            ) : mode === 'cancelling' ? (
               <>
                 <Button variant="outline" disabled={busy} onClick={() => setMode('view')}>
                   {t('appointments:actionsDialog.cancelStep.backButton')}
