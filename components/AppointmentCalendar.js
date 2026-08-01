@@ -29,6 +29,7 @@ import {
 } from '../lib/appointmentGrid'
 import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvailability'
 import { clusterAppointments } from '../lib/resourceAllocation'
+import { visibleEmployeesFor, DEFAULT_SELECTION, VIEW_ALL, VIEW_ON_SHIFT } from '../lib/calendarView'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
 import AppointmentClusterDialog from './AppointmentClusterDialog'
@@ -36,6 +37,7 @@ import RescheduleDialog from './RescheduleDialog'
 import RescheduleConfirmDialog from './RescheduleConfirmDialog'
 import AdjustDurationDialog from './AdjustDurationDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
+import CalendarViewMenu from './CalendarViewMenu'
 import EmployeeDayDialog from './EmployeeDayDialog'
 import ResourceDayDialog from './ResourceDayDialog'
 import { Card, CardContent } from '@/components/ui/card'
@@ -79,6 +81,9 @@ export default function AppointmentCalendar({ salonId }) {
   // roster of people who take their own appointments; a helper only shows
   // up here when someone deliberately asks to book one directly.
   const [showAssistants, setShowAssistants] = useState(false)
+  // Which slice of the board is on screen. Defaults to the whole roster,
+  // which is what the calendar showed before there was anything to choose.
+  const [viewSelection, setViewSelection] = useState(DEFAULT_SELECTION)
   // Whose standing is being looked at. A column header is the natural place
   // to ask "is this person in today?" — it already names exactly one person,
   // and the calendar already knows which day is on screen, so neither has to
@@ -178,8 +183,22 @@ export default function AppointmentCalendar({ salonId }) {
   // Hiding is display-only: an assistant's column disappears, but the
   // employee is still fully bookable as an added professional on someone
   // else's session, and this list is what the toggle button reveals.
+  //
+  // The toggle only has anything to say about the two broad views. Asking for
+  // one role, or one person, answers the question itself — so the button goes
+  // away rather than sitting there doing nothing.
   const hasAssistants = employees.some((e) => e.is_assistant)
-  const visibleEmployees = showAssistants ? employees : employees.filter((e) => !e.is_assistant)
+  const assistantToggleApplies =
+    viewSelection.kind === VIEW_ALL || viewSelection.kind === VIEW_ON_SHIFT
+  const visibleEmployees = useMemo(
+    () => visibleEmployeesFor({
+      employees,
+      selection: viewSelection,
+      showAssistants,
+      windowsByEmployee,
+    }),
+    [employees, viewSelection, showAssistants, windowsByEmployee]
+  )
 
   // A row that has been superseded — rescheduled to another time, or
   // adjusted to a different end — keeps its original span forever. It is
@@ -311,9 +330,17 @@ export default function AppointmentCalendar({ salonId }) {
           <Button variant="outline" size="icon-sm" onClick={() => setDateISO(shiftISO(dateISO, 1))} title={t('appointments:nextDayTitle')}>
             <ChevronLeft />
           </Button>
+          {/* Beside the date because the two together are the whole answer to
+              "what am I looking at" — this day, these people. */}
+          <CalendarViewMenu
+            selection={viewSelection}
+            employees={employees}
+            resources={resources}
+            onSelect={setViewSelection}
+          />
         </div>
         <div className="flex items-center gap-2">
-          {hasAssistants && (
+          {hasAssistants && assistantToggleApplies && (
             <Button
               variant={showAssistants ? 'secondary' : 'outline'}
               size="sm"
