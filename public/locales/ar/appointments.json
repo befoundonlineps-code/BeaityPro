@@ -272,5 +272,20 @@
     "deleteSuccessMessage": "تم حذف \"{{name}}\""
   },
   "waitingListReleasedFrom": "كان {{time}} مع {{name}}",
-  "waitingListReleasedFromTimeOnly": "كان الساعة {{time}}"
+  "waitingListReleasedFromTimeOnly": "كان الساعة {{time}}",
+  "viewMenu": {
+    "title": "اختر شو بيظهر بالتقويم",
+    "onShift": "الأخصائيون بالشيفت",
+    "allProfessionals": "كل الأخصائيين",
+    "allInCategory": "كل الأخصائيين بهذه الفئة",
+    "resourceSchedule": "جدول الموارد",
+    "allResources": "كل الموارد"
+  },
+  "weekView": {
+    "prevWeekTitle": "الأسبوع السابق",
+    "nextWeekTitle": "الأسبوع التالي",
+    "rangeSameMonth": "{{startDay}} – {{endDay}} {{startMonth}} {{startYear}}",
+    "rangeAcrossMonths": "{{startDay}} {{startMonth}} – {{endDay}} {{endMonth}} {{endYear}}",
+    "openDayHint": "اضغط لعرض هذا اليوم كاملاً"
+  }
 }
