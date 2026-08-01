@@ -789,25 +789,6 @@ export default function AppointmentCalendar({ salonId }) {
         onDone={() => { reload(); reloadExceptions() }}
       />
 
-      <BulkReleaseDialog
-        open={bulkReleaseOpen}
-        onOpenChange={setBulkReleaseOpen}
-        employees={employees}
-        resources={resources}
-        resourceUnits={resourceUnits}
-        clientsById={clientsById}
-        servicesById={servicesById}
-        employeesById={employeesById}
-        cancellationReasons={cancellationReasons}
-        cancellationReasonsLoading={cancellationReasonsLoading}
-        reloadCancellationReasons={reloadCancellationReasons}
-        salonId={salonId}
-        initialDateISO={dateISO}
-        // Cancelling drops the shift exceptions that confirming had written,
-        // exactly as the single-booking path does, so windows reload too.
-        onDone={() => { reload(); reloadExceptions() }}
-      />
-
       <EmployeeDayDialog
         open={!!dayStatusEmployee}
         onOpenChange={(open) => { if (!open) setDayStatusEmployee(null) }}
