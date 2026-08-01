@@ -280,5 +280,12 @@
     "allInCategory": "كل الأخصائيين بهذه الفئة",
     "resourceSchedule": "جدول الموارد",
     "allResources": "كل الموارد"
+  },
+  "weekView": {
+    "prevWeekTitle": "الأسبوع السابق",
+    "nextWeekTitle": "الأسبوع التالي",
+    "rangeSameMonth": "{{startDay}} – {{endDay}} {{startMonth}} {{startYear}}",
+    "rangeAcrossMonths": "{{startDay}} {{startMonth}} – {{endDay}} {{endMonth}} {{endYear}}",
+    "openDayHint": "اضغط لعرض هذا اليوم كاملاً"
   }
 }
