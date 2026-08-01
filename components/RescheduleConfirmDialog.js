@@ -22,7 +22,7 @@ function hhmm(value) {
 export default function RescheduleConfirmDialog({
   open, onOpenChange, target,
   employees, services, categories, roleBusinessTypes,
-  schedulesByEmployee, exceptionsByEmployee,
+  schedulesByEmployee, exceptionsByEmployee, absencesByEmployee,
   resources, resourceUnits, serviceResources,
   rescheduleReasons,
   fromEmployee, clientName, service,
@@ -52,7 +52,7 @@ export default function RescheduleConfirmDialog({
       employeeId: target.employeeId,
       requestedStart: target.start,
       employees, services, categories, roleBusinessTypes,
-      schedulesByEmployee, exceptionsByEmployee,
+      schedulesByEmployee, exceptionsByEmployee, absencesByEmployee,
       resources, resourceUnits, serviceResources,
     }).then((result) => {
       if (cancelled) return

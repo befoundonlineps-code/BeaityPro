@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus, Users } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw } from 'lucide-react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -11,6 +11,8 @@ import { useScheduleExceptions } from '../hooks/useScheduleExceptions'
 import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
 import { useResources } from '../hooks/useResources'
 import { useCancellationReasons } from '../hooks/useCancellationReasons'
+import { useAbsenceReasons } from '../hooks/useAbsenceReasons'
+import { useDayStatus } from '../hooks/useDayStatus'
 import { useRescheduleReasons } from '../hooks/useRescheduleReasons'
 import { useAdjustmentReasons } from '../hooks/useAdjustmentReasons'
 import {
@@ -34,6 +36,8 @@ import RescheduleDialog from './RescheduleDialog'
 import RescheduleConfirmDialog from './RescheduleConfirmDialog'
 import AdjustDurationDialog from './AdjustDurationDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
+import EmployeeDayDialog from './EmployeeDayDialog'
+import ResourceDayDialog from './ResourceDayDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,16 +79,24 @@ export default function AppointmentCalendar({ salonId }) {
   // roster of people who take their own appointments; a helper only shows
   // up here when someone deliberately asks to book one directly.
   const [showAssistants, setShowAssistants] = useState(false)
+  // Whose standing is being looked at. A column header is the natural place
+  // to ask "is this person in today?" — it already names exactly one person,
+  // and the calendar already knows which day is on screen, so neither has to
+  // be picked a second time.
+  const [dayStatusEmployee, setDayStatusEmployee] = useState(null)
+  const [dayStatusResource, setDayStatusResource] = useState(null)
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
   const { clients, loading: clientsLoading } = useClientsLookup()
-  const { dayAppointments, waitingAppointments, loading: apptsLoading, reload } = useAppointments(dateISO)
+  const { dayAppointments, waitingAppointments, releaseOriginsById, loading: apptsLoading, reload } = useAppointments(dateISO)
   const { schedulesByEmployee, loading: schedulesLoading } = useEmployeeSchedules()
   const { exceptionsByEmployee, loading: exceptionsLoading, reload: reloadExceptions } = useScheduleExceptions()
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
   const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
   const { reasons: cancellationReasons, loading: cancellationReasonsLoading, reload: reloadCancellationReasons } = useCancellationReasons()
+  const { reasons: absenceReasons, loading: absenceReasonsLoading, reload: reloadAbsenceReasons } = useAbsenceReasons()
+  const { absencesByEmployee, outagesByUnit, loading: dayStatusLoading, reload: reloadDayStatus } = useDayStatus()
   const { reasons: rescheduleReasons, loading: rescheduleReasonsLoading, reload: reloadRescheduleReasons } = useRescheduleReasons()
   const { reasons: adjustmentReasons, loading: adjustmentReasonsLoading, reload: reloadAdjustmentReasons } = useAdjustmentReasons()
 
@@ -93,7 +105,7 @@ export default function AppointmentCalendar({ salonId }) {
     return () => clearInterval(id)
   }, [])
 
-  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || exceptionsLoading || roleTypesLoading || resourcesLoading || rescheduleReasonsLoading || adjustmentReasonsLoading
+  const loading = employeesLoading || servicesLoading || clientsLoading || apptsLoading || schedulesLoading || exceptionsLoading || roleTypesLoading || resourcesLoading || rescheduleReasonsLoading || adjustmentReasonsLoading || dayStatusLoading
   const slots = buildTimeSlots()
   const gridMinutes = totalGridMinutes()
   const gridHeight = (gridMinutes / SLOT_MINUTES) * ROW_HEIGHT
@@ -106,10 +118,55 @@ export default function AppointmentCalendar({ salonId }) {
     const map = {}
     for (const emp of employees) {
       const entry = schedulesByEmployee[emp.id]
-      map[emp.id] = availableWindowsForDate(entry?.schedule, entry?.slots, exceptionsByEmployee[emp.id], displayedDate)
+      map[emp.id] = availableWindowsForDate(
+        entry?.schedule,
+        entry?.slots,
+        exceptionsByEmployee[emp.id],
+        displayedDate,
+        absencesByEmployee[emp.id]
+      )
     }
     return map
-  }, [employees, schedulesByEmployee, exceptionsByEmployee, displayedDate])
+  }, [employees, schedulesByEmployee, exceptionsByEmployee, displayedDate, absencesByEmployee])
+
+  // The absence row for the day on screen, per employee — what the header
+  // shows and what turns the column into a wall.
+  const absenceToday = useMemo(() => {
+    const map = {}
+    for (const emp of employees) {
+      map[emp.id] = (absencesByEmployee[emp.id] || []).find((a) => a.absence_date === dateISO) || null
+    }
+    return map
+  }, [employees, absencesByEmployee, dateISO])
+
+  const absenceReasonsById = useMemo(
+    () => Object.fromEntries((absenceReasons || []).map((r) => [r.id, r])),
+    [absenceReasons]
+  )
+
+  const cancellationReasonsById = useMemo(
+    () => Object.fromEntries((cancellationReasons || []).map((r) => [r.id, r])),
+    [cancellationReasons]
+  )
+
+  // Where a waiting entry came from, ready to show: the slot it lost and who
+  // it was with.
+  //
+  // The reason shown is the coarse one recorded against the booking — "the
+  // professional was absent" — and deliberately not the absence's own reason.
+  // What the receptionist needs before she picks up the phone is why this
+  // client was moved; that her colleague is unwell is staff information, and
+  // it has no business travelling into that call.
+  function releaseOrigin(waitingRow) {
+    const origin = waitingRow.released_from_id ? releaseOriginsById[waitingRow.released_from_id] : null
+    if (!origin || !origin.start_time) return null
+    const at = new Date(origin.start_time)
+    return {
+      time: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`,
+      employeeName: employeesById[origin.employee_id]?.name || '',
+      reasonName: cancellationReasonsById[origin.cancellation_reason_id]?.name || '',
+    }
+  }
 
   const isToday = dateISO === todayISO()
   const nowMinutes = isToday ? minutesFromGridStart(now) : -1
@@ -153,6 +210,15 @@ export default function AppointmentCalendar({ salonId }) {
     return dayAppointments
       .filter((a) => a.group_id === appointment.group_id && !isHistorical(a))
       .map((a) => ({ ...a, employeeName: employeesById[a.employee_id]?.name || '' }))
+  }
+
+  // How many of a resource's units are down on the day shown, which is what
+  // its header reports instead of the capacity.
+  function outUnitCount(resourceId) {
+    return resourceUnits.filter(
+      (u) => u.resource_id === resourceId
+        && ((outagesByUnit[u.id] || []).some((o) => o.outage_date === dateISO))
+    ).length
   }
 
   function appointmentsForResource(resourceId) {
@@ -306,19 +372,41 @@ export default function AppointmentCalendar({ salonId }) {
             ) : (
               waitingAppointments.map((a) => {
                 const service = servicesById[a.service_id]
+                // An entry that lost a real slot, rather than one that never
+                // had one. Without this the two look identical, and the
+                // receptionist phones a client back with no idea what she is
+                // apologising for.
+                const origin = releaseOrigin(a)
                 return (
                   <button
                     key={a.id}
                     type="button"
                     className="rounded-md border border-border bg-card px-2 py-1.5 text-start text-xs hover:bg-muted"
                     style={{ borderInlineStartWidth: 3, borderInlineStartColor: service?.color || 'var(--color-muted-foreground)' }}
-                    title={a.note || t('appointments:waitingListConvertHint')}
+                    // The reason leads the tooltip: the third line already
+                    // carries the slot and the name, which is what she reads
+                    // at a glance, so hovering is for the "why".
+                    title={[
+                      origin?.reasonName || null,
+                      a.note || null,
+                      t('appointments:waitingListConvertHint'),
+                    ].filter(Boolean).join(' — ')}
                     // Opens the booking dialog in conversion mode, carrying
                     // the client along so it can be shown without a lookup.
                     onClick={() => setDialogState({ waitingAppointment: { ...a, client: clientsById[a.client_id] || null } })}
                   >
                     <div className="truncate font-medium">{clientName(clientsById, a.client_id)}</div>
                     <div className="truncate text-muted-foreground">{service?.name}</div>
+                    {origin && (
+                      <div className="mt-0.5 flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                        <RotateCcw className="size-3 shrink-0" />
+                        <span className="truncate">
+                          {origin.employeeName
+                            ? t('appointments:waitingListReleasedFrom', { time: origin.time, name: origin.employeeName })
+                            : t('appointments:waitingListReleasedFromTimeOnly', { time: origin.time })}
+                        </span>
+                      </div>
+                    )}
                   </button>
                 )
               })
@@ -329,17 +417,40 @@ export default function AppointmentCalendar({ salonId }) {
         {visibleEmployees.map((emp) => (
           <div key={emp.id} className="flex shrink-0 flex-col border-e border-border" style={{ width: 160 }}>
             {/* Two stacked cells, not one block: the role sits in its own
-                tinted band above the name, separated by a real divider. */}
-            <div className="sticky top-0 z-20 flex flex-col border-b border-border bg-card" style={{ height: HEADER_HEIGHT }}>
-              <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
-                <span className="truncate text-[11px] leading-none text-primary/80">
-                  {t(`employees:roles.${emp.role}`)}
+                tinted band above the name, separated by a real divider.
+
+                When she is off, the absence takes that band over rather than
+                claiming a third line — the header is 48px on every day of the
+                year, and a rare state should not cost every other day
+                vertical space. The role is static information that comes back
+                tomorrow; "sick leave" is not, and the colour shift makes it
+                scannable across every column at once. */}
+            <button
+              type="button"
+              className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
+              style={{ height: HEADER_HEIGHT }}
+              title={t('appointments:dayStatus.employeeHeaderHint')}
+              onClick={() => setDayStatusEmployee(emp)}
+            >
+              <div
+                className={`flex flex-1 items-center justify-center overflow-hidden border-b border-border px-1 ${
+                  absenceToday[emp.id] ? 'bg-amber-500/20' : 'bg-primary/10'
+                }`}
+              >
+                <span
+                  className={`truncate text-[11px] leading-none ${
+                    absenceToday[emp.id] ? 'text-amber-700 dark:text-amber-400' : 'text-primary/80'
+                  }`}
+                >
+                  {absenceToday[emp.id]
+                    ? absenceReasonsById[absenceToday[emp.id].absence_reason_id]?.name || ''
+                    : t(`employees:roles.${emp.role}`)}
                 </span>
               </div>
-              <div className="flex flex-1 items-center justify-center overflow-hidden px-1">
+              <div className="flex w-full flex-1 items-center justify-center overflow-hidden px-1">
                 <span className="truncate text-xs font-medium leading-none">{emp.name}</span>
               </div>
-            </div>
+            </button>
             <div
               className={`relative ${dragOverEmployeeId === emp.id ? 'bg-primary/5 ring-2 ring-inset ring-primary/40' : ''}`}
               style={{ height: gridHeight }}
@@ -370,13 +481,19 @@ export default function AppointmentCalendar({ salonId }) {
                   </span>
                 ) : null
 
-                if (past) {
+                // An absence is a wall, not a question. Outside the shift is
+                // negotiable — she is around and might agree — but "not here
+                // today" leaves nobody to ask, so the cell stops offering the
+                // provisional-booking dialog the way a past slot does.
+                if (past || absenceToday[emp.id]) {
                   return (
                     <div
                       key={s.minutesFromStart}
                       className="absolute inset-x-0 border-b border-border/50 bg-muted/60"
                       style={style}
-                      title={t('appointments:pastSlotHint')}
+                      title={t(absenceToday[emp.id] && !past
+                        ? 'appointments:dayStatus.absentCellHint'
+                        : 'appointments:pastSlotHint')}
                     >
                       {hourMark}
                     </div>
@@ -511,16 +628,39 @@ export default function AppointmentCalendar({ salonId }) {
           const clusters = clusterAppointments(appointmentsForResource(resource.id))
           return (
             <div key={resource.id} className="flex shrink-0 flex-col border-e border-border bg-muted/10" style={{ width: 160 }}>
-              <div className="sticky top-0 z-20 flex flex-col border-b border-border bg-card" style={{ height: HEADER_HEIGHT }}>
-                <div className="flex flex-1 items-center justify-center overflow-hidden border-b border-border bg-primary/10 px-1">
-                  <span className="truncate text-[11px] leading-none text-primary/80">
-                    {t('appointments:resourceColumn.capacityLabel', { count: resource.capacity })}
+              {/* The cells below stay inert — a resource cannot answer "who
+                  performs this?" — but the header is a different question,
+                  and it is the only place to ask whether the machine works
+                  today. */}
+              <button
+                type="button"
+                className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
+                style={{ height: HEADER_HEIGHT }}
+                title={t('appointments:dayStatus.resourceHeaderHint')}
+                onClick={() => setDayStatusResource(resource)}
+              >
+                <div
+                  className={`flex w-full flex-1 items-center justify-center overflow-hidden border-b border-border px-1 ${
+                    outUnitCount(resource.id) > 0 ? 'bg-amber-500/20' : 'bg-primary/10'
+                  }`}
+                >
+                  <span
+                    className={`truncate text-[11px] leading-none ${
+                      outUnitCount(resource.id) > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-primary/80'
+                    }`}
+                  >
+                    {outUnitCount(resource.id) > 0
+                      ? t('appointments:dayStatus.unitsOutLabel', {
+                          out: outUnitCount(resource.id),
+                          total: resource.capacity,
+                        })
+                      : t('appointments:resourceColumn.capacityLabel', { count: resource.capacity })}
                   </span>
                 </div>
-                <div className="flex flex-1 items-center justify-center overflow-hidden px-1">
+                <div className="flex w-full flex-1 items-center justify-center overflow-hidden px-1">
                   <span className="truncate text-xs font-medium leading-none">{resource.name}</span>
                 </div>
-              </div>
+              </button>
 
               <div className="relative" style={{ height: gridHeight }}>
                 {slots.map((s) => (
@@ -641,6 +781,7 @@ export default function AppointmentCalendar({ salonId }) {
         roleBusinessTypes={roleBusinessTypes}
         schedulesByEmployee={schedulesByEmployee}
         exceptionsByEmployee={exceptionsByEmployee}
+        absencesByEmployee={absencesByEmployee}
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
@@ -686,11 +827,44 @@ export default function AppointmentCalendar({ salonId }) {
         roleBusinessTypes={roleBusinessTypes}
         schedulesByEmployee={schedulesByEmployee}
         exceptionsByEmployee={exceptionsByEmployee}
+        absencesByEmployee={absencesByEmployee}
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
         rescheduleReasons={rescheduleReasons}
         onDone={() => { reload(); reloadExceptions() }}
+      />
+
+      <EmployeeDayDialog
+        open={!!dayStatusEmployee}
+        onOpenChange={(open) => { if (!open) setDayStatusEmployee(null) }}
+        employee={dayStatusEmployee}
+        dateISO={dateISO}
+        absence={dayStatusEmployee ? absenceToday[dayStatusEmployee.id] : null}
+        absenceReasons={absenceReasons}
+        absenceReasonsLoading={absenceReasonsLoading}
+        reloadAbsenceReasons={reloadAbsenceReasons}
+        salonId={salonId}
+        clientsById={clientsById}
+        servicesById={servicesById}
+        employeesById={employeesById}
+        // Marking somebody off cancels sessions, which drops the shift
+        // exceptions those confirmations had written — the same reload the
+        // single-booking path already does, plus the absence itself.
+        onDone={() => { reload(); reloadExceptions(); reloadDayStatus() }}
+      />
+
+      <ResourceDayDialog
+        open={!!dayStatusResource}
+        onOpenChange={(open) => { if (!open) setDayStatusResource(null) }}
+        resource={dayStatusResource}
+        units={resourceUnits}
+        outagesByUnit={outagesByUnit}
+        dateISO={dateISO}
+        clientsById={clientsById}
+        servicesById={servicesById}
+        employeesById={employeesById}
+        onDone={() => { reload(); reloadExceptions(); reloadDayStatus() }}
       />
 
       <AppointmentFormDialog
@@ -706,6 +880,7 @@ export default function AppointmentCalendar({ salonId }) {
         roleBusinessTypes={roleBusinessTypes}
         schedulesByEmployee={schedulesByEmployee}
         exceptionsByEmployee={exceptionsByEmployee}
+        absencesByEmployee={absencesByEmployee}
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
