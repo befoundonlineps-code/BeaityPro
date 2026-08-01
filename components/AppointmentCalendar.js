@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus, Users } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Users, CalendarOff } from 'lucide-react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -34,6 +34,7 @@ import RescheduleDialog from './RescheduleDialog'
 import RescheduleConfirmDialog from './RescheduleConfirmDialog'
 import AdjustDurationDialog from './AdjustDurationDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
+import BulkReleaseDialog from './BulkReleaseDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,6 +76,10 @@ export default function AppointmentCalendar({ salonId }) {
   // roster of people who take their own appointments; a helper only shows
   // up here when someone deliberately asks to book one directly.
   const [showAssistants, setShowAssistants] = useState(false)
+  // Clearing a whole absence at once. It gets its own dialog rather than a
+  // gesture on the grid: dragging a block already means "move this booking",
+  // and an absence can run for days the one-day grid cannot show.
+  const [bulkReleaseOpen, setBulkReleaseOpen] = useState(false)
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -257,6 +262,10 @@ export default function AppointmentCalendar({ salonId }) {
               {showAssistants ? t('appointments:hideAssistantsButton') : t('appointments:showAssistantsButton')}
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setBulkReleaseOpen(true)}>
+            <CalendarOff />
+            {t('appointments:bulkReleaseButton')}
+          </Button>
           <Button onClick={() => setDialogState({})}>
             <Plus />
             {t('appointments:newAppointmentButton')}
@@ -690,6 +699,25 @@ export default function AppointmentCalendar({ salonId }) {
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
         rescheduleReasons={rescheduleReasons}
+        onDone={() => { reload(); reloadExceptions() }}
+      />
+
+      <BulkReleaseDialog
+        open={bulkReleaseOpen}
+        onOpenChange={setBulkReleaseOpen}
+        employees={employees}
+        resources={resources}
+        resourceUnits={resourceUnits}
+        clientsById={clientsById}
+        servicesById={servicesById}
+        employeesById={employeesById}
+        cancellationReasons={cancellationReasons}
+        cancellationReasonsLoading={cancellationReasonsLoading}
+        reloadCancellationReasons={reloadCancellationReasons}
+        salonId={salonId}
+        initialDateISO={dateISO}
+        // Cancelling drops the shift exceptions that confirming had written,
+        // exactly as the single-booking path does, so windows reload too.
         onDone={() => { reload(); reloadExceptions() }}
       />
 
