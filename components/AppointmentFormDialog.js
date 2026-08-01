@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { availableWindowsForDate } from '../lib/employeeAvailability'
+import { availableWindowsForDate, isAbsentOn } from '../lib/employeeAvailability'
 import { servicesForRole } from '../lib/roleServiceFilter'
 import { serviceUsesResources, orderedUnitsForService, availableUnitsFor } from '../lib/resourceAllocation'
 import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole, combineGroupPlacement } from '../lib/bookingPlacement'
@@ -38,7 +38,7 @@ function toTimeInputValue(date) {
 // else's place in the queue), the service is not, and every placement rule
 // runs exactly as it does for a fresh booking — only the final write
 // differs, updating the row in place instead of inserting one.
-export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, waitingAppointment, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
+export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, waitingAppointment, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
   const { t } = useTranslation(['appointments', 'employees', 'common'])
 
   const [client, setClient] = useState(null)
@@ -235,6 +235,21 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
 
     // A row left on the placeholder is simply not a participant yet.
     const participantIds = [employeeId, ...extraEmployeeIds.filter(Boolean)]
+
+    // An absence is refused outright rather than turned into the
+    // "book provisionally?" question the rest of this dialog asks. That
+    // question means "she is outside her shift — shall we ask her to come
+    // in?", and there is nobody to ask: she is not here today. The grid
+    // already makes her cells inert, so this only catches the way in through
+    // the employee dropdown.
+    const absentId = participantIds.find((id) => isAbsentOn((absencesByEmployee || {})[id], start))
+    if (absentId) {
+      setSaving(false)
+      setError(t('appointments:formDialog.absentEmployeeError', {
+        name: (employees || []).find((e) => e.id === absentId)?.name || '',
+      }))
+      return
+    }
     const { rowsByEmployee, unitRows, error: loadError } = await loadGroupOccupancy({
       employeeIds: participantIds,
       start,
@@ -266,7 +281,8 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
             scheduleEntry?.schedule,
             scheduleEntry?.slots,
             (exceptionsByEmployee || {})[id],
-            dayStart
+            dayStart,
+            (absencesByEmployee || {})[id]
           ),
           roleAllowed: isServiceAllowedForRole(employee?.role, selectedService, activeServices, categories, roleBusinessTypes),
           employeeAppointments: rowsByEmployee[id] || [],
