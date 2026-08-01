@@ -38,6 +38,7 @@ import RescheduleConfirmDialog from './RescheduleConfirmDialog'
 import AdjustDurationDialog from './AdjustDurationDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
 import CalendarViewMenu from './CalendarViewMenu'
+import EmployeeColumnBody from './EmployeeColumnBody'
 import EmployeeDayDialog from './EmployeeDayDialog'
 import ResourceDayDialog from './ResourceDayDialog'
 import { Card, CardContent } from '@/components/ui/card'
@@ -75,7 +76,9 @@ export default function AppointmentCalendar({ salonId }) {
   const [rescheduleDetail, setRescheduleDetail] = useState(null) // the appointment being moved to a new date/time/employee
   const [adjustDetail, setAdjustDetail] = useState(null) // the running session whose real end is being recorded
   const [dragState, setDragState] = useState(null) // { appointment, grabOffsetY, durationMinutes } while a block is in hand
-  const [dragOverEmployeeId, setDragOverEmployeeId] = useState(null)
+  // Keyed by column, not by employee: in a week view all seven columns belong
+  // to the same person, and keying by them would light up every one.
+  const [dragOverKey, setDragOverKey] = useState(null)
   const [dropTarget, setDropTarget] = useState(null) // { appointment, employeeId, start } awaiting confirmation
   // Assistant columns are hidden by default — the calendar reads as the
   // roster of people who take their own appointments; a helper only shows
@@ -269,14 +272,14 @@ export default function AppointmentCalendar({ salonId }) {
 
   function handleDragEnd() {
     setDragState(null)
-    setDragOverEmployeeId(null)
+    setDragOverKey(null)
   }
 
   // dragover/drop bubble up from the slot cells and blocks inside, so the
   // column body hears them without any of its children needing to opt out
   // of pointer events. currentTarget is always this container, which is
   // what the drop offset has to be measured against.
-  function handleDrop(event, employee) {
+  function handleDrop(event, employee, columnDateISO) {
     event.preventDefault()
     if (!dragState) return
 
@@ -287,11 +290,13 @@ export default function AppointmentCalendar({ salonId }) {
       rowHeight: ROW_HEIGHT,
       durationMinutes: dragState.durationMinutes,
     })
-    const start = slotStartTime(dateISO, minutes)
+    // The column's own date, so dragging sideways through a week lands on the
+    // day it was dropped on rather than the day the calendar opened.
+    const start = slotStartTime(columnDateISO, minutes)
     const { appointment } = dragState
 
     setDragState(null)
-    setDragOverEmployeeId(null)
+    setDragOverKey(null)
 
     // Picked up and put back exactly where it was: nothing moved, so no
     // history entry should be written for it.
@@ -302,11 +307,11 @@ export default function AppointmentCalendar({ salonId }) {
     setDropTarget({ appointment, employeeId: employee.id, start })
   }
 
-  function handleCellClick(employeeId, minutesFromStart) {
+  function handleCellClick(employeeId, minutesFromStart, columnDateISO) {
     // Prefill what will actually be booked: a slot already under way starts
     // from this moment, not from the boundary drawn on the grid. Save
     // re-derives it against a fresh clock.
-    const slotStart = slotStartTime(dateISO, minutesFromStart)
+    const slotStart = slotStartTime(columnDateISO, minutesFromStart)
     setDialogState({ employeeId, startTime: resolveBookingStart(slotStart, new Date()) || slotStart })
   }
 
@@ -486,173 +491,27 @@ export default function AppointmentCalendar({ salonId }) {
                 <span className="truncate text-xs font-medium leading-none">{emp.name}</span>
               </div>
             </button>
-            <div
-              className={`relative ${dragOverEmployeeId === emp.id ? 'bg-primary/5 ring-2 ring-inset ring-primary/40' : ''}`}
-              style={{ height: gridHeight }}
-              onDragOver={(event) => {
-                if (!dragState) return
-                event.preventDefault() // without this the drop is never allowed
-                event.dataTransfer.dropEffect = 'move'
-                setDragOverEmployeeId(emp.id)
-              }}
-              onDragLeave={() => setDragOverEmployeeId((current) => (current === emp.id ? null : current))}
-              onDrop={(event) => handleDrop(event, emp)}
-            >
-              {slots.map((s) => {
-                const cellEndLabel = minutesToLabel(s.minutesFromStart + SLOT_MINUTES)
-                const past = isSlotPast(slotStartTime(dateISO, s.minutesFromStart + SLOT_MINUTES), now)
-                // Outside the shift is no longer a wall: the slot stays
-                // shaded so it still reads as unusual, but it opens the
-                // dialog, which is where the provisional-booking question
-                // gets asked. Time that has already passed stays closed —
-                // that one is not a judgement call.
-                const withinShift = isWithinAnyWindow(windowsByEmployee[emp.id], s.label, cellEndLabel)
-                const style = { top: (s.minutesFromStart / SLOT_MINUTES) * ROW_HEIGHT, height: ROW_HEIGHT }
-                // Repeat the hour inside every column so the eye can track time
-                // while scanning sideways, without going back to the left rail.
-                const hourMark = s.minutesFromStart % 60 === 0 ? (
-                  <span className="pointer-events-none absolute start-1 top-0.5 text-[10px] leading-none text-primary/30">
-                    {s.label}
-                  </span>
-                ) : null
-
-                // An absence is a wall, not a question. Outside the shift is
-                // negotiable — she is around and might agree — but "not here
-                // today" leaves nobody to ask, so the cell stops offering the
-                // provisional-booking dialog the way a past slot does.
-                if (past || absenceToday[emp.id]) {
-                  return (
-                    <div
-                      key={s.minutesFromStart}
-                      className="absolute inset-x-0 border-b border-border/50 bg-muted/60"
-                      style={style}
-                      title={t(absenceToday[emp.id] && !past
-                        ? 'appointments:dayStatus.absentCellHint'
-                        : 'appointments:pastSlotHint')}
-                    >
-                      {hourMark}
-                    </div>
-                  )
-                }
-                return (
-                  <button
-                    key={s.minutesFromStart}
-                    type="button"
-                    className={
-                      withinShift
-                        ? 'absolute inset-x-0 border-b border-border/50 hover:bg-muted/40'
-                        : 'absolute inset-x-0 border-b border-border/50 bg-muted/60 hover:bg-muted/80'
-                    }
-                    style={style}
-                    title={withinShift ? undefined : t('appointments:outsideScheduleHint')}
-                    onClick={() => handleCellClick(emp.id, s.minutesFromStart)}
-                  >
-                    {hourMark}
-                  </button>
-                )
-              })}
-
-              {/* Almost every cluster holds exactly one appointment and
-                  renders exactly as before. More than one only happens when
-                  a no_show and a live booking land on the same slot — the
-                  only overlap the database allows, since booked/completed/
-                  pending_approval can never overlap each other for the same
-                  employee. That case gets one merged block that opens a
-                  picker instead of guessing which appointment you meant. */}
-              {clusterAppointments(appointmentsForEmployee(emp.id)).map((cluster) => {
-                const clampedStart = Math.max(minutesFromGridStart(cluster.start), 0)
-                const clampedEnd = Math.min(minutesFromGridStart(cluster.end), gridMinutes)
-                if (clampedEnd <= clampedStart) return null
-                const top = (clampedStart / SLOT_MINUTES) * ROW_HEIGHT
-                const height = ((clampedEnd - clampedStart) / SLOT_MINUTES) * ROW_HEIGHT
-
-                if (cluster.items.length > 1) {
-                  return (
-                    <button
-                      key={`cluster-${emp.id}-${cluster.start.getTime()}`}
-                      type="button"
-                      className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:brightness-110"
-                      style={{ top, height, background: 'var(--color-primary)' }}
-                      onClick={() => setEmployeeClusterDetail({ employee: emp, cluster })}
-                    >
-                      <div className="truncate font-medium">{t('appointments:employeeCluster.blockLabel')}</div>
-                      <div className="truncate opacity-90">
-                        {t('appointments:employeeCluster.blockCount', { count: cluster.items.length })}
-                      </div>
-                    </button>
-                  )
-                }
-
-                const a = cluster.items[0]
-                const service = servicesById[a.service_id]
-                // A provisional booking keeps its service colour — it is a
-                // real hold on the slot — but wears a dashed edge and a
-                // hatch so it never reads as settled. A confirmed booking is
-                // solid, but now opens the same actions dialog (cancel /
-                // didn't-show); completed, cancelled and no-show blocks stay
-                // inert since this dialog offers them nothing to do.
-                const pending = a.status === 'pending_approval'
-                const actionable = pending || a.status === 'booked'
-                const beingDragged = dragState?.appointment.id === a.id
-                // An added professional's row is a full booking holding its
-                // own slot, so it draws at full size — the calendar answers
-                // "is this person busy?", and the answer is yes either way.
-                // It is only toned down and labelled so the main
-                // professional's row stays the one that reads first.
-                const isParticipant = a.is_primary === false
-                const Tag = actionable ? 'button' : 'div'
-                return (
-                  <Tag
-                    key={a.id}
-                    type={actionable ? 'button' : undefined}
-                    // Only a booking that can still be acted on can be moved,
-                    // the same rule that decides whether it opens a dialog.
-                    draggable={actionable}
-                    onDragStart={actionable ? (event) => handleDragStart(event, a) : undefined}
-                    onDragEnd={actionable ? handleDragEnd : undefined}
-                    className={`absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
-                      pending
-                        ? 'border-2 border-dashed border-white/90 hover:brightness-110'
-                        : actionable
-                        ? 'hover:brightness-110'
-                        : 'pointer-events-none'
-                    } ${actionable ? 'cursor-grab active:cursor-grabbing' : ''} ${
-                      beingDragged ? 'opacity-40' : isParticipant ? 'opacity-70' : ''
-                    }`}
-                    style={{
-                      top,
-                      height,
-                      backgroundColor: service?.color || 'var(--color-muted-foreground)',
-                      backgroundImage: pending
-                        ? 'repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0 4px, transparent 4px 10px)'
-                        : undefined,
-                    }}
-                    title={[
-                      isParticipant ? t('appointments:participantBlockHint') : null,
-                      pending ? t('appointments:pendingBlockHint') : null,
-                      clientName(clientsById, a.client_id),
-                      service?.name || null,
-                    ].filter(Boolean).join(' — ')}
-                    onClick={actionable ? () => setActionDetail(a) : undefined}
-                  >
-                    <div className="truncate font-medium">{clientName(clientsById, a.client_id)}</div>
-                    <div className="truncate opacity-90">{service?.name}</div>
-                    {isParticipant && (
-                      <span className="pointer-events-none absolute bottom-0.5 end-1 rounded bg-black/30 px-1 text-[9px] leading-tight">
-                        {t('appointments:participantBadge')}
-                      </span>
-                    )}
-                  </Tag>
-                )
-              })}
-
-              {showNowLine && (
-                <div
-                  className="pointer-events-none absolute inset-x-0 z-[15] h-0.5 bg-destructive"
-                  style={{ top: (nowMinutes / SLOT_MINUTES) * ROW_HEIGHT }}
-                />
-              )}
-            </div>
+            <EmployeeColumnBody
+              employee={emp}
+              dateISO={dateISO}
+              appointments={appointmentsForEmployee(emp.id)}
+              windows={windowsByEmployee[emp.id]}
+              absence={absenceToday[emp.id]}
+              now={now}
+              rowHeight={ROW_HEIGHT}
+              clientsById={clientsById}
+              servicesById={servicesById}
+              dragState={dragState}
+              dragOverKey={dragOverKey}
+              onDragOverColumn={setDragOverKey}
+              onDragLeaveColumn={(key) => setDragOverKey((c) => (c === key ? null : c))}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              onCellClick={handleCellClick}
+              onClusterClick={setEmployeeClusterDetail}
+              onAppointmentClick={setActionDetail}
+            />
           </div>
         ))}
 
