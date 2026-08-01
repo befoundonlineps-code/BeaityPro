@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva } from "class-variance-authority";
 
@@ -40,18 +41,25 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
+// forwardRef is load-bearing, not ceremony. Anything that opens next to this
+// button — a menu, a popover — has to measure the real DOM node to position
+// itself and to hear the click that opens it. On React 18 a plain function
+// component silently drops the ref it is handed, so the button still draws
+// perfectly and simply never opens: the failure looks like a styling quirk
+// rather than a missing wire, and it only shows up when somebody presses it.
+const Button = React.forwardRef(function Button({
   className,
   variant = "default",
   size = "default",
   ...props
-}) {
+}, ref) {
   return (
     <ButtonPrimitive
+      ref={ref}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props} />
   );
-}
+})
 
 export { Button, buttonVariants }
