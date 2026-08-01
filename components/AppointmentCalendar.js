@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw, CalendarClock } from 'lucide-react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -34,6 +34,7 @@ import {
   DEFAULT_SELECTION, VIEW_ALL, VIEW_EMPLOYEE, VIEW_RESOURCE,
 } from '../lib/calendarView'
 import { weekDaysISO, shiftWeekISO, weekRangeParts } from '../lib/calendarWeek'
+import { shiftSummary } from '../lib/shiftSummary'
 import { useSubjectWeek } from '../hooks/useSubjectWeek'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
@@ -46,6 +47,7 @@ import CalendarViewMenu from './CalendarViewMenu'
 import EmployeeColumnBody from './EmployeeColumnBody'
 import ResourceColumnBody from './ResourceColumnBody'
 import EmployeeDayDialog from './EmployeeDayDialog'
+import ProfessionalShiftsDialog from './ProfessionalShiftsDialog'
 import ResourceDayDialog from './ResourceDayDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -117,6 +119,7 @@ export default function AppointmentCalendar({ salonId }) {
   // be picked a second time.
   const [dayStatusEmployee, setDayStatusEmployee] = useState(null)
   const [dayStatusResource, setDayStatusResource] = useState(null)
+  const [shiftsDialogOpen, setShiftsDialogOpen] = useState(false)
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -270,6 +273,16 @@ export default function AppointmentCalendar({ salonId }) {
       appointments: weekAppointments.filter((a) => a.start_time && localDateISO(a.start_time) === day && !isHistorical(a)),
     }
   }), [weekDays, weekEmployee, schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, weekAppointments])
+
+  // The shifts button reports the day's hours when exactly one professional
+  // is on the board, and a plain label otherwise. Not disabled in that case:
+  // the dialog carries its own picker, and the moment you most need a general
+  // way in is the moment you are not already looking at one person.
+  const shiftsButtonEmployeeId = viewSelection.kind === VIEW_EMPLOYEE ? viewSelection.employeeId : null
+  const shiftsButtonLabel = shiftsButtonEmployeeId
+    ? shiftSummary(windowsByEmployee[shiftsButtonEmployeeId], router.locale || 'ar')
+      || t('appointments:shiftsDialog.notWorkingLabel')
+    : t('appointments:shiftsDialog.buttonLabel')
 
   const weekRange = useMemo(
     () => (isWeek ? weekRangeParts(dateISO, router.locale || 'ar') : null),
@@ -431,6 +444,15 @@ export default function AppointmentCalendar({ salonId }) {
             resources={resources}
             onSelect={setViewSelection}
           />
+          <Button
+            variant="outline"
+            size="sm"
+            title={t('appointments:shiftsDialog.buttonTitle')}
+            onClick={() => setShiftsDialogOpen(true)}
+          >
+            <CalendarClock />
+            <span className="max-w-44 truncate">{shiftsButtonLabel}</span>
+          </Button>
         </div>
         <div className="flex items-center gap-2">
           {hasAssistants && assistantToggleApplies && (
@@ -865,6 +887,20 @@ export default function AppointmentCalendar({ salonId }) {
         // Marking somebody off cancels sessions, which drops the shift
         // exceptions those confirmations had written — the same reload the
         // single-booking path already does, plus the absence itself.
+        onDone={() => { reload(); reloadExceptions(); reloadDayStatus() }}
+      />
+
+      <ProfessionalShiftsDialog
+        open={shiftsDialogOpen}
+        onOpenChange={setShiftsDialogOpen}
+        employees={employees}
+        dateISO={dateISO}
+        initialEmployeeId={shiftsButtonEmployeeId}
+        absencesByEmployee={absencesByEmployee}
+        absenceReasons={absenceReasons}
+        clientsById={clientsById}
+        servicesById={servicesById}
+        employeesById={employeesById}
         onDone={() => { reload(); reloadExceptions(); reloadDayStatus() }}
       />
 

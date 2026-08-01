@@ -287,5 +287,20 @@
     "rangeSameMonth": "{{startDay}} – {{endDay}} {{startMonth}} {{startYear}}",
     "rangeAcrossMonths": "{{startDay}} {{startMonth}} – {{endDay}} {{endMonth}} {{endYear}}",
     "openDayHint": "اضغط لعرض هذا اليوم كاملاً"
+  },
+  "shiftsDialog": {
+    "title": "دوام الأخصائي",
+    "buttonLabel": "دوام الأخصائي",
+    "buttonTitle": "تسجيل دوام أو غياب لليوم المعروض",
+    "notWorkingLabel": "مش شغّال اليوم",
+    "professionalLabel": "الأخصائي",
+    "selectPlaceholder": "اختر أخصائي...",
+    "workLabel": "شغّال",
+    "noReason": "بلا سبب",
+    "changeButton": "تغيير",
+    "verificationTitle": "تدقيق الأوقات الحرة",
+    "verificationIntro": "{{name}} عنده مواعيد بهذا اليوم:",
+    "continueAnywayButton": "تابع رغم ذلك",
+    "returnToEditingButton": "رجوع للتعديل"
   }
 }
