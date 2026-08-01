@@ -7,6 +7,7 @@ import {
   VIEW_ROLE,
   VIEW_EMPLOYEE,
   VIEW_RESOURCE,
+  VIEW_ALL_RESOURCES,
 } from '../lib/calendarView'
 import {
   DropdownMenu,
@@ -19,6 +20,31 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
+
+// A folder in the menu: "all of these" on top, then each member by name.
+//
+// Roles and resources are the same shape of question — narrow to a group, or
+// go to one of its members — so they are the same component rather than two
+// that have to be kept looking alike by hand.
+function CategorySubmenu({ icon, label, allLabel, onSelectAll, members }) {
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        {icon}
+        {label}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuItem onClick={onSelectAll}>{allLabel}</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {members.map((m) => (
+          <DropdownMenuItem key={m.id} onClick={m.onSelect}>
+            {m.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  )
+}
 
 // Picking what the calendar shows: the whole roster, only those working
 // today, one role, or one professional or resource on their own.
@@ -46,6 +72,8 @@ export default function CalendarViewMenu({ selection, employees, resources, onSe
         return (employees || []).find((e) => e.id === selection.employeeId)?.name || ''
       case VIEW_RESOURCE:
         return (resources || []).find((r) => r.id === selection.resourceId)?.name || ''
+      case VIEW_ALL_RESOURCES:
+        return t('appointments:viewMenu.allResources')
       default:
         return t('appointments:viewMenu.allProfessionals')
     }
@@ -74,52 +102,40 @@ export default function CalendarViewMenu({ selection, employees, resources, onSe
 
         <DropdownMenuSeparator />
 
-        {/* One category per role somebody actually holds. Each opens onto its
-            own "everyone in this category" plus the people in it by name — a
-            role narrows the day, a name opens that person's week. */}
+        {/* One category per role somebody actually holds, and one for the
+            resources — every folder has the same two levels: "all of these"
+            on top, then each member by name. Resources sit at the end rather
+            than inside a role because nothing in the roles above describes a
+            room, and they are named by resource: the units inside are an
+            allocation detail nobody books against by hand. */}
         {roles.map((role) => (
-          <DropdownMenuSub key={role}>
-            <DropdownMenuSubTrigger>{roleLabel(role)}</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              <DropdownMenuItem onClick={() => onSelect({ kind: VIEW_ROLE, role })}>
-                {t('appointments:viewMenu.allInCategory')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {employeesInRole(role).map((emp) => (
-                <DropdownMenuItem
-                  key={emp.id}
-                  onClick={() => onSelect({ kind: VIEW_EMPLOYEE, employeeId: emp.id })}
-                >
-                  {emp.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          <CategorySubmenu
+            key={role}
+            label={roleLabel(role)}
+            allLabel={t('appointments:viewMenu.allInCategory')}
+            onSelectAll={() => onSelect({ kind: VIEW_ROLE, role })}
+            members={employeesInRole(role).map((emp) => ({
+              id: emp.id,
+              name: emp.name,
+              onSelect: () => onSelect({ kind: VIEW_EMPLOYEE, employeeId: emp.id }),
+            }))}
+          />
         ))}
 
-        {/* Resources sit on their own at the end rather than inside a role:
-            they are not people, and nothing in the roles above describes
-            them. Named by resource — the units inside are an allocation
-            detail nobody books against by hand. */}
         {(resources || []).length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Package />
-                {t('appointments:viewMenu.resourceSchedule')}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {resources.map((r) => (
-                  <DropdownMenuItem
-                    key={r.id}
-                    onClick={() => onSelect({ kind: VIEW_RESOURCE, resourceId: r.id })}
-                  >
-                    {r.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            <CategorySubmenu
+              icon={<Package />}
+              label={t('appointments:viewMenu.resourceSchedule')}
+              allLabel={t('appointments:viewMenu.allResources')}
+              onSelectAll={() => onSelect({ kind: VIEW_ALL_RESOURCES })}
+              members={resources.map((r) => ({
+                id: r.id,
+                name: r.name,
+                onSelect: () => onSelect({ kind: VIEW_RESOURCE, resourceId: r.id }),
+              }))}
+            />
           </>
         )}
       </DropdownMenuContent>

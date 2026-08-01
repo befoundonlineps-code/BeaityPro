@@ -29,7 +29,7 @@ import {
 } from '../lib/appointmentGrid'
 import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvailability'
 import { clusterAppointments } from '../lib/resourceAllocation'
-import { visibleEmployeesFor, DEFAULT_SELECTION, VIEW_ALL, VIEW_ON_SHIFT } from '../lib/calendarView'
+import { visibleEmployeesFor, visibleResourcesFor, isBroadView, DEFAULT_SELECTION } from '../lib/calendarView'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
 import AppointmentClusterDialog from './AppointmentClusterDialog'
@@ -188,8 +188,7 @@ export default function AppointmentCalendar({ salonId }) {
   // one role, or one person, answers the question itself — so the button goes
   // away rather than sitting there doing nothing.
   const hasAssistants = employees.some((e) => e.is_assistant)
-  const assistantToggleApplies =
-    viewSelection.kind === VIEW_ALL || viewSelection.kind === VIEW_ON_SHIFT
+  const assistantToggleApplies = isBroadView(viewSelection)
   const visibleEmployees = useMemo(
     () => visibleEmployeesFor({
       employees,
@@ -198,6 +197,15 @@ export default function AppointmentCalendar({ salonId }) {
       windowsByEmployee,
     }),
     [employees, viewSelection, showAssistants, windowsByEmployee]
+  )
+
+  // Narrowing to people hides the rooms and narrowing to rooms hides the
+  // people. The waiting column is in neither list and stays put: it holds the
+  // clients with no column at all, so nothing you narrow to makes it stop
+  // mattering.
+  const visibleResources = useMemo(
+    () => visibleResourcesFor({ resources, selection: viewSelection }),
+    [resources, viewSelection]
   )
 
   // A row that has been superseded — rescheduled to another time, or
@@ -651,7 +659,7 @@ export default function AppointmentCalendar({ salonId }) {
         {/* Resource columns are a read-only mirror: bookings land here
             automatically when a resource-linked service is booked from an
             employee column, so these cells are inert by design. */}
-        {resources.map((resource) => {
+        {visibleResources.map((resource) => {
           const clusters = clusterAppointments(appointmentsForResource(resource.id))
           return (
             <div key={resource.id} className="flex shrink-0 flex-col border-e border-border bg-muted/10" style={{ width: 160 }}>
