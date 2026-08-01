@@ -270,5 +270,7 @@
     "deactivateInsteadButton": "عطّله بدل الحذف",
     "deleteNoRowsMessage": "ما انحذف ولا صف — يمكن انحذف من جهاز تاني.",
     "deleteSuccessMessage": "تم حذف \"{{name}}\""
-  }
+  },
+  "waitingListReleasedFrom": "كان {{time}} مع {{name}}",
+  "waitingListReleasedFromTimeOnly": "كان الساعة {{time}}"
 }

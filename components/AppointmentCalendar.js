@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus, Users } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw } from 'lucide-react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -89,7 +89,7 @@ export default function AppointmentCalendar({ salonId }) {
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
   const { clients, loading: clientsLoading } = useClientsLookup()
-  const { dayAppointments, waitingAppointments, loading: apptsLoading, reload } = useAppointments(dateISO)
+  const { dayAppointments, waitingAppointments, releaseOriginsById, loading: apptsLoading, reload } = useAppointments(dateISO)
   const { schedulesByEmployee, loading: schedulesLoading } = useEmployeeSchedules()
   const { exceptionsByEmployee, loading: exceptionsLoading, reload: reloadExceptions } = useScheduleExceptions()
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
@@ -143,6 +143,30 @@ export default function AppointmentCalendar({ salonId }) {
     () => Object.fromEntries((absenceReasons || []).map((r) => [r.id, r])),
     [absenceReasons]
   )
+
+  const cancellationReasonsById = useMemo(
+    () => Object.fromEntries((cancellationReasons || []).map((r) => [r.id, r])),
+    [cancellationReasons]
+  )
+
+  // Where a waiting entry came from, ready to show: the slot it lost and who
+  // it was with.
+  //
+  // The reason shown is the coarse one recorded against the booking — "the
+  // professional was absent" — and deliberately not the absence's own reason.
+  // What the receptionist needs before she picks up the phone is why this
+  // client was moved; that her colleague is unwell is staff information, and
+  // it has no business travelling into that call.
+  function releaseOrigin(waitingRow) {
+    const origin = waitingRow.released_from_id ? releaseOriginsById[waitingRow.released_from_id] : null
+    if (!origin || !origin.start_time) return null
+    const at = new Date(origin.start_time)
+    return {
+      time: `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`,
+      employeeName: employeesById[origin.employee_id]?.name || '',
+      reasonName: cancellationReasonsById[origin.cancellation_reason_id]?.name || '',
+    }
+  }
 
   const isToday = dateISO === todayISO()
   const nowMinutes = isToday ? minutesFromGridStart(now) : -1
@@ -348,19 +372,41 @@ export default function AppointmentCalendar({ salonId }) {
             ) : (
               waitingAppointments.map((a) => {
                 const service = servicesById[a.service_id]
+                // An entry that lost a real slot, rather than one that never
+                // had one. Without this the two look identical, and the
+                // receptionist phones a client back with no idea what she is
+                // apologising for.
+                const origin = releaseOrigin(a)
                 return (
                   <button
                     key={a.id}
                     type="button"
                     className="rounded-md border border-border bg-card px-2 py-1.5 text-start text-xs hover:bg-muted"
                     style={{ borderInlineStartWidth: 3, borderInlineStartColor: service?.color || 'var(--color-muted-foreground)' }}
-                    title={a.note || t('appointments:waitingListConvertHint')}
+                    // The reason leads the tooltip: the third line already
+                    // carries the slot and the name, which is what she reads
+                    // at a glance, so hovering is for the "why".
+                    title={[
+                      origin?.reasonName || null,
+                      a.note || null,
+                      t('appointments:waitingListConvertHint'),
+                    ].filter(Boolean).join(' — ')}
                     // Opens the booking dialog in conversion mode, carrying
                     // the client along so it can be shown without a lookup.
                     onClick={() => setDialogState({ waitingAppointment: { ...a, client: clientsById[a.client_id] || null } })}
                   >
                     <div className="truncate font-medium">{clientName(clientsById, a.client_id)}</div>
                     <div className="truncate text-muted-foreground">{service?.name}</div>
+                    {origin && (
+                      <div className="mt-0.5 flex items-center gap-1 text-amber-700 dark:text-amber-400">
+                        <RotateCcw className="size-3 shrink-0" />
+                        <span className="truncate">
+                          {origin.employeeName
+                            ? t('appointments:waitingListReleasedFrom', { time: origin.time, name: origin.employeeName })
+                            : t('appointments:waitingListReleasedFromTimeOnly', { time: origin.time })}
+                        </span>
+                      </div>
+                    )}
                   </button>
                 )
               })
