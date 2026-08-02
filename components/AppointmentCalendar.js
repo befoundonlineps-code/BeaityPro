@@ -28,7 +28,10 @@ import {
   dropTargetMinutes,
   SLOT_MINUTES,
 } from '../lib/appointmentGrid'
-import { availableWindowsForDate, isWithinAnyWindow } from '../lib/employeeAvailability'
+import { availableWindowsForDate, isWithinAnyWindow, exceptionWindowFor } from '../lib/employeeAvailability'
+import { supabase } from '../lib/supabaseClient'
+import { reportDbError } from '../lib/dbErrors'
+import { approveErrorKey } from '../lib/appointmentCard'
 import { clusterAppointments } from '../lib/resourceAllocation'
 import {
   visibleEmployeesFor, visibleResourcesFor, isBroadView, isWeekView,
@@ -127,6 +130,10 @@ export default function AppointmentCalendar({ salonId }) {
   const [shiftsDialogOpen, setShiftsDialogOpen] = useState(false)
   const [workPhoneOpen, setWorkPhoneOpen] = useState(false)
   const [quickSaleNotice, setQuickSaleNotice] = useState(false)
+  // A card has no room to explain a refusal, so anything the one-press
+  // approve runs into is said in a dialog of its own.
+  const [quickActionError, setQuickActionError] = useState('')
+  const [actionInitialMode, setActionInitialMode] = useState('view')
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -409,6 +416,45 @@ export default function AppointmentCalendar({ salonId }) {
     setDropTarget({ appointment, employeeId: employee.id, start })
   }
 
+  // Approving from the card is the whole action, not a shortcut into the
+  // dialog: confirm_pending_appointment needs nothing a person has to choose,
+  // only the window the booking already defines.
+  async function handleApprove(appointment) {
+    const window = exceptionWindowFor(new Date(appointment.start_time), new Date(appointment.end_time))
+    const { data, error: rpcError } = await supabase.rpc('confirm_pending_appointment', {
+      p_appointment_id: appointment.id,
+      p_exception_date: window.date,
+      p_start_time: window.startTime,
+      p_end_time: window.endTime,
+    })
+
+    // What the outcome is called lives beside the other card rules, so the
+    // shortcut and the dialog cannot drift into explaining one refusal two
+    // different ways.
+    const key = approveErrorKey({ error: rpcError, data })
+    if (key) {
+      setQuickActionError(t(key))
+      return
+    }
+    if (rpcError) {
+      setQuickActionError(t(reportDbError(rpcError, 'confirmPendingAppointment')))
+      return
+    }
+
+    reload()
+    reloadExceptions()
+  }
+
+  // Cancelling cannot be one press, and that is the database's rule rather
+  // than a design preference: cancel_appointment refuses a null reason, and a
+  // check constraint ties cancellation_reason_id to the cancelled status. So
+  // the card opens the dialog already on its cancel step — one press saved,
+  // and the reason still chosen by somebody.
+  function handleRequestCancel(appointment) {
+    setActionDetail(appointment)
+    setActionInitialMode('cancelling')
+  }
+
   function handleCellClick(employeeId, minutesFromStart, columnDateISO) {
     // Prefill what will actually be booked: a slot already under way starts
     // from this moment, not from the boundary drawn on the grid. Save
@@ -673,6 +719,8 @@ export default function AppointmentCalendar({ salonId }) {
                 onCellClick={handleCellClick}
                 onClusterClick={setEmployeeClusterDetail}
                 onAppointmentClick={setActionDetail}
+                onApprove={handleApprove}
+                onRequestCancel={handleRequestCancel}
               />
             ) : (
               <ResourceColumnBody
@@ -747,6 +795,8 @@ export default function AppointmentCalendar({ salonId }) {
               onCellClick={handleCellClick}
               onClusterClick={setEmployeeClusterDetail}
               onAppointmentClick={setActionDetail}
+              onApprove={handleApprove}
+              onRequestCancel={handleRequestCancel}
             />
           </div>
         ))}
@@ -838,7 +888,8 @@ export default function AppointmentCalendar({ salonId }) {
 
       <AppointmentActionsDialog
         open={!!actionDetail}
-        onOpenChange={(open) => { if (!open) setActionDetail(null) }}
+        onOpenChange={(open) => { if (!open) { setActionDetail(null); setActionInitialMode('view') } }}
+        initialMode={actionInitialMode}
         appointment={actionDetail}
         employee={actionDetail ? employeesById[actionDetail.employee_id] : null}
         clientName={actionDetail ? clientName(clientsById, actionDetail.client_id) : ''}
@@ -955,6 +1006,20 @@ export default function AppointmentCalendar({ salonId }) {
         salonId={salonId}
         onContactAdded={reloadContacts}
       />
+
+      {/* A card has no room to explain a refusal, so the one-press approve
+          says it here instead. */}
+      <Dialog open={!!quickActionError} onOpenChange={(open) => { if (!open) setQuickActionError('') }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('appointments:quickActions.failedTitle')}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-destructive">{quickActionError}</p>
+          <DialogFooter>
+            <Button onClick={() => setQuickActionError('')}>{t('common:done')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* One line, the same sentence every other unbuilt section shows. */}
       <Dialog open={quickSaleNotice} onOpenChange={setQuickSaleNotice}>

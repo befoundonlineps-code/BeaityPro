@@ -1,4 +1,5 @@
 import { useTranslation } from 'next-i18next'
+import { Check, X } from 'lucide-react'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -11,6 +12,8 @@ import {
 } from '../lib/appointmentGrid'
 import { isWithinAnyWindow } from '../lib/employeeAvailability'
 import { clusterAppointments } from '../lib/resourceAllocation'
+import { canShowQuickActions, canShowProgressText } from '../lib/appointmentCard'
+import { sessionProgress } from '../lib/statusSummary'
 
 // One professional's column for one day: the shift shading, the walls, the
 // booking blocks and the now line.
@@ -31,6 +34,7 @@ export default function EmployeeColumnBody({
   dragState, dragOverKey, onDragOverColumn, onDragLeaveColumn,
   onDragStart, onDragEnd, onDrop,
   onCellClick, onClusterClick, onAppointmentClick,
+  onApprove, onRequestCancel,
 }) {
   const { t } = useTranslation(['appointments', 'employees', 'common'])
 
@@ -160,6 +164,74 @@ export default function EmployeeColumnBody({
         // busy?", and the answer is yes either way. It is only toned down and
         // labelled so the main professional's row reads first.
         const isParticipant = a.is_primary === false
+
+        // Whether either extra fits is arithmetic on the block's height, and
+        // it lives in lib/appointmentCard.js so the thresholds can be tested
+        // against the measurements they came from.
+        const showQuickActions = canShowQuickActions({
+          status: a.status, height, hasHandler: !!onApprove,
+        })
+        const progress = sessionProgress(a, now)
+
+        if (showQuickActions) {
+          return (
+            <div
+              key={a.id}
+              draggable
+              onDragStart={(event) => onDragStart(event, a)}
+              onDragEnd={onDragEnd}
+              className={`absolute inset-x-0.5 z-10 cursor-grab overflow-hidden rounded border-2 border-dashed border-white/90 text-start text-[10px] leading-tight text-white hover:brightness-110 active:cursor-grabbing ${
+                beingDragged ? 'opacity-40' : isParticipant ? 'opacity-70' : ''
+              }`}
+              style={{
+                top,
+                height,
+                backgroundColor: service?.color || 'var(--color-muted-foreground)',
+                backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0 4px, transparent 4px 10px)',
+              }}
+              title={[
+                isParticipant ? t('appointments:participantBlockHint') : null,
+                t('appointments:pendingBlockHint'),
+                clientName(a.client_id),
+                service?.name || null,
+              ].filter(Boolean).join(' — ')}
+            >
+              {/* The card still opens the dialog, but as a surface behind the
+                  content rather than as an element wrapping it: a <button>
+                  cannot legally contain the two buttons below, and browsers
+                  disagree about what to do when one does. */}
+              <button
+                type="button"
+                className="absolute inset-0"
+                aria-label={clientName(a.client_id)}
+                onClick={() => onAppointmentClick(a)}
+              />
+              <div className="pointer-events-none relative px-1 py-0.5">
+                <div className="truncate font-medium">{clientName(a.client_id)}</div>
+                <div className="truncate opacity-90">{service?.name}</div>
+              </div>
+              <div className="relative flex gap-1 px-1">
+                <button
+                  type="button"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-white"
+                  onClick={(event) => { event.stopPropagation(); onApprove(a) }}
+                >
+                  <Check className="size-2.5" />
+                  {t('appointments:quickActions.approve')}
+                </button>
+                <button
+                  type="button"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-destructive hover:bg-white"
+                  onClick={(event) => { event.stopPropagation(); onRequestCancel(a) }}
+                >
+                  <X className="size-2.5" />
+                  {t('appointments:quickActions.cancel')}
+                </button>
+              </div>
+            </div>
+          )
+        }
+
         const Tag = actionable ? 'button' : 'div'
         return (
           <Tag
@@ -197,6 +269,33 @@ export default function EmployeeColumnBody({
           >
             <div className="truncate font-medium">{clientName(a.client_id)}</div>
             <div className="truncate opacity-90">{service?.name}</div>
+
+            {/* How far through a running session we are. The figure needs a
+                third line and only appears when there is one; the bar sits on
+                the block's bottom edge and costs no content height at all, so
+                even the shortest session gets it.
+
+                Neither ticks. The calendar already refreshes its clock for
+                the current-time line, and this rides along rather than
+                starting a second one for a number nobody reads to the
+                second. */}
+            {progress && canShowProgressText(height) && (
+              <div className="truncate opacity-90 tabular-nums">
+                {t('appointments:sessionProgress.elapsed', {
+                  elapsed: progress.elapsedMinutes,
+                  total: progress.totalMinutes,
+                })}
+              </div>
+            )}
+            {progress && (
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/25">
+                <span
+                  className="block h-full bg-white/80"
+                  style={{ width: `${Math.round(progress.ratio * 100)}%` }}
+                />
+              </span>
+            )}
+
             {isParticipant && (
               <span className="pointer-events-none absolute bottom-0.5 end-1 rounded bg-black/30 px-1 text-[9px] leading-tight">
                 {t('appointments:participantBadge')}
