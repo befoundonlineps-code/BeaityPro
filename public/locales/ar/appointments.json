@@ -1,7 +1,7 @@
 {
   "breadcrumbAppointments": "دفتر المواعيد",
   "breadcrumbCalendar": "التقويم",
-  "newAppointmentButton": "حجز جديد",
+  "newAppointmentButton": "حجز موعد جديد",
   "showAssistantsButton": "عرض المساعدين",
   "hideAssistantsButton": "إخفاء المساعدين",
   "todayButton": "اليوم",
@@ -343,5 +343,9 @@
   "sessionProgress": {
     "elapsed": "{{elapsed}} / {{total}} د"
   },
-  "confirmedTickTitle": "حجز مؤكَّد"
+  "confirmedTickTitle": "حجز مؤكَّد",
+  "toolbar": {
+    "dateLabel": "التاريخ",
+    "shiftLabel": "دوام الاخصائي"
+  }
 }

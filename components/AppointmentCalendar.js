@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw, CalendarClock, Phone, Zap, Package } from 'lucide-react'
+import { Users, RotateCcw, Package } from 'lucide-react'
+import CalendarToolbar from './CalendarToolbar'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -48,7 +49,6 @@ import RescheduleDialog from './RescheduleDialog'
 import RescheduleConfirmDialog from './RescheduleConfirmDialog'
 import AdjustDurationDialog from './AdjustDurationDialog'
 import ResourceBookingsDialog from './ResourceBookingsDialog'
-import CalendarViewMenu from './CalendarViewMenu'
 import EmployeeColumnBody from './EmployeeColumnBody'
 import ResourceColumnBody from './ResourceColumnBody'
 import EmployeeDayDialog from './EmployeeDayDialog'
@@ -60,7 +60,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 const ROW_HEIGHT = 40 // px per 30-minute row
 // Fits an avatar over the name over the role, which is the order somebody
@@ -320,6 +319,7 @@ export default function AppointmentCalendar({ salonId }) {
     [isWeek, dateISO, router.locale]
   )
 
+
   // Narrowing to people hides the rooms and narrowing to rooms hides the
   // people. The waiting column is in neither list and stays put: it holds the
   // clients with no column at all, so nothing you narrow to makes it stop
@@ -484,87 +484,33 @@ export default function AppointmentCalendar({ salonId }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {/* The same two arrows step a week at a time once the board shows
-              one, so there is no second pair to learn. */}
+      <CalendarToolbar
+        dateISO={dateISO}
+        onDateChange={setDateISO}
+        onToday={() => setDateISO(todayISO())}
+        onStep={(direction) => setDateISO(isWeek ? shiftWeekISO(dateISO, direction) : shiftISO(dateISO, direction))}
+        isWeek={isWeek}
+        viewSelection={viewSelection}
+        onViewSelect={setViewSelection}
+        employees={employees}
+        resources={resources}
+        visibleEmployeeCount={visibleEmployees.length}
+        shiftsLabel={shiftsButtonLabel}
+        onNewAppointment={() => setDialogState({})}
+        onOpenShifts={() => setShiftsDialogOpen(true)}
+        onOpenWorkPhone={() => setWorkPhoneOpen(true)}
+        onOpenQuickSale={() => setQuickSaleNotice(true)}
+        trailing={hasAssistants && assistantToggleApplies && (
           <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={() => setDateISO(isWeek ? shiftWeekISO(dateISO, -1) : shiftISO(dateISO, -1))}
-            title={t(isWeek ? 'appointments:weekView.prevWeekTitle' : 'appointments:prevDayTitle')}
-          >
-            <ChevronRight />
-          </Button>
-          <Input type="date" className="w-auto" value={dateISO} onChange={(e) => setDateISO(e.target.value)} />
-          <Button variant="outline" size="sm" onClick={() => setDateISO(todayISO())}>{t('appointments:todayButton')}</Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={() => setDateISO(isWeek ? shiftWeekISO(dateISO, 1) : shiftISO(dateISO, 1))}
-            title={t(isWeek ? 'appointments:weekView.nextWeekTitle' : 'appointments:nextDayTitle')}
-          >
-            <ChevronLeft />
-          </Button>
-          {/* Beside the date because the two together are the whole answer to
-              "what am I looking at" — this day, these people. */}
-          <CalendarViewMenu
-            selection={viewSelection}
-            employees={employees}
-            resources={resources}
-            onSelect={setViewSelection}
-          />
-          <Button
-            variant="outline"
+            variant={showAssistants ? 'secondary' : 'outline'}
             size="sm"
-            title={t('appointments:shiftsDialog.buttonTitle')}
-            onClick={() => setShiftsDialogOpen(true)}
+            onClick={() => setShowAssistants((v) => !v)}
           >
-            <CalendarClock />
-            <span className="max-w-44 truncate">{shiftsButtonLabel}</span>
+            <Users />
+            {showAssistants ? t('appointments:hideAssistantsButton') : t('appointments:showAssistantsButton')}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            title={t('appointments:workPhone.buttonTitle')}
-            onClick={() => setWorkPhoneOpen(true)}
-          >
-            <Phone />
-            {t('appointments:workPhone.buttonLabel')}
-          </Button>
-          {/* Nothing behind it yet, and it says so in the same words the
-              clients bar already uses for the same promise. Pressed rather
-              than disabled: a greyed-out control invites the question a
-              second time, and the badge answers it once. */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-muted-foreground"
-            title={`${t('appointments:quickSaleButton')} — ${t('topBar:soonBadge')}`}
-            onClick={() => setQuickSaleNotice(true)}
-          >
-            <Zap />
-            {t('appointments:quickSaleButton')}
-            <span className="text-[9px] leading-none">{t('topBar:soonBadge')}</span>
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          {hasAssistants && assistantToggleApplies && (
-            <Button
-              variant={showAssistants ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={() => setShowAssistants((v) => !v)}
-            >
-              <Users />
-              {showAssistants ? t('appointments:hideAssistantsButton') : t('appointments:showAssistantsButton')}
-            </Button>
-          )}
-          <Button onClick={() => setDialogState({})}>
-            <Plus />
-            {t('appointments:newAppointmentButton')}
-          </Button>
-        </div>
-      </div>
+        )}
+      />
 
       {/* Which week is on the board, said once above the columns rather than
           left to be inferred from seven dates. Two phrasings because a week

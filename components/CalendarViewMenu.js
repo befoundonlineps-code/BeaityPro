@@ -19,7 +19,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
-import { Button } from '@/components/ui/button'
+import { toolbarCardButton, ToolbarCount } from './ToolbarCard'
 
 // A folder in the menu: "all of these" on top, then each member by name.
 //
@@ -53,7 +53,7 @@ function CategorySubmenu({ icon, label, allLabel, onSelectAll, members }) {
 // label. Once the board can be filtered, "which slice am I looking at?"
 // becomes a question somebody can get wrong, and the answer belongs on the
 // control that changed it.
-export default function CalendarViewMenu({ selection, employees, resources, onSelect }) {
+export default function CalendarViewMenu({ selection, employees, resources, count, onSelect }) {
   const { t } = useTranslation(['appointments', 'employees'])
 
   const roleLabel = (role) => t(`employees:roles.${role}`)
@@ -81,13 +81,21 @@ export default function CalendarViewMenu({ selection, employees, resources, onSe
 
   return (
     <DropdownMenu>
+      {/* A plain button rather than the shared one: it wears the toolbar's
+          card instead of a button variant, and an intrinsic element takes the
+          menu's ref without needing forwardRef in between. */}
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="sm" title={t('appointments:viewMenu.title')}>
-            <Users />
-            <span className="max-w-40 truncate">{currentLabel()}</span>
-            <ChevronDown />
-          </Button>
+          <button type="button" className={toolbarCardButton} title={t('appointments:viewMenu.title')}>
+            <Users className="size-[18px] shrink-0 text-muted-foreground" />
+            <span className="max-w-40 truncate text-[13px] font-medium">{currentLabel()}</span>
+            {/* How many columns the current choice actually put on the board.
+                On the default "on shift" that is the day's roster, which is
+                what the number is for; in every other mode it still answers
+                the same question rather than going stale. */}
+            {typeof count === 'number' && <ToolbarCount>{count}</ToolbarCount>}
+            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+          </button>
         }
       />
       <DropdownMenuContent className="min-w-56">
