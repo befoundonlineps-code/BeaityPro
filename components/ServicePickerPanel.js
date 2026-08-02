@@ -125,8 +125,11 @@ export default function ServicePickerPanel({ categories, services, selectedServi
   ]
 
   return (
-    <div className="flex min-h-0 flex-col gap-2">
-      <div className="flex items-center gap-1 border-b border-border">
+    // flex-1 so the panel claims the column's height and the list below can
+    // be the only thing that scrolls. Without it the panel is as tall as its
+    // contents and an open category grows the whole dialog.
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="flex shrink-0 items-center gap-1 border-b border-border">
         {TABS.map(([key, label]) => (
           <button
             key={key}
@@ -146,6 +149,7 @@ export default function ServicePickerPanel({ categories, services, selectedServi
       {tab === 'services' ? (
         <>
           <Input
+            className="shrink-0"
             placeholder={t('appointments:servicePicker.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}

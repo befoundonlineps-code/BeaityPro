@@ -481,8 +481,14 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
             out: who it is for, what is being booked, and what there is to
             book. Below lg they stack, because three 300px columns on a phone
             are one 900px column nobody can reach the end of. */}
-        <DialogContent className="max-w-[calc(100%-2rem)] lg:max-w-[1400px] max-h-[92vh] overflow-hidden">
-          <DialogHeader>
+        {/* flex, not the grid DialogContent defaults to. A grid row sizes to
+            its content, so a category holding forty-six services made the
+            middle row as tall as the list and pushed the footer past the
+            clip — with overflow hidden, there was no scrollbar to reach it.
+            A flex column lets the middle claim what is left and no more,
+            which is what min-h-0 and flex-1 below have always assumed. */}
+        <DialogContent className="flex max-h-[92vh] flex-col overflow-hidden max-w-[calc(100%-2rem)] lg:max-w-[1400px]">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               {isConverting ? t('appointments:formDialog.convertTitle') : t('appointments:formDialog.title')}
               {/* Static: this database has one salon and no branches at all. */}
@@ -837,17 +843,20 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
           </div>
 
           {outsideSchedule && (
-            <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+            <div className="shrink-0 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
               {t('appointments:formDialog.outsideScheduleWarning', { name: outsideSchedule.names })}
             </div>
           )}
 
-          {error && <div className="text-sm text-destructive">{error}</div>}
+          {error && <div className="shrink-0 text-sm text-destructive">{error}</div>}
 
           {/* The warning replaces the footer rather than adding to it: with
               "save" still sitting there, the answer to "book provisionally?"
-              would have two yes buttons. */}
-          <DialogFooter>
+              would have two yes buttons.
+
+              shrink-0: this is the row that went off the bottom of the screen
+              behind a long category, and it is the row that must never move. */}
+          <DialogFooter className="shrink-0">
             {outsideSchedule ? (
               <>
                 <Button variant="outline" disabled={saving} onClick={() => setOutsideSchedule(null)}>
