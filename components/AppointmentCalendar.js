@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw, CalendarClock } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw, CalendarClock, Phone, Zap } from 'lucide-react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -11,6 +11,7 @@ import { useScheduleExceptions } from '../hooks/useScheduleExceptions'
 import { useRoleBusinessTypes } from '../hooks/useRoleBusinessTypes'
 import { useResources } from '../hooks/useResources'
 import { useCancellationReasons } from '../hooks/useCancellationReasons'
+import { useSalonContacts } from '../hooks/useSalonContacts'
 import { useAbsenceReasons } from '../hooks/useAbsenceReasons'
 import { useDayStatus } from '../hooks/useDayStatus'
 import { useRescheduleReasons } from '../hooks/useRescheduleReasons'
@@ -49,8 +50,10 @@ import EmployeeColumnBody from './EmployeeColumnBody'
 import ResourceColumnBody from './ResourceColumnBody'
 import EmployeeDayDialog from './EmployeeDayDialog'
 import ProfessionalShiftsDialog from './ProfessionalShiftsDialog'
+import WorkPhoneDialog from './WorkPhoneDialog'
 import ResourceDayDialog from './ResourceDayDialog'
 import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -92,7 +95,7 @@ function localDateISO(value) {
 }
 
 export default function AppointmentCalendar({ salonId }) {
-  const { t } = useTranslation(['appointments', 'employees', 'services', 'common'])
+  const { t } = useTranslation(['appointments', 'employees', 'services', 'common', 'topBar'])
   const router = useRouter()
   const [dateISO, setDateISO] = useState(todayISO())
   const [now, setNow] = useState(new Date())
@@ -121,6 +124,8 @@ export default function AppointmentCalendar({ salonId }) {
   const [dayStatusEmployee, setDayStatusEmployee] = useState(null)
   const [dayStatusResource, setDayStatusResource] = useState(null)
   const [shiftsDialogOpen, setShiftsDialogOpen] = useState(false)
+  const [workPhoneOpen, setWorkPhoneOpen] = useState(false)
+  const [quickSaleNotice, setQuickSaleNotice] = useState(false)
 
   const { employees, loading: employeesLoading } = useEmployees()
   const { categories, services, loading: servicesLoading } = useServiceCatalog()
@@ -131,6 +136,7 @@ export default function AppointmentCalendar({ salonId }) {
   const { roleBusinessTypes, loading: roleTypesLoading } = useRoleBusinessTypes()
   const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
   const { reasons: cancellationReasons, loading: cancellationReasonsLoading, reload: reloadCancellationReasons } = useCancellationReasons()
+  const { contacts: salonContacts, loading: contactsLoading, reload: reloadContacts } = useSalonContacts()
   const { reasons: absenceReasons, loading: absenceReasonsLoading, reload: reloadAbsenceReasons } = useAbsenceReasons()
   const { absencesByEmployee, outagesByUnit, dayHoursByEmployee, loading: dayStatusLoading, reload: reloadDayStatus } = useDayStatus()
   const { reasons: rescheduleReasons, loading: rescheduleReasonsLoading, reload: reloadRescheduleReasons } = useRescheduleReasons()
@@ -466,6 +472,30 @@ export default function AppointmentCalendar({ salonId }) {
           >
             <CalendarClock />
             <span className="max-w-44 truncate">{shiftsButtonLabel}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            title={t('appointments:workPhone.buttonTitle')}
+            onClick={() => setWorkPhoneOpen(true)}
+          >
+            <Phone />
+            {t('appointments:workPhone.buttonLabel')}
+          </Button>
+          {/* Nothing behind it yet, and it says so in the same words the
+              clients bar already uses for the same promise. Pressed rather
+              than disabled: a greyed-out control invites the question a
+              second time, and the badge answers it once. */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground"
+            title={`${t('appointments:quickSaleButton')} — ${t('topBar:soonBadge')}`}
+            onClick={() => setQuickSaleNotice(true)}
+          >
+            <Zap />
+            {t('appointments:quickSaleButton')}
+            <span className="text-[9px] leading-none">{t('topBar:soonBadge')}</span>
           </Button>
         </div>
         <div className="flex items-center gap-2">
@@ -907,6 +937,32 @@ export default function AppointmentCalendar({ salonId }) {
         // single-booking path already does, plus the absence itself.
         onDone={() => { reload(); reloadExceptions(); reloadDayStatus() }}
       />
+
+      <WorkPhoneDialog
+        open={workPhoneOpen}
+        onOpenChange={setWorkPhoneOpen}
+        employees={employees}
+        windowsByEmployee={windowsByEmployee}
+        contacts={salonContacts}
+        contactsLoading={contactsLoading}
+        salonId={salonId}
+        onContactAdded={reloadContacts}
+      />
+
+      {/* One line, the same sentence every other unbuilt section shows. */}
+      <Dialog open={quickSaleNotice} onOpenChange={setQuickSaleNotice}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('appointments:quickSaleButton')}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {t('common:sectionInDevelopmentNotice', { label: t('appointments:quickSaleButton') })}
+          </p>
+          <DialogFooter>
+            <Button onClick={() => setQuickSaleNotice(false)}>{t('common:done')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ProfessionalShiftsDialog
         open={shiftsDialogOpen}
