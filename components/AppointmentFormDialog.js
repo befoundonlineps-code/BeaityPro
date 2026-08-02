@@ -100,6 +100,15 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       )
     : []
 
+  // Whoever is still free to be added, and why the button is off when it is.
+  const remainingExtras = eligibleExtras.filter((emp) => !extraEmployeeIds.includes(emp.id))
+  const canAddProfessional = !!selectedService && remainingExtras.length > 0
+  const addProfessionalHint = !selectedService
+    ? t('appointments:formDialog.addProfessionalNeedsServiceHint')
+    : remainingExtras.length === 0
+    ? t('appointments:formDialog.addProfessionalNoneLeftHint')
+    : t('appointments:formDialog.addProfessionalButton')
+
   function handleEmployeeChange(newEmployeeId) {
     setEmployeeId(newEmployeeId)
     const newEmployee = (employees || []).find((e) => e.id === newEmployeeId)
@@ -616,24 +625,30 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
               </div>
 
               <div className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <select className={cn(FIELD, 'min-w-40 flex-1')} value={employeeId} onChange={(e) => handleEmployeeChange(e.target.value)}>
-                    <option value="">{t('appointments:formDialog.employeeLabel')}</option>
-                    {(employees || []).map((emp) => (
-                      <option key={emp.id} value={emp.id}>{emp.name}</option>
-                    ))}
-                  </select>
-                  <Input type="time" className="w-28" value={time} onChange={(e) => setTime(e.target.value)} />
-                  {/* cn, not a template string: FIELD carries w-full and the
-                      later width would otherwise lose to it rather than
-                      replace it. */}
-                  <div className={cn(FIELD, 'flex w-24 items-center text-muted-foreground')}>
-                    {selectedService
-                      ? t('services:minutesShort', { count: selectedService.duration_minutes })
-                      : '—'}
+                {/* Hidden on a waiting entry, and it has to be: that path
+                    writes employee_id, start_time and end_time as null, so
+                    leaving these on screen would be three fields quietly
+                    thrown away on save. */}
+                {!isWaiting && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select className={cn(FIELD, 'min-w-40 flex-1')} value={employeeId} onChange={(e) => handleEmployeeChange(e.target.value)}>
+                      <option value="">{t('appointments:formDialog.employeeLabel')}</option>
+                      {(employees || []).map((emp) => (
+                        <option key={emp.id} value={emp.id}>{emp.name}</option>
+                      ))}
+                    </select>
+                    <Input type="time" className="w-28" value={time} onChange={(e) => setTime(e.target.value)} />
+                    {/* cn, not a template string: FIELD carries w-full and the
+                        later width would otherwise lose to it rather than
+                        replace it. */}
+                    <div className={cn(FIELD, 'flex w-24 items-center text-muted-foreground')}>
+                      {selectedService
+                        ? t('services:minutesShort', { count: selectedService.duration_minutes })
+                        : '—'}
+                    </div>
+                    <Input type="date" className="w-36" value={date} onChange={(e) => setDate(e.target.value)} />
                   </div>
-                  <Input type="date" className="w-36" value={date} onChange={(e) => setDate(e.target.value)} />
-                </div>
+                )}
 
                 <div className="flex items-center gap-2 rounded-lg bg-card px-2.5 py-1.5">
                   <Clock className="size-3.5 shrink-0 text-muted-foreground" />
@@ -655,8 +670,10 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
                 {/* Extra professionals on the same session. Each one becomes
                     its own appointment row, so each one's time is protected
                     by the same constraint as the main professional's — a
-                    four-hands massage genuinely occupies both of them. */}
-                {extraEmployeeIds.map((extraId, index) => (
+                    four-hands massage genuinely occupies both of them. Gone
+                    on a waiting entry for the same reason as the row above:
+                    that path saves no professional at all. */}
+                {!isWaiting && extraEmployeeIds.map((extraId, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <select
                       className={`${FIELD} flex-1`}
@@ -709,12 +726,19 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
                 </div>
               </div>
 
-              {selectedService && eligibleExtras.some((emp) => !extraEmployeeIds.includes(emp.id)) && (
+              {/* Always on screen, disabled rather than absent. Who may join a
+                  session depends on the service, so before one is chosen
+                  there is no list to offer — but a control that vanishes
+                  reads as a feature that is missing, and the title says which
+                  of the two this is. */}
+              {!isWaiting && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="w-fit"
+                  disabled={!canAddProfessional}
+                  title={addProfessionalHint}
                   onClick={() => setExtraEmployeeIds((prev) => [...prev, ''])}
                 >
                   <Plus />

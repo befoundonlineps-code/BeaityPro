@@ -244,7 +244,9 @@
       "color": "لون النص"
     },
     "clearClientButton": "مسح الاختيار",
-    "searchClientHint": "اكتب حرفين على الأقل للبحث"
+    "searchClientHint": "اكتب حرفين على الأقل للبحث",
+    "addProfessionalNeedsServiceHint": "اختر خدمة أولًا — الأخصائيون المتاحون بيعتمدوا عليها",
+    "addProfessionalNoneLeftHint": "ما في أخصائي تاني بيغطي هذه الخدمة"
   },
   "dayStatus": {
     "employeeTitle": "دوام {{name}}",
