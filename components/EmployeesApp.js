@@ -40,7 +40,7 @@ export default function EmployeesApp({ salonId }) {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {employees.map((emp) => (
-            <Card key={emp.id} className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => openEdit(emp)}>
+            <Card key={emp.id} className="cursor-pointer transition-shadow hover:shadow-xs" onClick={() => openEdit(emp)}>
               <CardContent className="flex flex-col gap-2 p-4">
                 <div className="truncate font-medium text-foreground">{emp.name}</div>
                 <div className="flex flex-wrap gap-1.5">

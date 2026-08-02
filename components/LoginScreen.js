@@ -30,7 +30,7 @@ export default function LoginScreen() {
         className="text-primary/50 [mask-image:radial-gradient(480px_circle_at_center,white,transparent)]"
       />
 
-      <Card className="relative z-10 w-[360px] shadow-lg">
+      <Card className="relative z-10 w-[360px] shadow-xs">
         <CardContent className="pt-2">
           <form onSubmit={handleLogin} className="flex flex-col gap-5">
             <div className="mb-1 flex flex-col items-center gap-1.5 text-center">

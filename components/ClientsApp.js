@@ -212,7 +212,7 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
                   return (
                     <Card
                       key={c.id}
-                      className="cursor-pointer transition-shadow hover:shadow-md"
+                      className="cursor-pointer transition-shadow hover:shadow-xs"
                       onClick={() => setQuickViewClientId(c.id)}
                     >
                       <CardContent className="flex flex-col gap-3 p-4">
