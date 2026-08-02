@@ -12,6 +12,8 @@ import {
 } from '../lib/appointmentGrid'
 import { isWithinAnyWindow } from '../lib/employeeAvailability'
 import { clusterAppointments } from '../lib/resourceAllocation'
+import { canShowQuickActions, canShowProgressText } from '../lib/appointmentCard'
+import { sessionProgress } from '../lib/statusSummary'
 
 // One professional's column for one day: the shift shading, the walls, the
 // booking blocks and the now line.
@@ -26,11 +28,6 @@ import { clusterAppointments } from '../lib/resourceAllocation'
 // out for itself whether `dateISO` is today, so in a week it lands on one
 // column rather than all seven; and a drop reports the column's own date, so
 // dragging a booking sideways in a week moves it to that day.
-// Two text lines take 29px and a button row 17px, so a pending block needs
-// 46px before the shortcut can be drawn inside it without being clipped —
-// about 35 minutes at the grid's 40px per half hour.
-const MIN_HEIGHT_FOR_ACTIONS = 46
-
 export default function EmployeeColumnBody({
   employee, dateISO, appointments, windows, absence, now,
   rowHeight, clientsById, servicesById,
@@ -168,14 +165,13 @@ export default function EmployeeColumnBody({
         // labelled so the main professional's row reads first.
         const isParticipant = a.is_primary === false
 
-        // The shortcut only appears where it fits. A block is
-        // (duration / 30) × rowHeight tall and clips what overflows, so on a
-        // half-hour booking a button row would be cut off silently — a
-        // shortcut nobody can see is worse than none, because there is
-        // nothing to tell you it was meant to be there. Below the threshold
-        // the card behaves exactly as it always has and the dialog is still
-        // the way through.
-        const showQuickActions = pending && onApprove && height >= MIN_HEIGHT_FOR_ACTIONS
+        // Whether either extra fits is arithmetic on the block's height, and
+        // it lives in lib/appointmentCard.js so the thresholds can be tested
+        // against the measurements they came from.
+        const showQuickActions = canShowQuickActions({
+          status: a.status, height, hasHandler: !!onApprove,
+        })
+        const progress = sessionProgress(a, now)
 
         if (showQuickActions) {
           return (
@@ -273,6 +269,33 @@ export default function EmployeeColumnBody({
           >
             <div className="truncate font-medium">{clientName(a.client_id)}</div>
             <div className="truncate opacity-90">{service?.name}</div>
+
+            {/* How far through a running session we are. The figure needs a
+                third line and only appears when there is one; the bar sits on
+                the block's bottom edge and costs no content height at all, so
+                even the shortest session gets it.
+
+                Neither ticks. The calendar already refreshes its clock for
+                the current-time line, and this rides along rather than
+                starting a second one for a number nobody reads to the
+                second. */}
+            {progress && canShowProgressText(height) && (
+              <div className="truncate opacity-90 tabular-nums">
+                {t('appointments:sessionProgress.elapsed', {
+                  elapsed: progress.elapsedMinutes,
+                  total: progress.totalMinutes,
+                })}
+              </div>
+            )}
+            {progress && (
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-black/25">
+                <span
+                  className="block h-full bg-white/80"
+                  style={{ width: `${Math.round(progress.ratio * 100)}%` }}
+                />
+              </span>
+            )}
+
             {isParticipant && (
               <span className="pointer-events-none absolute bottom-0.5 end-1 rounded bg-black/30 px-1 text-[9px] leading-tight">
                 {t('appointments:participantBadge')}

@@ -31,6 +31,7 @@ import {
 import { availableWindowsForDate, isWithinAnyWindow, exceptionWindowFor } from '../lib/employeeAvailability'
 import { supabase } from '../lib/supabaseClient'
 import { reportDbError } from '../lib/dbErrors'
+import { approveErrorKey } from '../lib/appointmentCard'
 import { clusterAppointments } from '../lib/resourceAllocation'
 import {
   visibleEmployeesFor, visibleResourcesFor, isBroadView, isWeekView,
@@ -426,18 +427,20 @@ export default function AppointmentCalendar({ salonId }) {
       p_start_time: window.startTime,
       p_end_time: window.endTime,
     })
+
+    // What the outcome is called lives beside the other card rules, so the
+    // shortcut and the dialog cannot drift into explaining one refusal two
+    // different ways.
+    const key = approveErrorKey({ error: rpcError, data })
+    if (key) {
+      setQuickActionError(t(key))
+      return
+    }
     if (rpcError) {
-      setQuickActionError(
-        rpcError.message?.includes('appointment_not_pending')
-          ? t('appointments:actionsDialog.notPendingError')
-          : t(reportDbError(rpcError, 'confirmPendingAppointment'))
-      )
+      setQuickActionError(t(reportDbError(rpcError, 'confirmPendingAppointment')))
       return
     }
-    if (!data) {
-      setQuickActionError(t('appointments:actionsDialog.noRowsError'))
-      return
-    }
+
     reload()
     reloadExceptions()
   }

@@ -339,5 +339,8 @@
     "approve": "قبول",
     "cancel": "إلغاء",
     "failedTitle": "ما تمّت العملية"
+  },
+  "sessionProgress": {
+    "elapsed": "{{elapsed}} / {{total}} د"
   }
 }
