@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
-import ClientPickerDialog from './ClientPickerDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -13,7 +12,15 @@ import { serviceUsesResources, orderedUnitsForService, availableUnitsFor } from 
 import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole, combineGroupPlacement } from '../lib/bookingPlacement'
 import { loadOccupancy, loadGroupOccupancy, attemptOnEachUnit } from '../lib/placementIO'
 import { reportDbError } from '../lib/dbErrors'
-import { Plus, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Plus, X, Minus, Clock, UserRound, Bold, Italic, Underline, Palette } from 'lucide-react'
+import { useRouter } from 'next/router'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { getAvatarColor, getInitials } from '../lib/avatarColor'
+import { useClientSearch } from '../hooks/useClientSearch'
+import ServicePickerPanel from './ServicePickerPanel'
+import TimeRange from './TimeRange'
+import { bookingTotal } from '../lib/servicePicker'
 
 // Which message each refusal from the pure layer turns into.
 const PLACEMENT_ERROR_KEYS = {
@@ -21,6 +28,13 @@ const PLACEMENT_ERROR_KEYS = {
   conflict: 'appointments:formDialog.conflictError',
   resourcesBusy: 'appointments:formDialog.allResourcesBusyError',
 }
+
+// The one select style this dialog uses, written once instead of pasted onto
+// every field.
+const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30'
+
+// Shape only: the note is stored as plain text and these do not change that.
+const FORMAT_BUTTONS = [['bold', Bold], ['italic', Italic], ['underline', Underline], ['color', Palette]]
 
 function toDateInputValue(date) {
   const d = new Date(date)
@@ -39,10 +53,9 @@ function toTimeInputValue(date) {
 // runs exactly as it does for a fresh booking — only the final write
 // differs, updating the row in place instead of inserting one.
 export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, waitingAppointment, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, dayHoursByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
-  const { t } = useTranslation(['appointments', 'employees', 'common'])
+  const { t } = useTranslation(['appointments', 'employees', 'services', 'clientsList', 'common'])
 
   const [client, setClient] = useState(null)
-  const [pickerOpen, setPickerOpen] = useState(false)
   const [serviceId, setServiceId] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [date, setDate] = useState('')
@@ -60,6 +73,15 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   // appointment row sharing a group_id, so each one's time is protected by
   // the very same exclusion constraint the main professional's is.
   const [extraEmployeeIds, setExtraEmployeeIds] = useState([])
+  // Every shape on this screen with nothing behind it opens the same notice.
+  const [placeholderNotice, setPlaceholderNotice] = useState(false)
+  const [currentUser, setCurrentUser] = useState('')
+  const { search: clientSearch, setSearch: setClientSearch, results: clientResults } = useClientSearch()
+  const router = useRouter()
+
+  function showsPlaceholderNotice() {
+    setPlaceholderNotice(true)
+  }
 
   const isConverting = !!waitingAppointment
   const activeServices = (services || []).filter((s) => s.is_active)
@@ -129,6 +151,29 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   const computedEndTime = selectedService && date && time
     ? new Date(new Date(`${date}T${time}:00`).getTime() + selectedService.duration_minutes * 60000)
     : null
+
+  const clientName = client ? `${client.first_name} ${client.last_name || ''}`.trim() : ''
+
+  const dateLabel = date
+    ? new Date(`${date}T00:00:00`).toLocaleDateString(router.locale || 'ar', {
+        weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+      })
+    : ''
+
+  // Decoration: appointments carry created_at and no created_by, so this says
+  // who is filling the form in and is never written anywhere.
+  const nowLabel = new Date().toLocaleString(router.locale || 'ar', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+
+  useEffect(() => {
+    if (!open) return undefined
+    let cancelled = false
+    supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setCurrentUser(data?.user?.email || '')
+    })
+    return () => { cancelled = true }
+  }, [open])
 
   // "X remaining" for the exact window being booked — recomputed whenever
   // the service or the time changes, and only for services that actually
@@ -423,67 +468,188 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg max-h-[88vh] overflow-y-auto">
+        {/* Three columns at full width, the way the reference screen is laid
+            out: who it is for, what is being booked, and what there is to
+            book. Below lg they stack, because three 300px columns on a phone
+            are one 900px column nobody can reach the end of. */}
+        <DialogContent className="max-w-[calc(100%-2rem)] lg:max-w-[1400px] max-h-[92vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
               {isConverting ? t('appointments:formDialog.convertTitle') : t('appointments:formDialog.title')}
+              {/* Static: this database has one salon and no branches at all. */}
+              <span className="text-sm font-normal text-muted-foreground">
+                {t('appointments:formDialog.branchLabel')}
+              </span>
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('appointments:formDialog.clientLabel')}</Label>
+          <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-[280px_minmax(0,1fr)_400px] lg:overflow-hidden">
+
+            {/* ── The client ─────────────────────────────────────────────── */}
+            <div className="flex min-h-0 flex-col gap-2 lg:overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <Label>{t('appointments:formDialog.clientLabel')}</Label>
+                {/* Shape only: creating a client happens in the clients
+                    module, and there is no inline path to it. */}
+                <Button type="button" variant="outline" size="xs" onClick={showsPlaceholderNotice}>
+                  {t('appointments:formDialog.newClientButton')}
+                </Button>
+              </div>
+
               {/* Fixed while converting: a different client would be a
                   different person's place in the queue, not this one. */}
               {isConverting ? (
                 <div className="rounded-lg bg-muted px-3 py-1.5 text-sm font-medium">
-                  {client ? `${client.first_name} ${client.last_name || ''}`.trim() : ''}
+                  {clientName || ''}
                 </div>
               ) : (
-                <Button type="button" variant="outline" className="justify-start" onClick={() => setPickerOpen(true)}>
-                  {client ? `${client.first_name} ${client.last_name}` : t('appointments:formDialog.chooseClientButton')}
+                <>
+                  {/* The list is inline rather than behind a picker dialog,
+                      the way the screen this follows is laid out — and a
+                      dialog opening on top of a dialog to choose one name was
+                      never worth the second surface. Two characters before it
+                      searches, which is the hook's own floor. */}
+                  <Input
+                    placeholder={t('clientsList:searchPlaceholder')}
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                  />
+                  <div className="flex h-40 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border p-1">
+                    {clientResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => { setClient(c); setClientSearch('') }}
+                        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm hover:bg-muted"
+                      >
+                        <Avatar size="sm">
+                          <AvatarFallback style={{ background: getAvatarColor(c.id), color: '#fff' }}>
+                            {getInitials(c.first_name, c.last_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="min-w-0 truncate">{c.first_name} {c.last_name}</span>
+                      </button>
+                    ))}
+                    {clientSearch.trim().length >= 2 && clientResults.length === 0 && (
+                      <div className="px-2 py-3 text-center text-sm text-muted-foreground">{t('common:noResults')}</div>
+                    )}
+                    {clientSearch.trim().length < 2 && (
+                      <div className="px-2 py-3 text-center text-sm text-muted-foreground">
+                        {t('appointments:formDialog.searchClientHint')}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex min-h-16 flex-col justify-center rounded-lg border border-border bg-muted/40 px-3 py-2">
+                    {client ? (
+                      <div className="flex items-center gap-2.5">
+                        <Avatar size="sm">
+                          <AvatarFallback style={{ background: getAvatarColor(client.id), color: '#fff' }}>
+                            {getInitials(client.first_name, client.last_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">{clientName}</span>
+                          <span className="block truncate text-xs text-muted-foreground">{client.phone_number}</span>
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        {t('appointments:formDialog.noClientChosenHint')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={!client}
+                      onClick={() => setClient(null)}
+                    >
+                      {t('appointments:formDialog.clearClientButton')}
+                    </Button>
+                    {/* Shape only: every appointment must name a real client —
+                        client_id is required and the row is a historical
+                        record, so there is no walk-in without one. */}
+                    <Button type="button" variant="outline" onClick={showsPlaceholderNotice}>
+                      {t('appointments:formDialog.guestButton')}
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              <div className="mt-2 flex flex-col gap-1.5">
+                <Label>{t('appointments:formDialog.acquisitionSourceLabel')}</Label>
+                {/* Shape only: acquisition_sources exists and belongs to the
+                    client, not to one appointment, so nothing here is saved. */}
+                <select
+                  className={FIELD}
+                  value=""
+                  onChange={showsPlaceholderNotice}
+                >
+                  <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
+                </select>
+              </div>
+            </div>
+
+            {/* ── What is being booked ───────────────────────────────────── */}
+            <div className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
+              <div className="flex items-center justify-between gap-2">
+                {/* The day in words and the span beside it, the way the
+                    reference heads this column. The range goes through
+                    TimeRange rather than being pasted into the sentence:
+                    two clock times either side of a dash are exactly the
+                    thing that gets painted backwards here. */}
+                <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                  <span>{dateLabel || t('appointments:formDialog.pickTimeHint')}</span>
+                  {date && time && computedEndTime && (
+                    <TimeRange start={`${date}T${time}:00`} end={computedEndTime} />
+                  )}
+                </span>
+                {/* Shape only: moving a booking is its own dialog, reached
+                    from the calendar once the booking exists. */}
+                <Button type="button" variant="outline" size="sm" onClick={showsPlaceholderNotice}>
+                  {t('appointments:formDialog.moveButton')}
                 </Button>
-              )}
-            </div>
+              </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('appointments:formDialog.serviceLabel')}</Label>
-              <select
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
-                value={serviceId}
-                onChange={(e) => handleServiceChange(e.target.value)}
-              >
-                <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
-                {visibleServices.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} — {s.duration_minutes} {t('appointments:formDialog.minutesShort')}</option>
-                ))}
-              </select>
-              {selectedEmployee && visibleServices.length === 0 && (
-                <div className="text-sm text-muted-foreground">{t('appointments:formDialog.noServicesForRoleHint')}</div>
-              )}
-            </div>
-
-            {/* Meaningless while converting: this is the way out of the
-                waiting list, not into it. */}
-            <label className={`flex items-center gap-2 text-sm font-medium ${isConverting ? 'hidden' : ''}`}>
-              <input type="checkbox" className="accent-primary" checked={isWaiting} onChange={(e) => setIsWaiting(e.target.checked)} />
-              {t('appointments:formDialog.waitingToggleLabel')}
-            </label>
-
-            {!isWaiting && (
-              <>
-                <div className="flex flex-col gap-1.5">
-                  <Label>{t('appointments:formDialog.employeeLabel')}</Label>
-                  <select
-                    className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
-                    value={employeeId}
-                    onChange={(e) => handleEmployeeChange(e.target.value)}
-                  >
-                    <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
+              <div className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select className={cn(FIELD, 'min-w-40 flex-1')} value={employeeId} onChange={(e) => handleEmployeeChange(e.target.value)}>
+                    <option value="">{t('appointments:formDialog.employeeLabel')}</option>
                     {(employees || []).map((emp) => (
                       <option key={emp.id} value={emp.id}>{emp.name}</option>
                     ))}
                   </select>
+                  <Input type="time" className="w-28" value={time} onChange={(e) => setTime(e.target.value)} />
+                  {/* cn, not a template string: FIELD carries w-full and the
+                      later width would otherwise lose to it rather than
+                      replace it. */}
+                  <div className={cn(FIELD, 'flex w-24 items-center text-muted-foreground')}>
+                    {selectedService
+                      ? t('services:minutesShort', { count: selectedService.duration_minutes })
+                      : '—'}
+                  </div>
+                  <Input type="date" className="w-36" value={date} onChange={(e) => setDate(e.target.value)} />
+                </div>
+
+                <div className="flex items-center gap-2 rounded-lg bg-card px-2.5 py-1.5">
+                  <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {selectedService ? selectedService.name : t('appointments:formDialog.bookedTimeLabel')}
+                  </span>
+                  {selectedService && (
+                    <button
+                      type="button"
+                      title={t('appointments:formDialog.removeServiceTitle')}
+                      onClick={() => handleServiceChange('')}
+                      className="flex size-5 shrink-0 items-center justify-center rounded-full text-destructive transition-colors hover:bg-destructive/10"
+                    >
+                      <Minus className="size-3" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Extra professionals on the same session. Each one becomes
@@ -491,85 +657,158 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
                     by the same constraint as the main professional's — a
                     four-hands massage genuinely occupies both of them. */}
                 {extraEmployeeIds.map((extraId, index) => (
-                  <div key={index} className="flex flex-col gap-1.5">
-                    <Label>{t('appointments:formDialog.extraEmployeeLabel', { number: index + 2 })}</Label>
-                    <div className="flex items-center gap-2">
-                      <select
-                        className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
-                        value={extraId}
-                        onChange={(e) => setExtraEmployeeIds((prev) => prev.map((v, i) => (i === index ? e.target.value : v)))}
-                      >
-                        <option value="">{t('appointments:formDialog.selectPlaceholder')}</option>
-                        {eligibleExtras
-                          .filter((emp) => emp.id === extraId || !extraEmployeeIds.includes(emp.id))
-                          .map((emp) => (
-                            <option key={emp.id} value={emp.id}>
-                              {emp.name}{emp.is_assistant ? ` — ${t('employees:formDialog.isAssistantLabel')}` : ''}
-                            </option>
-                          ))}
-                      </select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        title={t('appointments:formDialog.removeExtraEmployeeTitle')}
-                        onClick={() => setExtraEmployeeIds((prev) => prev.filter((_, i) => i !== index))}
-                      >
-                        <X />
-                      </Button>
-                    </div>
+                  <div key={index} className="flex items-center gap-2">
+                    <select
+                      className={`${FIELD} flex-1`}
+                      value={extraId}
+                      onChange={(e) => setExtraEmployeeIds((prev) => prev.map((v, i) => (i === index ? e.target.value : v)))}
+                    >
+                      <option value="">{t('appointments:formDialog.extraEmployeeLabel', { number: index + 2 })}</option>
+                      {eligibleExtras
+                        .filter((emp) => emp.id === extraId || !extraEmployeeIds.includes(emp.id))
+                        .map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name}{emp.is_assistant ? ` (${t('employees:formDialog.isAssistantLabel')})` : ''}
+                          </option>
+                        ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      title={t('appointments:formDialog.removeExtraEmployeeTitle')}
+                      onClick={() => setExtraEmployeeIds((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      <X />
+                    </Button>
                   </div>
                 ))}
 
-                {selectedService && eligibleExtras.some((emp) => !extraEmployeeIds.includes(emp.id)) && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-fit"
-                    onClick={() => setExtraEmployeeIds((prev) => [...prev, ''])}
-                  >
-                    <Plus />
-                    {t('appointments:formDialog.addProfessionalButton')}
-                  </Button>
-                )}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-0.5">
+                    {/* Shape only: the note is stored as plain text, and these
+                        buttons do not change that. */}
+                    {FORMAT_BUTTONS.map(([key, Icon]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        title={t(`appointments:formDialog.format.${key}`)}
+                        onClick={showsPlaceholderNotice}
+                        className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted"
+                      >
+                        <Icon className="size-3.5" />
+                      </button>
+                    ))}
+                  </div>
+                  <Textarea
+                    rows={2}
+                    placeholder={t('appointments:formDialog.noteLabel')}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <Label>{t('appointments:formDialog.dateLabel')}</Label>
-                    <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>{t('appointments:formDialog.timeLabel')}</Label>
-                    <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-                  </div>
+              {selectedService && eligibleExtras.some((emp) => !extraEmployeeIds.includes(emp.id)) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-fit"
+                  onClick={() => setExtraEmployeeIds((prev) => [...prev, ''])}
+                >
+                  <Plus />
+                  {t('appointments:formDialog.addProfessionalButton')}
+                </Button>
+              )}
+
+              {selectedEmployee && visibleServices.length === 0 && (
+                <div className="text-sm text-muted-foreground">{t('appointments:formDialog.noServicesForRoleHint')}</div>
+              )}
+
+              {/* Meaningless while converting: this is the way out of the
+                  waiting list, not into it. */}
+              <label className={`flex items-center gap-2 text-sm font-medium ${isConverting ? 'hidden' : ''}`}>
+                <input type="checkbox" className="accent-primary" checked={isWaiting} onChange={(e) => setIsWaiting(e.target.checked)} />
+                {t('appointments:formDialog.waitingToggleLabel')}
+              </label>
+
+              {!isWaiting && computedEndTime && (
+                <div className="text-sm text-muted-foreground">
+                  {t('appointments:formDialog.endsAtText', { time: toTimeInputValue(computedEndTime) })}
+                </div>
+              )}
+
+              {!isWaiting && remaining && (
+                <div
+                  className={
+                    remaining.free === 0
+                      ? 'rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive'
+                      : 'rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground'
+                  }
+                >
+                  {remaining.free === 0
+                    ? t('appointments:formDialog.allResourcesBusyError')
+                    : t('appointments:formDialog.resourcesRemainingText', { free: remaining.free, total: remaining.total })}
+                </div>
+              )}
+
+              <div className="mt-auto flex flex-col gap-2 pt-2">
+                <div className="flex items-center gap-2">
+                  {/* Shape only: colour belongs to the service in this
+                      database, and a booking wears its service's. */}
+                  <button
+                    type="button"
+                    onClick={showsPlaceholderNotice}
+                    className="size-7 shrink-0 rounded-lg border border-border"
+                    style={{ background: selectedService?.color || 'var(--color-muted)' }}
+                    title={t('appointments:formDialog.appointmentColorLabel')}
+                  />
+                  <span className="text-sm text-muted-foreground">{t('appointments:formDialog.appointmentColorLabel')}</span>
                 </div>
 
-                {computedEndTime && (
-                  <div className="text-sm text-muted-foreground">
-                    {t('appointments:formDialog.endsAtText', { time: toTimeInputValue(computedEndTime) })}
-                  </div>
-                )}
+                {/* Who is filling this in, read from the session. Nothing is
+                    stored: appointments carry created_at and no created_by. */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <UserRound className="size-3.5 text-emerald-600" />
+                  <span>{currentUser || t('appointments:formDialog.currentUserFallback')}</span>
+                  <span>{nowLabel}</span>
+                </div>
 
-                {remaining && (
-                  <div
-                    className={
-                      remaining.free === 0
-                        ? 'rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive'
-                        : 'rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground'
-                    }
-                  >
-                    {remaining.free === 0
-                      ? t('appointments:formDialog.allResourcesBusyError')
-                      : t('appointments:formDialog.resourcesRemainingText', { free: remaining.free, total: remaining.total })}
-                  </div>
-                )}
-              </>
-            )}
+                {/* Shape only: confirmed-versus-provisional is decided by the
+                    shift check on save, not by a checkbox here. */}
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input type="checkbox" className="accent-primary" checked={false} onChange={showsPlaceholderNotice} />
+                  {t('appointments:formDialog.confirmedLabel')}
+                </label>
 
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('appointments:formDialog.noteLabel')}</Label>
-              <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
+                {/* Shape only. */}
+                <button
+                  type="button"
+                  onClick={showsPlaceholderNotice}
+                  title={t('appointments:formDialog.greenActionTitle')}
+                  className="flex h-8 items-center justify-center rounded-lg bg-emerald-600 text-white transition-colors hover:bg-emerald-700"
+                >
+                  <Clock className="size-4" />
+                </button>
+
+                <div className="flex items-center justify-between border-t border-border pt-2 text-sm">
+                  <span className="text-muted-foreground">{t('appointments:formDialog.totalLabel')}</span>
+                  <span className="font-medium">
+                    {t('services:priceShort', { price: bookingTotal(selectedService).toLocaleString('ar') })}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── What there is to book ──────────────────────────────────── */}
+            <div className="flex min-h-0 flex-col rounded-xl border border-border p-2 lg:overflow-hidden">
+              <ServicePickerPanel
+                categories={categories}
+                services={visibleServices}
+                selectedServiceId={serviceId}
+                onPick={(s) => handleServiceChange(s.id)}
+              />
             </div>
           </div>
 
@@ -610,12 +849,23 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
         </DialogContent>
       </Dialog>
 
-      <ClientPickerDialog
-        open={pickerOpen}
-        title={t('appointments:formDialog.pickerTitle')}
-        onOpenChange={setPickerOpen}
-        onPick={(c) => { setClient(c); setPickerOpen(false) }}
-      />
+      {/* One notice for every shape on this screen that has nothing behind it
+          yet, in the same words the rest of the app uses for the same
+          promise. Better than a dead control: a press that does nothing reads
+          as a bug, and this reads as a plan. */}
+      <Dialog open={placeholderNotice} onOpenChange={setPlaceholderNotice}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('appointments:formDialog.title')}</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            {t('common:sectionInDevelopmentNotice', { label: t('appointments:formDialog.placeholderLabel') })}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setPlaceholderNotice(false)}>{t('common:close')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
