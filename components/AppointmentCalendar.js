@@ -51,6 +51,7 @@ import ResourceColumnBody from './ResourceColumnBody'
 import EmployeeDayDialog from './EmployeeDayDialog'
 import ProfessionalShiftsDialog from './ProfessionalShiftsDialog'
 import WorkPhoneDialog from './WorkPhoneDialog'
+import StatusSummaryBar from './StatusSummaryBar'
 import ResourceDayDialog from './ResourceDayDialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -805,6 +806,12 @@ export default function AppointmentCalendar({ salonId }) {
           )
         })}
       </div>
+
+      {/* Under the grid, and only while a day is on it. A week shows seven
+          days at once, so a one-day tally beneath it would be a number
+          answering a question nobody asked — the date it counted would not be
+          the thing on screen. */}
+      {!isWeek && <StatusSummaryBar appointments={dayAppointments} now={now} />}
 
       <ResourceBookingsDialog
         open={!!resourceDetail}

@@ -325,5 +325,14 @@
     "nameLabel": "الاسم",
     "phoneLabel": "رقم الهاتف"
   },
-  "quickSaleButton": "بيع فوري"
+  "quickSaleButton": "بيع فوري",
+  "statusSummary": {
+    "confirmed": "مؤكَّد",
+    "pending": "بانتظار الموافقة",
+    "inProgress": "جارٍ الآن",
+    "completed": "مكتمل",
+    "cancelled": "ملغى",
+    "noShow": "ما حضر",
+    "total": "الإجمالي"
+  }
 }
