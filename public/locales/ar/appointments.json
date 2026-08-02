@@ -1,7 +1,7 @@
 {
   "breadcrumbAppointments": "دفتر المواعيد",
   "breadcrumbCalendar": "التقويم",
-  "newAppointmentButton": "حجز جديد",
+  "newAppointmentButton": "حجز موعد جديد",
   "showAssistantsButton": "عرض المساعدين",
   "hideAssistantsButton": "إخفاء المساعدين",
   "todayButton": "اليوم",
@@ -221,7 +221,32 @@
     "backButton": "تراجع",
     "pastTimeError": "هاد الوقت فات — اختر وقت جاي",
     "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية",
-    "absentEmployeeError": "{{name}} مسجّل غائب بهذا اليوم — ما بينحجزله. شيل الغياب من رأس عموده إذا كان بالغلط."
+    "absentEmployeeError": "{{name}} مسجّل غائب بهذا اليوم — ما بينحجزله. شيل الغياب من رأس عموده إذا كان بالغلط.",
+    "branchLabel": "الفرع الرئيسي",
+    "newClientButton": "جديد",
+    "guestButton": "زائر",
+    "noClientChosenHint": "ما تم اختيار زبون بعد",
+    "acquisitionSourceLabel": "مصدر معرفة الزبون",
+    "moveButton": "نقل",
+    "pickTimeHint": "اختر التاريخ والوقت",
+    "bookedTimeLabel": "الوقت المحجوز",
+    "removeServiceTitle": "إزالة الخدمة",
+    "appointmentColorLabel": "لون الموعد",
+    "confirmedLabel": "الموعد مؤكَّد",
+    "currentUserFallback": "المستخدم الحالي",
+    "greenActionTitle": "إجراء سريع",
+    "totalLabel": "المجموع",
+    "placeholderLabel": "هذا الجزء",
+    "format": {
+      "bold": "عريض",
+      "italic": "مائل",
+      "underline": "تحته خط",
+      "color": "لون النص"
+    },
+    "clearClientButton": "مسح الاختيار",
+    "searchClientHint": "اكتب حرفين على الأقل للبحث",
+    "addProfessionalNeedsServiceHint": "اختر خدمة أولًا — الأخصائيون المتاحون بيعتمدوا عليها",
+    "addProfessionalNoneLeftHint": "ما في أخصائي تاني بيغطي هذه الخدمة"
   },
   "dayStatus": {
     "employeeTitle": "دوام {{name}}",
@@ -343,5 +368,17 @@
   "sessionProgress": {
     "elapsed": "{{elapsed}} / {{total}} د"
   },
-  "confirmedTickTitle": "حجز مؤكَّد"
+  "confirmedTickTitle": "حجز مؤكَّد",
+  "toolbar": {
+    "dateLabel": "التاريخ",
+    "shiftLabel": "دوام الاخصائي"
+  },
+  "servicePicker": {
+    "servicesTab": "الخدمات",
+    "productsTab": "المنتجات",
+    "certificatesTab": "الشهادات",
+    "searchPlaceholder": "ابحث باسم الخدمة...",
+    "noPriceSet": "لم يتم تحديد سعر الخدمة بعد",
+    "emptyHint": "اختر أخصائيًا لعرض الخدمات اللي بيغطيها"
+  }
 }
