@@ -33,7 +33,7 @@ function toTimeInputValue(date) {
 export default function RescheduleDialog({
   open, onOpenChange, appointment, service, clientName,
   employees, services, categories, roleBusinessTypes,
-  schedulesByEmployee, exceptionsByEmployee, absencesByEmployee,
+  schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, dayHoursByEmployee,
   resources, resourceUnits, serviceResources,
   rescheduleReasons, rescheduleReasonsLoading, reloadRescheduleReasons, salonId,
   onDone,
@@ -97,7 +97,7 @@ export default function RescheduleDialog({
       employeeId,
       requestedStart: new Date(`${date}T${time}:00`),
       employees, services, categories, roleBusinessTypes,
-      schedulesByEmployee, exceptionsByEmployee, absencesByEmployee,
+      schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, dayHoursByEmployee,
       resources, resourceUnits, serviceResources,
     })
 

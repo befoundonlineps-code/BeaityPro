@@ -301,6 +301,16 @@
     "verificationTitle": "تدقيق الأوقات الحرة",
     "verificationIntro": "{{name}} عنده مواعيد بهذا اليوم:",
     "continueAnywayButton": "تابع رغم ذلك",
-    "returnToEditingButton": "رجوع للتعديل"
+    "returnToEditingButton": "رجوع للتعديل",
+    "noHoursToday": "ما إله دوام اليوم",
+    "editHoursButton": "تعديل ساعات اليوم",
+    "startLabel": "من",
+    "endLabel": "إلى",
+    "saveHoursButton": "حفظ الساعات",
+    "cancelHoursButton": "إلغاء",
+    "resetHoursButton": "رجوع للدوام المعتاد",
+    "overrideNotice": "ساعات معدّلة لهذا اليوم فقط",
+    "oneDayOnlyNotice": "التعديل لهذا اليوم فقط — الدوام الأسبوعي المتكرر ما بيتغيّر.",
+    "bookingsOutsideNotice": "في {{count}} حجز برّا الساعات الجديدة. بيضلوا قائمين زي ما هم — بس صاروا خارج الدوام."
   }
 }
