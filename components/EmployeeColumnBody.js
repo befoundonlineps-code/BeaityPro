@@ -175,6 +175,14 @@ export default function EmployeeColumnBody({
           isRunning: !!progress,
           hasApproveHandler: !!onApprove,
         })
+        // Rendered inside dir="ltr" at both sites below, and it has to be.
+        // On an RTL page a time range is a run of European numbers with a
+        // neutral between them, and the bidi algorithm hands that neutral the
+        // paragraph's direction — so the two halves get painted right to
+        // left and "10:44 – 11:29" reaches the eye as "11:29 – 10:44". The
+        // string is correct and the DOM is correct; only the painting is
+        // reversed, which is why nothing about it can be caught by reading
+        // the value. WorkPhoneDialog pins its numbers the same way.
         const timeLabel = timeRangeLabel(a)
 
         if (showQuickActions) {
@@ -213,7 +221,11 @@ export default function EmployeeColumnBody({
               <div className="pointer-events-none relative px-1 py-0.5">
                 <div className="truncate font-semibold">{clientName(a.client_id)}</div>
                 <div className="truncate opacity-75">{service?.name}</div>
-                {showTime && <div className="truncate tabular-nums opacity-75">{timeLabel}</div>}
+                {showTime && (
+                  <div className="truncate tabular-nums opacity-75">
+                    <span dir="ltr">{timeLabel}</span>
+                  </div>
+                )}
               </div>
               {/* Outlined pills rather than filled blocks, so they read as
                   controls sitting on the card instead of holes cut out of
@@ -278,7 +290,11 @@ export default function EmployeeColumnBody({
           >
             <div className="truncate font-semibold">{clientName(a.client_id)}</div>
             <div className="truncate opacity-75">{service?.name}</div>
-            {showTime && <div className="truncate tabular-nums opacity-75">{timeLabel}</div>}
+            {showTime && (
+              <div className="truncate tabular-nums opacity-75">
+                <span dir="ltr">{timeLabel}</span>
+              </div>
+            )}
 
             {/* A settled booking wears a tick in the corner. Absolutely
                 placed, so it costs no line and appears on the shortest block
