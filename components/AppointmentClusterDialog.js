@@ -43,10 +43,7 @@ export default function AppointmentClusterDialog({ open, onOpenChange, employee,
                   className="cursor-pointer hover:bg-muted"
                   onClick={() => onPick(a)}
                 >
-                  {/* An em dash here rather than the en dash the rest of the
-                      app uses, kept as it was so this change moves no pixels.
-                      Worth unifying, but not silently. */}
-                  <TableCell><TimeRange start={a.start_time} end={a.end_time} separator=" — " /></TableCell>
+                  <TableCell><TimeRange start={a.start_time} end={a.end_time} /></TableCell>
                   <TableCell>{client ? `${client.first_name} ${client.last_name || ''}`.trim() : '—'}</TableCell>
                   <TableCell>
                     <span

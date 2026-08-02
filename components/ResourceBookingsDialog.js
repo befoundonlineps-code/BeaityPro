@@ -46,9 +46,7 @@ export default function ResourceBookingsDialog({ open, onOpenChange, resource, c
                   <TableCell className="font-medium">
                     {t('appointments:resourceDialog.unitLabel', { index: unit ? unit.unit_index : '—' })}
                   </TableCell>
-                  {/* Em dash, matching the other cluster dialog rather than
-                      the rest of the app. Kept as it was; see the note there. */}
-                  <TableCell><TimeRange start={a.start_time} end={a.end_time} separator=" — " /></TableCell>
+                  <TableCell><TimeRange start={a.start_time} end={a.end_time} /></TableCell>
                   <TableCell>{employee ? employee.name : '—'}</TableCell>
                   <TableCell>{client ? `${client.first_name} ${client.last_name || ''}`.trim() : '—'}</TableCell>
                   <TableCell>
