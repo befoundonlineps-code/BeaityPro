@@ -606,7 +606,7 @@ export default function AppointmentCalendar({ salonId }) {
 
         <div className="flex shrink-0 flex-col border-e border-border bg-muted/20" style={{ width: 180 }}>
           <div
-            className="sticky top-0 z-20 flex items-center justify-center border-b border-border bg-card text-xs font-medium"
+            className="sticky top-0 z-20 flex items-center justify-center rounded-t-md border-b border-border bg-card text-xs font-medium"
             style={{ height: HEADER_HEIGHT }}
           >
             {t('appointments:waitingListColumn')}
@@ -668,7 +668,7 @@ export default function AppointmentCalendar({ salonId }) {
           <div key={col.dateISO} className="flex shrink-0 flex-col border-e border-border" style={{ width: 160 }}>
             <button
               type="button"
-              className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
+              className="sticky top-0 z-20 flex flex-col overflow-hidden rounded-t-md border-b border-border bg-card text-start hover:brightness-95"
               style={{ height: HEADER_HEIGHT }}
               title={t('appointments:weekView.openDayHint')}
               // The way back out, and the obvious meaning of clicking a day:
@@ -750,7 +750,7 @@ export default function AppointmentCalendar({ salonId }) {
                 scannable across every column at once. */}
             <button
               type="button"
-              className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
+              className="sticky top-0 z-20 flex flex-col overflow-hidden rounded-t-md border-b border-border bg-card text-start hover:brightness-95"
               style={{ height: HEADER_HEIGHT }}
               title={t('appointments:dayStatus.employeeHeaderHint')}
               onClick={() => setDayStatusEmployee(emp)}
@@ -814,7 +814,7 @@ export default function AppointmentCalendar({ salonId }) {
                   today. */}
               <button
                 type="button"
-                className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
+                className="sticky top-0 z-20 flex flex-col overflow-hidden rounded-t-md border-b border-border bg-card text-start hover:brightness-95"
                 style={{ height: HEADER_HEIGHT }}
                 title={t('appointments:dayStatus.resourceHeaderHint')}
                 onClick={() => setDayStatusResource(resource)}

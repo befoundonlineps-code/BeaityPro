@@ -137,7 +137,7 @@ export default function EmployeeColumnBody({
             <button
               key={`cluster-${columnKey}-${cluster.start.getTime()}`}
               type="button"
-              className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:brightness-110"
+              className="absolute inset-x-0.5 z-10 overflow-hidden rounded-lg px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:brightness-110"
               style={{ top, height, background: 'var(--color-primary)' }}
               onClick={() => onClusterClick({ employee, cluster })}
             >
@@ -180,7 +180,7 @@ export default function EmployeeColumnBody({
               draggable
               onDragStart={(event) => onDragStart(event, a)}
               onDragEnd={onDragEnd}
-              className={`absolute inset-x-0.5 z-10 cursor-grab overflow-hidden rounded border-2 border-dashed border-white/90 text-start text-[10px] leading-tight text-white hover:brightness-110 active:cursor-grabbing ${
+              className={`absolute inset-x-0.5 z-10 cursor-grab overflow-hidden rounded-lg border-2 border-dashed border-white/90 text-start text-[10px] leading-tight text-white hover:brightness-110 active:cursor-grabbing ${
                 beingDragged ? 'opacity-40' : isParticipant ? 'opacity-70' : ''
               }`}
               style={{
@@ -213,7 +213,7 @@ export default function EmployeeColumnBody({
               <div className="relative flex gap-1 px-1">
                 <button
                   type="button"
-                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-white"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded-sm bg-white/90 px-1 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-white"
                   onClick={(event) => { event.stopPropagation(); onApprove(a) }}
                 >
                   <Check className="size-2.5" />
@@ -221,7 +221,7 @@ export default function EmployeeColumnBody({
                 </button>
                 <button
                   type="button"
-                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-destructive hover:bg-white"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded-sm bg-white/90 px-1 py-0.5 text-[9px] font-medium text-destructive hover:bg-white"
                   onClick={(event) => { event.stopPropagation(); onRequestCancel(a) }}
                 >
                   <X className="size-2.5" />
@@ -242,7 +242,7 @@ export default function EmployeeColumnBody({
             draggable={actionable}
             onDragStart={actionable ? (event) => onDragStart(event, a) : undefined}
             onDragEnd={actionable ? onDragEnd : undefined}
-            className={`absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
+            className={`absolute inset-x-0.5 z-10 overflow-hidden rounded-lg px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
               pending
                 ? 'border-2 border-dashed border-white/90 hover:brightness-110'
                 : actionable
@@ -297,7 +297,7 @@ export default function EmployeeColumnBody({
             )}
 
             {isParticipant && (
-              <span className="pointer-events-none absolute bottom-0.5 end-1 rounded bg-black/30 px-1 text-[9px] leading-tight">
+              <span className="pointer-events-none absolute bottom-0.5 end-1 rounded-sm bg-black/30 px-1 text-[9px] leading-tight">
                 {t('appointments:participantBadge')}
               </span>
             )}
