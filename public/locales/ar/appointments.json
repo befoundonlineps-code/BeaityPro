@@ -312,5 +312,18 @@
     "overrideNotice": "ساعات معدّلة لهذا اليوم فقط",
     "oneDayOnlyNotice": "التعديل لهذا اليوم فقط — الدوام الأسبوعي المتكرر ما بيتغيّر.",
     "bookingsOutsideNotice": "في {{count}} حجز برّا الساعات الجديدة. بيضلوا قائمين زي ما هم — بس صاروا خارج الدوام."
-  }
+  },
+  "workPhone": {
+    "title": "هاتف العمل",
+    "buttonLabel": "هاتف العمل",
+    "buttonTitle": "أرقام المناوبين اليوم وجهات الاتصال",
+    "searchPlaceholder": "بحث بالاسم أو الرقم...",
+    "nobodyOnShift": "ما في حدا مناوب اليوم، ولا جهات اتصال محفوظة.",
+    "contactBadge": "جهة اتصال",
+    "noNumber": "ما في رقم محفوظ",
+    "addContactButton": "إضافة جهة اتصال",
+    "nameLabel": "الاسم",
+    "phoneLabel": "رقم الهاتف"
+  },
+  "quickSaleButton": "بيع فوري"
 }
