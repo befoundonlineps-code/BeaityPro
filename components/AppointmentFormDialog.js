@@ -38,7 +38,7 @@ function toTimeInputValue(date) {
 // else's place in the queue), the service is not, and every placement rule
 // runs exactly as it does for a fresh booking — only the final write
 // differs, updating the row in place instead of inserting one.
-export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, waitingAppointment, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
+export default function AppointmentFormDialog({ open, onOpenChange, salonId, initialEmployeeId, initialStartTime, waitingAppointment, employees, services, categories, roleBusinessTypes, schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, dayHoursByEmployee, resources, resourceUnits, serviceResources, onSaved }) {
   const { t } = useTranslation(['appointments', 'employees', 'common'])
 
   const [client, setClient] = useState(null)
@@ -282,7 +282,8 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
             scheduleEntry?.slots,
             (exceptionsByEmployee || {})[id],
             dayStart,
-            (absencesByEmployee || {})[id]
+            (absencesByEmployee || {})[id],
+            (dayHoursByEmployee || {})[id]
           ),
           roleAllowed: isServiceAllowedForRole(employee?.role, selectedService, activeServices, categories, roleBusinessTypes),
           employeeAppointments: rowsByEmployee[id] || [],

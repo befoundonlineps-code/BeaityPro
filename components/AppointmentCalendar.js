@@ -35,6 +35,7 @@ import {
 } from '../lib/calendarView'
 import { weekDaysISO, shiftWeekISO, weekRangeParts } from '../lib/calendarWeek'
 import { shiftSummary } from '../lib/shiftSummary'
+import { getAvatarColor } from '../lib/avatarColor'
 import { useSubjectWeek } from '../hooks/useSubjectWeek'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
@@ -131,7 +132,7 @@ export default function AppointmentCalendar({ salonId }) {
   const { resources, units: resourceUnits, serviceResources, loading: resourcesLoading } = useResources()
   const { reasons: cancellationReasons, loading: cancellationReasonsLoading, reload: reloadCancellationReasons } = useCancellationReasons()
   const { reasons: absenceReasons, loading: absenceReasonsLoading, reload: reloadAbsenceReasons } = useAbsenceReasons()
-  const { absencesByEmployee, outagesByUnit, loading: dayStatusLoading, reload: reloadDayStatus } = useDayStatus()
+  const { absencesByEmployee, outagesByUnit, dayHoursByEmployee, loading: dayStatusLoading, reload: reloadDayStatus } = useDayStatus()
   const { reasons: rescheduleReasons, loading: rescheduleReasonsLoading, reload: reloadRescheduleReasons } = useRescheduleReasons()
   const { reasons: adjustmentReasons, loading: adjustmentReasonsLoading, reload: reloadAdjustmentReasons } = useAdjustmentReasons()
 
@@ -158,7 +159,8 @@ export default function AppointmentCalendar({ salonId }) {
         entry?.slots,
         exceptionsByEmployee[emp.id],
         displayedDate,
-        absencesByEmployee[emp.id]
+        absencesByEmployee[emp.id],
+        dayHoursByEmployee[emp.id]
       )
     }
     return map
@@ -178,6 +180,17 @@ export default function AppointmentCalendar({ salonId }) {
     () => Object.fromEntries((absenceReasons || []).map((r) => [r.id, r])),
     [absenceReasons]
   )
+
+  // The reason's own colour on the header band, so sickness and leave are
+  // told apart across the whole board at a glance rather than every absence
+  // reading the same amber. A reason with no colour still gets a stable
+  // derived one, so nothing ever falls back to looking present.
+  function absenceBandStyle(absence) {
+    if (!absence) return null
+    const colour = absenceReasonsById[absence.absence_reason_id]?.color
+      || getAvatarColor(absence.absence_reason_id)
+    return { background: `color-mix(in oklch, ${colour} 22%, transparent)`, color: colour }
+  }
 
   const cancellationReasonsById = useMemo(
     () => Object.fromEntries((cancellationReasons || []).map((r) => [r.id, r])),
@@ -263,16 +276,17 @@ export default function AppointmentCalendar({ salonId }) {
     const date = new Date(`${day}T00:00:00`)
     const entry = weekEmployee ? schedulesByEmployee[weekEmployee.id] : null
     const absences = weekEmployee ? absencesByEmployee[weekEmployee.id] : null
+    const hours = weekEmployee ? dayHoursByEmployee[weekEmployee.id] : null
     return {
       dateISO: day,
       date,
       windows: weekEmployee
-        ? availableWindowsForDate(entry?.schedule, entry?.slots, exceptionsByEmployee[weekEmployee.id], date, absences)
+        ? availableWindowsForDate(entry?.schedule, entry?.slots, exceptionsByEmployee[weekEmployee.id], date, absences, hours)
         : [],
       absence: weekEmployee ? (absences || []).find((a) => a.absence_date === day) || null : null,
       appointments: weekAppointments.filter((a) => a.start_time && localDateISO(a.start_time) === day && !isHistorical(a)),
     }
-  }), [weekDays, weekEmployee, schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, weekAppointments])
+  }), [weekDays, weekEmployee, schedulesByEmployee, exceptionsByEmployee, absencesByEmployee, dayHoursByEmployee, weekAppointments])
 
   // The shifts button reports the day's hours when exactly one professional
   // is on the board, and a plain label otherwise. Not disabled in that case:
@@ -586,12 +600,13 @@ export default function AppointmentCalendar({ salonId }) {
             >
               <div
                 className={`flex w-full flex-1 items-center justify-center overflow-hidden border-b border-border px-1 ${
-                  col.absence ? 'bg-amber-500/20' : 'bg-primary/10'
+                  col.absence ? '' : 'bg-primary/10'
                 }`}
+                style={absenceBandStyle(col.absence) || undefined}
               >
                 <span
                   className={`truncate text-[11px] leading-none ${
-                    col.absence ? 'text-amber-700 dark:text-amber-400' : 'text-primary/80'
+                    col.absence ? '' : 'text-primary/80'
                   }`}
                 >
                   {col.absence
@@ -663,12 +678,13 @@ export default function AppointmentCalendar({ salonId }) {
             >
               <div
                 className={`flex flex-1 items-center justify-center overflow-hidden border-b border-border px-1 ${
-                  absenceToday[emp.id] ? 'bg-amber-500/20' : 'bg-primary/10'
+                  absenceToday[emp.id] ? '' : 'bg-primary/10'
                 }`}
+                style={absenceBandStyle(absenceToday[emp.id]) || undefined}
               >
                 <span
                   className={`truncate text-[11px] leading-none ${
-                    absenceToday[emp.id] ? 'text-amber-700 dark:text-amber-400' : 'text-primary/80'
+                    absenceToday[emp.id] ? '' : 'text-primary/80'
                   }`}
                 >
                   {absenceToday[emp.id]
@@ -818,6 +834,7 @@ export default function AppointmentCalendar({ salonId }) {
         schedulesByEmployee={schedulesByEmployee}
         exceptionsByEmployee={exceptionsByEmployee}
         absencesByEmployee={absencesByEmployee}
+        dayHoursByEmployee={dayHoursByEmployee}
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
@@ -864,6 +881,7 @@ export default function AppointmentCalendar({ salonId }) {
         schedulesByEmployee={schedulesByEmployee}
         exceptionsByEmployee={exceptionsByEmployee}
         absencesByEmployee={absencesByEmployee}
+        dayHoursByEmployee={dayHoursByEmployee}
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
@@ -896,8 +914,12 @@ export default function AppointmentCalendar({ salonId }) {
         employees={employees}
         dateISO={dateISO}
         initialEmployeeId={shiftsButtonEmployeeId}
+        salonId={salonId}
         absencesByEmployee={absencesByEmployee}
+        dayHoursByEmployee={dayHoursByEmployee}
         absenceReasons={absenceReasons}
+        schedulesByEmployee={schedulesByEmployee}
+        exceptionsByEmployee={exceptionsByEmployee}
         clientsById={clientsById}
         servicesById={servicesById}
         employeesById={employeesById}
@@ -931,6 +953,7 @@ export default function AppointmentCalendar({ salonId }) {
         schedulesByEmployee={schedulesByEmployee}
         exceptionsByEmployee={exceptionsByEmployee}
         absencesByEmployee={absencesByEmployee}
+        dayHoursByEmployee={dayHoursByEmployee}
         resources={resources}
         resourceUnits={resourceUnits}
         serviceResources={serviceResources}
