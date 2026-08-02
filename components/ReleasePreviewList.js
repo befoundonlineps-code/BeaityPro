@@ -48,7 +48,9 @@ export default function ReleasePreviewList({ plan, clientsById, servicesById, em
           <span className="ms-1.5 text-muted-foreground">{servicesById[a.service_id]?.name || '—'}</span>
         </span>
         <span className="shrink-0 text-muted-foreground">{employeesById[a.employee_id]?.name || '—'}</span>
-        <span className="shrink-0 tabular-nums text-muted-foreground">{timeRange(a)}</span>
+        {/* Already had a span of its own, so the isolate is an attribute
+            rather than a new element. See the note on ranges in CLAUDE.md. */}
+        <span dir="ltr" className="shrink-0 tabular-nums text-muted-foreground">{timeRange(a)}</span>
       </div>
     ))
   }
