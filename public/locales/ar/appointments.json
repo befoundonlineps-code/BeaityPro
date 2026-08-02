@@ -342,5 +342,6 @@
   },
   "sessionProgress": {
     "elapsed": "{{elapsed}} / {{total}} د"
-  }
+  },
+  "confirmedTickTitle": "حجز مؤكَّد"
 }
