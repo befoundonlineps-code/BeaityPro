@@ -70,6 +70,10 @@ export default function ProfessionalShiftsDialog({
     setError('')
   }, [currentAbsence, employeeId])
 
+  function reasonColor(id) {
+    return (absenceReasons || []).find((r) => r.id === id)?.color || getAvatarColor(id)
+  }
+
   const wasAbsent = !!currentAbsence
   const marking = !working && !wasAbsent    // going off
   const clearing = working && wasAbsent     // coming back
@@ -186,9 +190,13 @@ export default function ProfessionalShiftsDialog({
               <div className="flex items-center gap-3">
                 <span className="w-24 shrink-0" />
                 <div className="flex flex-1 items-center gap-1.5">
+                  {/* The reason's own colour when it has one, and a stable
+                      derived one when it does not — a reason somebody adds
+                      from the manager dialog still gets a swatch rather than
+                      an empty square. */}
                   <span
                     className="size-3 shrink-0 rounded-sm border border-border"
-                    style={{ background: reasonId ? getAvatarColor(reasonId) : 'transparent' }}
+                    style={{ background: reasonId ? reasonColor(reasonId) : 'transparent' }}
                   />
                   <select
                     className={SELECT_CLASS}
