@@ -141,8 +141,8 @@ export default function EmployeeColumnBody({
               style={{ top, height, background: 'var(--color-primary)' }}
               onClick={() => onClusterClick({ employee, cluster })}
             >
-              <div className="truncate font-medium">{t('appointments:employeeCluster.blockLabel')}</div>
-              <div className="truncate opacity-90">
+              <div className="truncate font-semibold">{t('appointments:employeeCluster.blockLabel')}</div>
+              <div className="truncate opacity-75">
                 {t('appointments:employeeCluster.blockCount', { count: cluster.items.length })}
               </div>
             </button>
@@ -207,8 +207,8 @@ export default function EmployeeColumnBody({
                 onClick={() => onAppointmentClick(a)}
               />
               <div className="pointer-events-none relative px-1 py-0.5">
-                <div className="truncate font-medium">{clientName(a.client_id)}</div>
-                <div className="truncate opacity-90">{service?.name}</div>
+                <div className="truncate font-semibold">{clientName(a.client_id)}</div>
+                <div className="truncate opacity-75">{service?.name}</div>
               </div>
               <div className="relative flex gap-1 px-1">
                 <button
@@ -267,8 +267,8 @@ export default function EmployeeColumnBody({
             ].filter(Boolean).join(' — ')}
             onClick={actionable ? () => onAppointmentClick(a) : undefined}
           >
-            <div className="truncate font-medium">{clientName(a.client_id)}</div>
-            <div className="truncate opacity-90">{service?.name}</div>
+            <div className="truncate font-semibold">{clientName(a.client_id)}</div>
+            <div className="truncate opacity-75">{service?.name}</div>
 
             {/* How far through a running session we are. The figure needs a
                 third line and only appears when there is one; the bar sits on
@@ -280,7 +280,7 @@ export default function EmployeeColumnBody({
                 starting a second one for a number nobody reads to the
                 second. */}
             {progress && canShowProgressText(height) && (
-              <div className="truncate opacity-90 tabular-nums">
+              <div className="truncate opacity-75 tabular-nums">
                 {t('appointments:sessionProgress.elapsed', {
                   elapsed: progress.elapsedMinutes,
                   total: progress.totalMinutes,

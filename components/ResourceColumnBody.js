@@ -75,13 +75,13 @@ export default function ResourceColumnBody({
           >
             {single ? (
               <>
-                <div className="truncate font-medium">{clientName(cluster.items[0].client_id)}</div>
-                <div className="truncate opacity-90">{service?.name}</div>
+                <div className="truncate font-semibold">{clientName(cluster.items[0].client_id)}</div>
+                <div className="truncate opacity-75">{service?.name}</div>
               </>
             ) : (
               <>
-                <div className="truncate font-medium">{t('appointments:resourceColumn.bookedBlock')}</div>
-                <div className="truncate opacity-90">
+                <div className="truncate font-semibold">{t('appointments:resourceColumn.bookedBlock')}</div>
+                <div className="truncate opacity-75">
                   {t('appointments:resourceColumn.bookedCount', { count: cluster.items.length })}
                 </div>
               </>
