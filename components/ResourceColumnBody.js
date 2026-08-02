@@ -65,7 +65,7 @@ export default function ResourceColumnBody({
           <button
             key={`${resource.id}-${dateISO}-${cluster.start.getTime()}`}
             type="button"
-            className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:opacity-90"
+            className="absolute inset-x-0.5 z-10 overflow-hidden rounded-lg px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:opacity-90"
             style={{
               top: (clampedStart / SLOT_MINUTES) * rowHeight,
               height: ((clampedEnd - clampedStart) / SLOT_MINUTES) * rowHeight,
@@ -75,13 +75,13 @@ export default function ResourceColumnBody({
           >
             {single ? (
               <>
-                <div className="truncate font-medium">{clientName(cluster.items[0].client_id)}</div>
-                <div className="truncate opacity-90">{service?.name}</div>
+                <div className="truncate font-semibold">{clientName(cluster.items[0].client_id)}</div>
+                <div className="truncate opacity-75">{service?.name}</div>
               </>
             ) : (
               <>
-                <div className="truncate font-medium">{t('appointments:resourceColumn.bookedBlock')}</div>
-                <div className="truncate opacity-90">
+                <div className="truncate font-semibold">{t('appointments:resourceColumn.bookedBlock')}</div>
+                <div className="truncate opacity-75">
                   {t('appointments:resourceColumn.bookedCount', { count: cluster.items.length })}
                 </div>
               </>

@@ -181,7 +181,10 @@ export default function AppointmentActionsDialog({
     [t('appointments:actionsDialog.clientLabel'), clientName],
     [t('appointments:actionsDialog.serviceLabel'), serviceName],
     [t('appointments:actionsDialog.employeeLabel'), employee?.name],
-    [t('appointments:actionsDialog.timeLabel'), timeRange(appointment)],
+    // A node rather than a string, because the range needs an ltr isolate
+    // and the row renderer below has no idea which of its values is a number.
+    // See the note on ranges in CLAUDE.md.
+    [t('appointments:actionsDialog.timeLabel'), <span dir="ltr">{timeRange(appointment)}</span>],
   ]
 
   const title = status === 'pending_approval'

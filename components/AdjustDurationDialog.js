@@ -176,7 +176,10 @@ export default function AdjustDurationDialog({
             <div className="flex gap-2">
               <dt className="w-24 shrink-0 text-muted-foreground">{t('appointments:adjustDialog.plannedLabel')}</dt>
               <dd className="font-medium">
-                {hhmm(start)} – {hhmm(currentEnd)}
+                {/* Isolated to ltr, and only the range: the minute count
+                    beside it is an Arabic phrase and belongs to the page's
+                    own direction. See the note on ranges in CLAUDE.md. */}
+                <span dir="ltr">{hhmm(start)} – {hhmm(currentEnd)}</span>
                 <span className="ms-1 text-muted-foreground">
                   ({t('appointments:adjustDialog.minutesText', { count: originalMinutes })})
                 </span>

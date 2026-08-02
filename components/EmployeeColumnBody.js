@@ -12,7 +12,7 @@ import {
 } from '../lib/appointmentGrid'
 import { isWithinAnyWindow } from '../lib/employeeAvailability'
 import { clusterAppointments } from '../lib/resourceAllocation'
-import { canShowQuickActions, canShowProgressText } from '../lib/appointmentCard'
+import { cardContent, showsConfirmedTick, timeRangeLabel } from '../lib/appointmentCard'
 import { sessionProgress } from '../lib/statusSummary'
 
 // One professional's column for one day: the shift shading, the walls, the
@@ -137,12 +137,12 @@ export default function EmployeeColumnBody({
             <button
               key={`cluster-${columnKey}-${cluster.start.getTime()}`}
               type="button"
-              className="absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:brightness-110"
+              className="absolute inset-x-0.5 z-10 overflow-hidden rounded-lg px-1 py-0.5 text-start text-[10px] leading-tight text-white hover:brightness-110"
               style={{ top, height, background: 'var(--color-primary)' }}
               onClick={() => onClusterClick({ employee, cluster })}
             >
-              <div className="truncate font-medium">{t('appointments:employeeCluster.blockLabel')}</div>
-              <div className="truncate opacity-90">
+              <div className="truncate font-semibold">{t('appointments:employeeCluster.blockLabel')}</div>
+              <div className="truncate opacity-75">
                 {t('appointments:employeeCluster.blockCount', { count: cluster.items.length })}
               </div>
             </button>
@@ -165,13 +165,25 @@ export default function EmployeeColumnBody({
         // labelled so the main professional's row reads first.
         const isParticipant = a.is_primary === false
 
-        // Whether either extra fits is arithmetic on the block's height, and
-        // it lives in lib/appointmentCard.js so the thresholds can be tested
-        // against the measurements they came from.
-        const showQuickActions = canShowQuickActions({
-          status: a.status, height, hasHandler: !!onApprove,
-        })
+        // What has room to be drawn is arithmetic on the block's height,
+        // decided in one place so the pieces cannot each claim the same
+        // pixels. lib/appointmentCard.js carries the measurements too.
         const progress = sessionProgress(a, now)
+        const { showActions: showQuickActions, showTime, showProgress } = cardContent({
+          height,
+          status: a.status,
+          isRunning: !!progress,
+          hasApproveHandler: !!onApprove,
+        })
+        // Rendered inside dir="ltr" at both sites below, and it has to be.
+        // On an RTL page a time range is a run of European numbers with a
+        // neutral between them, and the bidi algorithm hands that neutral the
+        // paragraph's direction — so the two halves get painted right to
+        // left and "10:44 – 11:29" reaches the eye as "11:29 – 10:44". The
+        // string is correct and the DOM is correct; only the painting is
+        // reversed, which is why nothing about it can be caught by reading
+        // the value. WorkPhoneDialog pins its numbers the same way.
+        const timeLabel = timeRangeLabel(a)
 
         if (showQuickActions) {
           return (
@@ -180,7 +192,7 @@ export default function EmployeeColumnBody({
               draggable
               onDragStart={(event) => onDragStart(event, a)}
               onDragEnd={onDragEnd}
-              className={`absolute inset-x-0.5 z-10 cursor-grab overflow-hidden rounded border-2 border-dashed border-white/90 text-start text-[10px] leading-tight text-white hover:brightness-110 active:cursor-grabbing ${
+              className={`absolute inset-x-0.5 z-10 cursor-grab overflow-hidden rounded-lg border-2 border-dashed border-white/90 text-start text-[10px] leading-tight text-white hover:brightness-110 active:cursor-grabbing ${
                 beingDragged ? 'opacity-40' : isParticipant ? 'opacity-70' : ''
               }`}
               style={{
@@ -207,13 +219,22 @@ export default function EmployeeColumnBody({
                 onClick={() => onAppointmentClick(a)}
               />
               <div className="pointer-events-none relative px-1 py-0.5">
-                <div className="truncate font-medium">{clientName(a.client_id)}</div>
-                <div className="truncate opacity-90">{service?.name}</div>
+                <div className="truncate font-semibold">{clientName(a.client_id)}</div>
+                <div className="truncate opacity-75">{service?.name}</div>
+                {showTime && (
+                  <div className="truncate tabular-nums opacity-75">
+                    <span dir="ltr">{timeLabel}</span>
+                  </div>
+                )}
               </div>
+              {/* Outlined pills rather than filled blocks, so they read as
+                  controls sitting on the card instead of holes cut out of
+                  it — and so they speak the same shape as every other button
+                  in the app now. */}
               <div className="relative flex gap-1 px-1">
                 <button
                   type="button"
-                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-white"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded-full border border-emerald-700/25 bg-white/90 px-1 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-white"
                   onClick={(event) => { event.stopPropagation(); onApprove(a) }}
                 >
                   <Check className="size-2.5" />
@@ -221,7 +242,7 @@ export default function EmployeeColumnBody({
                 </button>
                 <button
                   type="button"
-                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-destructive hover:bg-white"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded-full border border-destructive/25 bg-white/90 px-1 py-0.5 text-[9px] font-medium text-destructive hover:bg-white"
                   onClick={(event) => { event.stopPropagation(); onRequestCancel(a) }}
                 >
                   <X className="size-2.5" />
@@ -242,7 +263,7 @@ export default function EmployeeColumnBody({
             draggable={actionable}
             onDragStart={actionable ? (event) => onDragStart(event, a) : undefined}
             onDragEnd={actionable ? onDragEnd : undefined}
-            className={`absolute inset-x-0.5 z-10 overflow-hidden rounded px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
+            className={`absolute inset-x-0.5 z-10 overflow-hidden rounded-lg px-1 py-0.5 text-start text-[10px] leading-tight text-white ${
               pending
                 ? 'border-2 border-dashed border-white/90 hover:brightness-110'
                 : actionable
@@ -267,20 +288,34 @@ export default function EmployeeColumnBody({
             ].filter(Boolean).join(' — ')}
             onClick={actionable ? () => onAppointmentClick(a) : undefined}
           >
-            <div className="truncate font-medium">{clientName(a.client_id)}</div>
-            <div className="truncate opacity-90">{service?.name}</div>
+            <div className="truncate font-semibold">{clientName(a.client_id)}</div>
+            <div className="truncate opacity-75">{service?.name}</div>
+            {showTime && (
+              <div className="truncate tabular-nums opacity-75">
+                <span dir="ltr">{timeLabel}</span>
+              </div>
+            )}
+
+            {/* A settled booking wears a tick in the corner. Absolutely
+                placed, so it costs no line and appears on the shortest block
+                as readily as the longest. */}
+            {showsConfirmedTick(a.status) && (
+              <span className="pointer-events-none absolute end-1 top-0.5 flex size-3 items-center justify-center rounded-full bg-white/85">
+                <Check className="size-2 text-emerald-700" strokeWidth={3} />
+              </span>
+            )}
 
             {/* How far through a running session we are. The figure needs a
-                third line and only appears when there is one; the bar sits on
-                the block's bottom edge and costs no content height at all, so
-                even the shortest session gets it.
+                line of its own and only appears when there is one; the bar
+                sits on the block's bottom edge and costs no content height at
+                all, so even the shortest session gets it.
 
                 Neither ticks. The calendar already refreshes its clock for
                 the current-time line, and this rides along rather than
                 starting a second one for a number nobody reads to the
                 second. */}
-            {progress && canShowProgressText(height) && (
-              <div className="truncate opacity-90 tabular-nums">
+            {progress && showProgress && (
+              <div className="truncate opacity-75 tabular-nums">
                 {t('appointments:sessionProgress.elapsed', {
                   elapsed: progress.elapsedMinutes,
                   total: progress.totalMinutes,
@@ -297,7 +332,7 @@ export default function EmployeeColumnBody({
             )}
 
             {isParticipant && (
-              <span className="pointer-events-none absolute bottom-0.5 end-1 rounded bg-black/30 px-1 text-[9px] leading-tight">
+              <span className="pointer-events-none absolute bottom-0.5 end-1 rounded-sm bg-black/30 px-1 text-[9px] leading-tight">
                 {t('appointments:participantBadge')}
               </span>
             )}

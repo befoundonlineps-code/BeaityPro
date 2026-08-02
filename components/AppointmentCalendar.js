@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { useRouter } from 'next/router'
-import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw, CalendarClock, Phone, Zap } from 'lucide-react'
+import { ChevronRight, ChevronLeft, Plus, Users, RotateCcw, CalendarClock, Phone, Zap, Package } from 'lucide-react'
 import { useEmployees } from '../hooks/useEmployees'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import { useClientsLookup } from '../hooks/useClientsLookup'
@@ -39,7 +39,7 @@ import {
 } from '../lib/calendarView'
 import { weekDaysISO, shiftWeekISO, weekRangeParts } from '../lib/calendarWeek'
 import { shiftSummary } from '../lib/shiftSummary'
-import { getAvatarColor } from '../lib/avatarColor'
+import { getAvatarColor, initialsFromName } from '../lib/avatarColor'
 import { useSubjectWeek } from '../hooks/useSubjectWeek'
 import AppointmentFormDialog from './AppointmentFormDialog'
 import AppointmentActionsDialog from './AppointmentActionsDialog'
@@ -56,13 +56,16 @@ import ProfessionalShiftsDialog from './ProfessionalShiftsDialog'
 import WorkPhoneDialog from './WorkPhoneDialog'
 import StatusSummaryBar from './StatusSummaryBar'
 import ResourceDayDialog from './ResourceDayDialog'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 const ROW_HEIGHT = 40 // px per 30-minute row
-const HEADER_HEIGHT = 48 // fits the two-line employee header (role over name)
+// Fits an avatar over the name over the role, which is the order somebody
+// scanning a roster reads: who, then what they do.
+const HEADER_HEIGHT = 64
 
 function todayISO() {
   const d = new Date()
@@ -606,7 +609,7 @@ export default function AppointmentCalendar({ salonId }) {
 
         <div className="flex shrink-0 flex-col border-e border-border bg-muted/20" style={{ width: 180 }}>
           <div
-            className="sticky top-0 z-20 flex items-center justify-center border-b border-border bg-card text-xs font-medium"
+            className="sticky top-0 z-20 flex items-center justify-center rounded-t-md border-b border-border bg-card text-xs font-medium"
             style={{ height: HEADER_HEIGHT }}
           >
             {t('appointments:waitingListColumn')}
@@ -668,7 +671,7 @@ export default function AppointmentCalendar({ salonId }) {
           <div key={col.dateISO} className="flex shrink-0 flex-col border-e border-border" style={{ width: 160 }}>
             <button
               type="button"
-              className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
+              className="sticky top-0 z-20 flex flex-col overflow-hidden rounded-t-md border-b border-border bg-card text-start hover:brightness-95"
               style={{ height: HEADER_HEIGHT }}
               title={t('appointments:weekView.openDayHint')}
               // The way back out, and the obvious meaning of clicking a day:
@@ -750,29 +753,38 @@ export default function AppointmentCalendar({ salonId }) {
                 scannable across every column at once. */}
             <button
               type="button"
-              className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
-              style={{ height: HEADER_HEIGHT }}
+              className="sticky top-0 z-20 flex flex-col items-center overflow-hidden rounded-t-md border-b border-border bg-card hover:brightness-95"
+              style={{
+                height: HEADER_HEIGHT,
+                ...(absenceBandStyle(absenceToday[emp.id]) || {}),
+              }}
               title={t('appointments:dayStatus.employeeHeaderHint')}
               onClick={() => setDayStatusEmployee(emp)}
             >
-              <div
-                className={`flex flex-1 items-center justify-center overflow-hidden border-b border-border px-1 ${
-                  absenceToday[emp.id] ? '' : 'bg-primary/10'
-                }`}
-                style={absenceBandStyle(absenceToday[emp.id]) || undefined}
-              >
+              <Avatar size="sm" className="mt-1.5">
+                <AvatarFallback
+                  className="text-[10px] font-semibold text-white"
+                  style={{ background: getAvatarColor(emp.id) }}
+                >
+                  {initialsFromName(emp.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex w-full flex-1 flex-col items-center justify-center overflow-hidden px-1">
+                <span className="w-full truncate text-center text-xs font-semibold leading-tight">{emp.name}</span>
+                {/* The role most days, the reason on a day off — one line
+                    answering "what is this person to me right now", in the
+                    reason's own colour so an absence still reads across the
+                    whole board at a glance. */}
                 <span
-                  className={`truncate text-[11px] leading-none ${
-                    absenceToday[emp.id] ? '' : 'text-primary/80'
-                  }`}
+                  className="w-full truncate text-center text-[10px] leading-tight text-muted-foreground"
+                  style={absenceToday[emp.id]
+                    ? { color: absenceBandStyle(absenceToday[emp.id]).color }
+                    : undefined}
                 >
                   {absenceToday[emp.id]
                     ? absenceReasonsById[absenceToday[emp.id].absence_reason_id]?.name || ''
                     : t(`employees:roles.${emp.role}`)}
                 </span>
-              </div>
-              <div className="flex w-full flex-1 items-center justify-center overflow-hidden px-1">
-                <span className="truncate text-xs font-medium leading-none">{emp.name}</span>
               </div>
             </button>
             <EmployeeColumnBody
@@ -814,19 +826,24 @@ export default function AppointmentCalendar({ salonId }) {
                   today. */}
               <button
                 type="button"
-                className="sticky top-0 z-20 flex flex-col border-b border-border bg-card text-start hover:brightness-95"
+                className="sticky top-0 z-20 flex flex-col items-center overflow-hidden rounded-t-md border-b border-border bg-card hover:brightness-95"
                 style={{ height: HEADER_HEIGHT }}
                 title={t('appointments:dayStatus.resourceHeaderHint')}
                 onClick={() => setDayStatusResource(resource)}
               >
-                <div
-                  className={`flex w-full flex-1 items-center justify-center overflow-hidden border-b border-border px-1 ${
-                    outUnitCount(resource.id) > 0 ? 'bg-amber-500/20' : 'bg-primary/10'
-                  }`}
-                >
+                {/* A room has no face, so the circle carries an icon rather
+                    than initials — same size and shape as a professional's,
+                    so the two headers read as one row. */}
+                <Avatar size="sm" className="mt-1.5">
+                  <AvatarFallback className="bg-muted text-muted-foreground">
+                    <Package className="size-3" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex w-full flex-1 flex-col items-center justify-center overflow-hidden px-1">
+                  <span className="w-full truncate text-center text-xs font-semibold leading-tight">{resource.name}</span>
                   <span
-                    className={`truncate text-[11px] leading-none ${
-                      outUnitCount(resource.id) > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-primary/80'
+                    className={`w-full truncate text-center text-[10px] leading-tight ${
+                      outUnitCount(resource.id) > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
                     }`}
                   >
                     {outUnitCount(resource.id) > 0
@@ -836,9 +853,6 @@ export default function AppointmentCalendar({ salonId }) {
                         })
                       : t('appointments:resourceColumn.capacityLabel', { count: resource.capacity })}
                   </span>
-                </div>
-                <div className="flex w-full flex-1 items-center justify-center overflow-hidden px-1">
-                  <span className="truncate text-xs font-medium leading-none">{resource.name}</span>
                 </div>
               </button>
 

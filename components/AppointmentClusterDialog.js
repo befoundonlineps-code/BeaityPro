@@ -47,7 +47,10 @@ export default function AppointmentClusterDialog({ open, onOpenChange, employee,
                   className="cursor-pointer hover:bg-muted"
                   onClick={() => onPick(a)}
                 >
-                  <TableCell>{timeLabel(a.start_time)} — {timeLabel(a.end_time)}</TableCell>
+                  {/* One isolate around the whole range, not one per end:
+                      the dash between them is the neutral that gets swapped.
+                      See the note on ranges in CLAUDE.md. */}
+                  <TableCell><span dir="ltr">{timeLabel(a.start_time)} — {timeLabel(a.end_time)}</span></TableCell>
                   <TableCell>{client ? `${client.first_name} ${client.last_name || ''}`.trim() : '—'}</TableCell>
                   <TableCell>
                     <span

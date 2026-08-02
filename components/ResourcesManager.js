@@ -45,7 +45,7 @@ export default function ResourcesManager({ salonId }) {
           {resources.map((r) => (
             <Card
               key={r.id}
-              className="cursor-pointer transition-shadow hover:shadow-md"
+              className="cursor-pointer transition-shadow hover:shadow-xs"
               onClick={() => { setEditing(r); setDialogOpen(true) }}
             >
               <CardContent className="flex flex-col gap-2 p-4">

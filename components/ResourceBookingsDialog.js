@@ -50,7 +50,10 @@ export default function ResourceBookingsDialog({ open, onOpenChange, resource, c
                   <TableCell className="font-medium">
                     {t('appointments:resourceDialog.unitLabel', { index: unit ? unit.unit_index : '—' })}
                   </TableCell>
-                  <TableCell>{timeLabel(a.start_time)} — {timeLabel(a.end_time)}</TableCell>
+                  {/* One isolate around the whole range, not one per end:
+                      the dash between them is the neutral that gets swapped.
+                      See the note on ranges in CLAUDE.md. */}
+                  <TableCell><span dir="ltr">{timeLabel(a.start_time)} — {timeLabel(a.end_time)}</span></TableCell>
                   <TableCell>{employee ? employee.name : '—'}</TableCell>
                   <TableCell>{client ? `${client.first_name} ${client.last_name || ''}`.trim() : '—'}</TableCell>
                   <TableCell>
