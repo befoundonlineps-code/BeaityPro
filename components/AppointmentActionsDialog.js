@@ -24,6 +24,11 @@ function timeRange(appointment) {
 export default function AppointmentActionsDialog({
   open, onOpenChange, appointment, employee, clientName, serviceName, sessionMembers,
   cancellationReasons, cancellationReasonsLoading, reloadCancellationReasons, salonId,
+  // Which step to open on. Defaults to the view it has always opened on; the
+  // calendar's card-level cancel passes 'cancelling' so the reason picker is
+  // already showing, since the database will not accept a cancellation
+  // without one.
+  initialMode = 'view',
   onReschedule,
   onAdjustDuration,
   onDone,
@@ -38,12 +43,12 @@ export default function AppointmentActionsDialog({
 
   useEffect(() => {
     if (open) {
-      setMode('view')
+      setMode(initialMode)
       setRemoveTarget(null)
       setReasonId('')
       setError('')
     }
-  }, [open, appointment?.id])
+  }, [open, appointment?.id, initialMode])
 
   if (!appointment) return null
 

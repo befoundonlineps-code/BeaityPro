@@ -1,4 +1,5 @@
 import { useTranslation } from 'next-i18next'
+import { Check, X } from 'lucide-react'
 import {
   buildTimeSlots,
   totalGridMinutes,
@@ -25,12 +26,18 @@ import { clusterAppointments } from '../lib/resourceAllocation'
 // out for itself whether `dateISO` is today, so in a week it lands on one
 // column rather than all seven; and a drop reports the column's own date, so
 // dragging a booking sideways in a week moves it to that day.
+// Two text lines take 29px and a button row 17px, so a pending block needs
+// 46px before the shortcut can be drawn inside it without being clipped —
+// about 35 minutes at the grid's 40px per half hour.
+const MIN_HEIGHT_FOR_ACTIONS = 46
+
 export default function EmployeeColumnBody({
   employee, dateISO, appointments, windows, absence, now,
   rowHeight, clientsById, servicesById,
   dragState, dragOverKey, onDragOverColumn, onDragLeaveColumn,
   onDragStart, onDragEnd, onDrop,
   onCellClick, onClusterClick, onAppointmentClick,
+  onApprove, onRequestCancel,
 }) {
   const { t } = useTranslation(['appointments', 'employees', 'common'])
 
@@ -160,6 +167,75 @@ export default function EmployeeColumnBody({
         // busy?", and the answer is yes either way. It is only toned down and
         // labelled so the main professional's row reads first.
         const isParticipant = a.is_primary === false
+
+        // The shortcut only appears where it fits. A block is
+        // (duration / 30) × rowHeight tall and clips what overflows, so on a
+        // half-hour booking a button row would be cut off silently — a
+        // shortcut nobody can see is worse than none, because there is
+        // nothing to tell you it was meant to be there. Below the threshold
+        // the card behaves exactly as it always has and the dialog is still
+        // the way through.
+        const showQuickActions = pending && onApprove && height >= MIN_HEIGHT_FOR_ACTIONS
+
+        if (showQuickActions) {
+          return (
+            <div
+              key={a.id}
+              draggable
+              onDragStart={(event) => onDragStart(event, a)}
+              onDragEnd={onDragEnd}
+              className={`absolute inset-x-0.5 z-10 cursor-grab overflow-hidden rounded border-2 border-dashed border-white/90 text-start text-[10px] leading-tight text-white hover:brightness-110 active:cursor-grabbing ${
+                beingDragged ? 'opacity-40' : isParticipant ? 'opacity-70' : ''
+              }`}
+              style={{
+                top,
+                height,
+                backgroundColor: service?.color || 'var(--color-muted-foreground)',
+                backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.3) 0 4px, transparent 4px 10px)',
+              }}
+              title={[
+                isParticipant ? t('appointments:participantBlockHint') : null,
+                t('appointments:pendingBlockHint'),
+                clientName(a.client_id),
+                service?.name || null,
+              ].filter(Boolean).join(' — ')}
+            >
+              {/* The card still opens the dialog, but as a surface behind the
+                  content rather than as an element wrapping it: a <button>
+                  cannot legally contain the two buttons below, and browsers
+                  disagree about what to do when one does. */}
+              <button
+                type="button"
+                className="absolute inset-0"
+                aria-label={clientName(a.client_id)}
+                onClick={() => onAppointmentClick(a)}
+              />
+              <div className="pointer-events-none relative px-1 py-0.5">
+                <div className="truncate font-medium">{clientName(a.client_id)}</div>
+                <div className="truncate opacity-90">{service?.name}</div>
+              </div>
+              <div className="relative flex gap-1 px-1">
+                <button
+                  type="button"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-emerald-700 hover:bg-white"
+                  onClick={(event) => { event.stopPropagation(); onApprove(a) }}
+                >
+                  <Check className="size-2.5" />
+                  {t('appointments:quickActions.approve')}
+                </button>
+                <button
+                  type="button"
+                  className="flex flex-1 items-center justify-center gap-0.5 rounded bg-white/90 px-1 py-0.5 text-[9px] font-medium text-destructive hover:bg-white"
+                  onClick={(event) => { event.stopPropagation(); onRequestCancel(a) }}
+                >
+                  <X className="size-2.5" />
+                  {t('appointments:quickActions.cancel')}
+                </button>
+              </div>
+            </div>
+          )
+        }
+
         const Tag = actionable ? 'button' : 'div'
         return (
           <Tag

@@ -334,5 +334,10 @@
     "cancelled": "ملغى",
     "noShow": "ما حضر",
     "total": "الإجمالي"
+  },
+  "quickActions": {
+    "approve": "قبول",
+    "cancel": "إلغاء",
+    "failedTitle": "ما تمّت العملية"
   }
 }
