@@ -5,17 +5,10 @@ import { exceptionWindowFor } from '../lib/employeeAvailability'
 import { reportDbError } from '../lib/dbErrors'
 import { canRemoveParticipant, sortPrimaryFirst } from '../lib/participants'
 import CancellationReasonManagerDialog from './CancellationReasonManagerDialog'
+import TimeRange from './TimeRange'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Pencil, UserMinus } from 'lucide-react'
-
-function timeRange(appointment) {
-  const hhmm = (value) => {
-    const d = new Date(value)
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  }
-  return `${hhmm(appointment.start_time)} – ${hhmm(appointment.end_time)}`
-}
 
 // The actions available on a single appointment, gathered in one dialog so
 // the calendar never has to open a different window depending on status.
@@ -181,10 +174,10 @@ export default function AppointmentActionsDialog({
     [t('appointments:actionsDialog.clientLabel'), clientName],
     [t('appointments:actionsDialog.serviceLabel'), serviceName],
     [t('appointments:actionsDialog.employeeLabel'), employee?.name],
-    // A node rather than a string, because the range needs an ltr isolate
-    // and the row renderer below has no idea which of its values is a number.
-    // See the note on ranges in CLAUDE.md.
-    [t('appointments:actionsDialog.timeLabel'), <span dir="ltr">{timeRange(appointment)}</span>],
+    // A node rather than a string: the row renderer below has no idea which
+    // of its values is a range, and the range knows what it needs.
+    [t('appointments:actionsDialog.timeLabel'),
+      <TimeRange start={appointment.start_time} end={appointment.end_time} />],
   ]
 
   const title = status === 'pending_approval'

@@ -1,14 +1,5 @@
 import { useTranslation } from 'next-i18next'
-
-function pad(n) {
-  return String(n).padStart(2, '0')
-}
-
-function timeRange(appointment) {
-  const start = new Date(appointment.start_time)
-  const end = new Date(appointment.end_time)
-  return `${pad(start.getHours())}:${pad(start.getMinutes())} – ${pad(end.getHours())}:${pad(end.getMinutes())}`
-}
+import TimeRange from './TimeRange'
 
 // What is about to happen to today's bookings, split by what each one gets.
 //
@@ -48,9 +39,8 @@ export default function ReleasePreviewList({ plan, clientsById, servicesById, em
           <span className="ms-1.5 text-muted-foreground">{servicesById[a.service_id]?.name || '—'}</span>
         </span>
         <span className="shrink-0 text-muted-foreground">{employeesById[a.employee_id]?.name || '—'}</span>
-        {/* Already had a span of its own, so the isolate is an attribute
-            rather than a new element. See the note on ranges in CLAUDE.md. */}
-        <span dir="ltr" className="shrink-0 tabular-nums text-muted-foreground">{timeRange(a)}</span>
+        <TimeRange start={a.start_time} end={a.end_time}
+          className="shrink-0 tabular-nums text-muted-foreground" />
       </div>
     ))
   }

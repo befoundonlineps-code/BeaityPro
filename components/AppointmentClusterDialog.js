@@ -2,11 +2,7 @@ import { useTranslation } from 'next-i18next'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-
-function timeLabel(value) {
-  const d = new Date(value)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
+import TimeRange from './TimeRange'
 
 // Unlike the resource column's cluster dialog, these rows stay actionable:
 // picking one closes this list and opens AppointmentActionsDialog for that
@@ -47,10 +43,7 @@ export default function AppointmentClusterDialog({ open, onOpenChange, employee,
                   className="cursor-pointer hover:bg-muted"
                   onClick={() => onPick(a)}
                 >
-                  {/* One isolate around the whole range, not one per end:
-                      the dash between them is the neutral that gets swapped.
-                      See the note on ranges in CLAUDE.md. */}
-                  <TableCell><span dir="ltr">{timeLabel(a.start_time)} — {timeLabel(a.end_time)}</span></TableCell>
+                  <TableCell><TimeRange start={a.start_time} end={a.end_time} /></TableCell>
                   <TableCell>{client ? `${client.first_name} ${client.last_name || ''}`.trim() : '—'}</TableCell>
                   <TableCell>
                     <span
