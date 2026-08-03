@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { Plus, Minus, Pencil, Archive, Copy, Search } from 'lucide-react'
 import { buildServiceTree } from '../lib/serviceTree'
+import { browserScreen } from '../lib/servicesScreen'
 import { isCategoryArchived, countAffectedServices } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { useBusinessTypes } from '../hooks/useBusinessTypes'
@@ -98,11 +99,15 @@ export default function ServicesBrowser({ salonId }) {
   const { types, loading: typesLoading } = useBusinessTypes()
   const { categories, services, loading: catalogLoading, reload } = useServiceCatalog()
 
-  if (typesLoading || catalogLoading) {
-    return <div className="text-sm text-muted-foreground">{t('common:loading')}</div>
-  }
+  // Loading is passed down, never rendered instead of the browser. Returning a
+  // different element here used to unmount ServicesBrowserView on every
+  // refetch, and with it the selected folder, the expanded branches and the
+  // search box — so saving a service came back to a blank screen. The rule is
+  // in lib/servicesScreen.js, where it is the thing under test.
+  const loading = typesLoading || catalogLoading
+  const screen = browserScreen({ loading, typeCount: types.length })
 
-  if (types.length === 0) {
+  if (screen === 'noTypes') {
     return (
       <Card>
         <CardContent className="flex flex-col items-start gap-3 p-6">
@@ -122,6 +127,7 @@ export default function ServicesBrowser({ salonId }) {
       services={services}
       types={types}
       salonId={salonId}
+      loading={loading}
       onReload={reload}
     />
   )
@@ -133,7 +139,7 @@ export default function ServicesBrowser({ salonId }) {
 // empty-state card long before the layout when a salon has no business types
 // chosen, so inline there was no way to render this at all — the first attempt
 // to measure it found zero panes.
-export function ServicesBrowserView({ categories, services, types, salonId, onReload }) {
+export function ServicesBrowserView({ categories, services, types, salonId, loading = false, onReload }) {
   const { t } = useTranslation(['services', 'common'])
   const reload = onReload
 
@@ -263,7 +269,20 @@ export function ServicesBrowserView({ categories, services, types, salonId, onRe
 
   return (
     <>
-      <div className="flex min-h-0 flex-col gap-3 lg:h-[calc(100vh-15rem)] lg:flex-row">
+      <div className="relative flex min-h-0 flex-col gap-3 lg:h-[calc(100vh-15rem)] lg:flex-row" aria-busy={loading}>
+        {/* Said over the screen rather than instead of it. Instead of it was
+            the bug: a different element here means React takes this one down,
+            and everything chosen on it goes with it. It does not swallow
+            clicks — the catalogue arriving is no reason to freeze the folder
+            you were about to open. */}
+        {loading && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center rounded-xl bg-background/40 pt-10">
+            <span className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-sm">
+              {t('common:loading')}
+            </span>
+          </div>
+        )}
+
         {/* ── The folders ─────────────────────────────────────────────── */}
         <div className="flex min-h-0 flex-col rounded-xl border border-border lg:w-80">
           <div className="flex shrink-0 items-center gap-0.5 border-b border-border px-1 py-1">
