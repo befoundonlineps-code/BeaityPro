@@ -3,11 +3,15 @@ import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { Plus, Minus, Pencil, Archive, Copy, Search } from 'lucide-react'
 import { buildServiceTree } from '../lib/serviceTree'
-import { isCategoryArchived } from '../lib/categoryVisibility'
+import { isCategoryArchived, countAffectedServices } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { useBusinessTypes } from '../hooks/useBusinessTypes'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import ServiceFormDialog from './ServiceFormDialog'
+import CategoryFormDialog from './CategoryFormDialog'
+import { setCategoryArchived } from '../lib/categoryAdminIO'
+import { reportDbError } from '../lib/dbErrors'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -137,6 +141,10 @@ export function ServicesBrowserView({ categories, services, types, salonId, onRe
   const [selectedServiceId, setSelectedServiceId] = useState(null)
   const [search, setSearch] = useState('')
   const [dialog, setDialog] = useState(null) // { service, categoryId }
+  const [categoryDialog, setCategoryDialog] = useState(null) // { category }
+  const [archiveTarget, setArchiveTarget] = useState(null) // the category being taken out or put back
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   // The catalogue shows archived folders rather than hiding them — this is
   // where they are brought back, and a folder you cannot see is a folder you
@@ -173,6 +181,32 @@ export function ServicesBrowserView({ categories, services, types, salonId, onRe
     setSelectedServiceId(null)
   }
 
+  // Whether the selected folder is out because of its own flag. A folder
+  // hidden only by an archived parent is not restorable from here — you put
+  // the parent back, and it comes with it — so the button follows the flag
+  // rather than the resolved state.
+  const selectedIsArchived = selectedCategory?.is_active === false
+
+  async function confirmArchive() {
+    if (!archiveTarget) return
+    setBusy(true)
+    setError('')
+    const { ok, error: writeError } = await setCategoryArchived(
+      archiveTarget.id,
+      archiveTarget.is_active !== false
+    )
+    setBusy(false)
+
+    if (!ok) {
+      setError(writeError
+        ? t(reportDbError(writeError, 'ServicesBrowser.archiveCategory'))
+        : t('services:toggleFailedMessage'))
+      return
+    }
+    setArchiveTarget(null)
+    reload()
+  }
+
 
   return (
     <>
@@ -180,9 +214,25 @@ export function ServicesBrowserView({ categories, services, types, salonId, onRe
         {/* ── The folders ─────────────────────────────────────────────── */}
         <div className="flex min-h-0 flex-col rounded-xl border border-border lg:w-80">
           <div className="flex shrink-0 items-center gap-0.5 border-b border-border px-1 py-1">
-            <ToolButton icon={Plus} label={t('services:categoryToolbar.add')} disabled />
-            <ToolButton icon={Pencil} label={t('services:categoryToolbar.edit')} disabled />
-            <ToolButton icon={Archive} label={t('services:categoryToolbar.archive')} disabled />
+            <ToolButton
+              icon={Plus}
+              label={t('services:categoryToolbar.add')}
+              onClick={() => setCategoryDialog({ category: null })}
+            />
+            <ToolButton
+              icon={Pencil}
+              label={t('services:categoryToolbar.edit')}
+              disabled={!selectedCategory}
+              onClick={() => setCategoryDialog({ category: selectedCategory })}
+            />
+            <ToolButton
+              icon={Archive}
+              label={t(selectedIsArchived
+                ? 'services:categoryToolbar.restore'
+                : 'services:categoryToolbar.archive')}
+              disabled={!selectedCategory}
+              onClick={() => setArchiveTarget(selectedCategory)}
+            />
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
@@ -297,6 +347,53 @@ export function ServicesBrowserView({ categories, services, types, salonId, onRe
         salonId={salonId}
         onSaved={reload}
       />
+
+      <CategoryFormDialog
+        open={!!categoryDialog}
+        onOpenChange={(open) => { if (!open) setCategoryDialog(null) }}
+        category={categoryDialog?.category}
+        categories={categories}
+        defaultParentId={categoryDialog?.category ? null : selectedCategoryId}
+        salonId={salonId}
+        onSaved={reload}
+      />
+
+      {/* Archiving is asked about rather than done. It reaches further than
+          this screen — the folder's services stop being offered in the
+          booking dialog and stop appearing in the price matrix — and the
+          count says how many, because "23 services" is the part somebody
+          needs to hear before agreeing. */}
+      <Dialog open={!!archiveTarget} onOpenChange={(open) => { if (!open) { setArchiveTarget(null); setError('') } }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {t(archiveTarget?.is_active === false
+                ? 'services:archiveDialog.restoreTitle'
+                : 'services:archiveDialog.archiveTitle')}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="font-medium">{archiveTarget?.name}</p>
+            <p className="text-muted-foreground">
+              {t(archiveTarget?.is_active === false
+                ? 'services:archiveDialog.restoreMessage'
+                : 'services:archiveDialog.archiveMessage',
+              { count: countAffectedServices(archiveTarget, categories, services) })}
+            </p>
+            {error && <div className="text-destructive">{error}</div>}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setArchiveTarget(null); setError('') }}>
+              {t('common:discard')}
+            </Button>
+            <Button disabled={busy} onClick={confirmArchive}>
+              {busy ? t('common:saving') : t('common:done')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

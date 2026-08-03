@@ -74,11 +74,30 @@
   "categoryToolbar": {
     "add": "إضافة",
     "edit": "تعديل",
-    "archive": "الى الأرشفة"
+    "archive": "الى الأرشفة",
+    "restore": "إلغاء الأرشفة"
   },
   "serviceToolbar": {
     "copy": "نسخ",
     "edit": "تعديل",
     "archive": "أرشفة"
+  },
+  "categoryDialog": {
+    "addTitle": "فئة جديدة",
+    "editTitle": "تعديل الفئة",
+    "nameLabel": "اسم الفئة",
+    "parentLabel": "الفئة الأم",
+    "parentNone": "بلا — فئة رئيسية",
+    "typeLabel": "نوع النشاط",
+    "typePlaceholder": "اختر نوع النشاط...",
+    "typeHint": "إلزامي للفئة الرئيسية، وممنوع للفئة الفرعية — القاعدة نفسها بترفض غير هيك.",
+    "nameRequiredError": "اسم الفئة إجباري",
+    "typeRequiredError": "اختر نوع النشاط للفئة الرئيسية"
+  },
+  "archiveDialog": {
+    "archiveTitle": "أرشفة الفئة",
+    "restoreTitle": "إلغاء أرشفة الفئة",
+    "archiveMessage": "رح تختفي هي وفئاتها الفرعية و{{count}} خدمة تابعة من شاشة الحجز ومن مصفوفة الأسعار. بتقدر ترجّعها من هون بأي وقت.",
+    "restoreMessage": "رح ترجع هي وفئاتها الفرعية و{{count}} خدمة تابعة للظهور بشاشة الحجز وبمصفوفة الأسعار."
   }
 }
