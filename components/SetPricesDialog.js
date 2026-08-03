@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
-import { supabase } from '../lib/supabaseClient'
 import { reportDbError } from '../lib/dbErrors'
+import { saveServicePrices } from '../lib/servicePricingIO'
 import {
   PRICING_COLUMNS,
   buildPricingMatrix,
@@ -67,18 +67,14 @@ export default function SetPricesDialog({ open, onOpenChange, categories, servic
     setSaving(true)
     setError('')
 
-    // One statement per changed row: services has no bulk-update path that
-    // keeps each row's own id, and only the touched ones are here anyway.
-    for (const change of pending) {
-      const { error: saveError } = await supabase
-        .from('services')
-        .update({ price: change.price })
-        .eq('id', change.id)
-      if (saveError) {
-        setSaving(false)
-        setError(t(reportDbError(saveError, 'SetPricesDialog.save')))
-        return
-      }
+    const { error: saveError } = await saveServicePrices(pending)
+    if (saveError) {
+      setSaving(false)
+      setError(t(reportDbError(saveError, 'SetPricesDialog.save')))
+      // Whatever got through stays written; reloading shows the caller which
+      // rows moved rather than leaving the dialog claiming none did.
+      onSaved()
+      return
     }
 
     setSaving(false)
