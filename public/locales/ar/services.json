@@ -80,7 +80,8 @@
   "serviceToolbar": {
     "copy": "نسخ",
     "edit": "تعديل",
-    "archive": "أرشفة"
+    "archive": "أرشفة",
+    "restore": "إلغاء الأرشفة"
   },
   "categoryDialog": {
     "addTitle": "فئة جديدة",
@@ -98,5 +99,7 @@
     "restoreTitle": "إلغاء أرشفة الفئة",
     "archiveMessage": "رح تختفي هي وفئاتها الفرعية و{{count}} خدمة تابعة من شاشة الحجز ومن مصفوفة الأسعار. بتقدر ترجّعها من هون بأي وقت.",
     "restoreMessage": "رح ترجع هي وفئاتها الفرعية و{{count}} خدمة تابعة للظهور بشاشة الحجز وبمصفوفة الأسعار."
-  }
+  },
+  "copySuffix": " — نسخة",
+  "copyNumbered": "{{base}} {{number}}"
 }

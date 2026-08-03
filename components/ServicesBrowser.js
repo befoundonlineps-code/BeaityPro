@@ -9,7 +9,8 @@ import { useBusinessTypes } from '../hooks/useBusinessTypes'
 import { useServiceCatalog } from '../hooks/useServiceCatalog'
 import ServiceFormDialog from './ServiceFormDialog'
 import CategoryFormDialog from './CategoryFormDialog'
-import { setCategoryArchived } from '../lib/categoryAdminIO'
+import { setCategoryArchived, setServiceArchived, insertServiceCopy } from '../lib/categoryAdminIO'
+import { copyName, serviceCopyPayload } from '../lib/serviceCopy'
 import { reportDbError } from '../lib/dbErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
@@ -187,6 +188,58 @@ export function ServicesBrowserView({ categories, services, types, salonId, onRe
   // rather than the resolved state.
   const selectedIsArchived = selectedCategory?.is_active === false
 
+  // A copy lands in the folder on screen, active, with a name nobody has to
+  // squint at to tell apart from the original.
+  async function copySelectedService() {
+    if (!selectedService) return
+    setBusy(true)
+    setError('')
+
+    const name = copyName(
+      selectedService.name,
+      (services || []).filter((s) => s.category_id === selectedCategoryId).map((s) => s.name),
+      t('services:copySuffix'),
+      (base, n) => t('services:copyNumbered', { base, number: n })
+    )
+
+    const { ok, error: writeError, row } = await insertServiceCopy(
+      serviceCopyPayload(selectedService, { categoryId: selectedCategoryId, salonId, name })
+    )
+    setBusy(false)
+
+    if (!ok) {
+      setError(writeError
+        ? t(reportDbError(writeError, 'ServicesBrowser.copyService'))
+        : t('services:toggleFailedMessage'))
+      return
+    }
+
+    // Select the copy, so the next press acts on it rather than on what it
+    // came from — renaming is almost always the next thing.
+    if (row?.id) setSelectedServiceId(row.id)
+    reload()
+  }
+
+  async function toggleServiceArchived() {
+    if (!selectedService) return
+    setBusy(true)
+    setError('')
+
+    const { ok, error: writeError } = await setServiceArchived(
+      selectedService.id,
+      selectedService.is_active !== false
+    )
+    setBusy(false)
+
+    if (!ok) {
+      setError(writeError
+        ? t(reportDbError(writeError, 'ServicesBrowser.archiveService'))
+        : t('services:toggleFailedMessage'))
+      return
+    }
+    reload()
+  }
+
   async function confirmArchive() {
     if (!archiveTarget) return
     setBusy(true)
@@ -261,14 +314,29 @@ export function ServicesBrowserView({ categories, services, types, salonId, onRe
               disabled={!selectedCategoryId}
               onClick={() => setDialog({ service: null, categoryId: selectedCategoryId })}
             />
-            <ToolButton icon={Copy} label={t('services:serviceToolbar.copy')} disabled />
+            <ToolButton
+              icon={Copy}
+              label={t('services:serviceToolbar.copy')}
+              disabled={!selectedService || busy}
+              onClick={copySelectedService}
+            />
             <ToolButton
               icon={Pencil}
               label={t('services:serviceToolbar.edit')}
               disabled={!selectedService}
               onClick={() => setDialog({ service: selectedService, categoryId: selectedCategoryId })}
             />
-            <ToolButton icon={Archive} label={t('services:serviceToolbar.archive')} disabled />
+            {/* No confirmation, unlike a category: this takes one service off
+                the list and the same press puts it back, so a dialog would
+                only be in the way. */}
+            <ToolButton
+              icon={Archive}
+              label={t(selectedService && selectedService.is_active === false
+                ? 'services:serviceToolbar.restore'
+                : 'services:serviceToolbar.archive')}
+              disabled={!selectedService || busy}
+              onClick={toggleServiceArchived}
+            />
 
             <div className="relative ms-auto w-56">
               <Search className="pointer-events-none absolute inset-y-0 end-2 my-auto size-3.5 text-muted-foreground" />
