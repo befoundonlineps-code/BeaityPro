@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
-import { supabase } from '../lib/supabaseClient'
 import { reportDbError } from '../lib/dbErrors'
+import { saveCategory } from '../lib/categoryAdminIO'
 import { BUSINESS_TYPES } from '../lib/serviceTree'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -64,27 +64,23 @@ export default function CategoryFormDialog({ open, onOpenChange, category, categ
     setError('')
     setSaving(true)
 
-    // business_type is sent as null for a sub-category rather than left out:
-    // moving an existing root under a parent has to clear the old value, and
-    // an absent key would leave it in place for the check to reject.
-    const payload = {
-      name: name.trim(),
-      parent_id: parentId || null,
-      business_type: isRoot ? businessType : null,
-    }
-
-    const { data, error: saveError } = isEdit
-      ? await supabase.from('service_categories').update(payload).eq('id', category.id).select()
-      : await supabase.from('service_categories').insert([{ ...payload, salon_id: salonId }]).select()
+    // The write lives in lib/categoryAdminIO.js, not here. Inline it could not
+    // be asked what it had actually sent, which is exactly what was needed
+    // when a folder came back at the wrong place in the tree.
+    const { ok, error: saveError } = await saveCategory({
+      id: isEdit ? category.id : null,
+      name,
+      parentId,
+      businessType,
+      salonId,
+    })
 
     setSaving(false)
 
-    if (saveError) {
-      setError(t(reportDbError(saveError, 'CategoryFormDialog.save')))
-      return
-    }
-    if (!data || data.length === 0) {
-      setError(t('services:toggleFailedMessage'))
+    if (!ok) {
+      setError(saveError
+        ? t(reportDbError(saveError, 'CategoryFormDialog.save'))
+        : t('services:toggleFailedMessage'))
       return
     }
 
