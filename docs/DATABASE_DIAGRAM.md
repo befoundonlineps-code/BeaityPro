@@ -168,6 +168,7 @@ erDiagram
         uuid salon_id FK "معزول لكل صالون (RLS)"
         uuid parent_id FK "فاضي = فئة رئيسية، معبّى = فئة فرعية (self-referencing)"
         business_type business_type "إلزامي لو فئة رئيسية، ممنوع لو فرعية (CHECK constraint)"
+        employee_role pricing_role "اختياري — عمود الفئة بمصفوفة تحديد الأسعار. فاضي = يرث من الفئة الأم؛ فاضي بكل السلسلة = مستثنى من المصفوفة (tanning)"
         text name
         integer sort_order
         timestamptz created_at
