@@ -26,6 +26,15 @@ erDiagram
     service_categories ||--o{ service_categories : "فئة رئيسية ← فئات فرعية (parent_id)"
     service_categories ||--o{ services : "خدمات الفئة"
     salons ||--o{ employees : "موظفو الصالون (مستقلين عن profiles)"
+    salons ||--o{ absence_reasons : "أسباب الغياب (مزروعة، منفصلة عن أسباب الإلغاء)"
+    salons ||--o{ employee_absences : "تأشيرات غياب الموظفين"
+    salons ||--o{ resource_unit_outages : "تأشيرات تعطّل وحدات الموارد"
+    salons ||--o{ employee_day_hours : "تجاوز ساعات دوام ليوم واحد"
+    salons ||--o{ salon_contacts : "جهات اتصال عامة غير مرتبطة بموظف"
+    employees ||--o{ employee_absences : "يوم غياب واحد لكل صف"
+    employees ||--o{ employee_day_hours : "ساعات يوم بعينه تستبدل النمط المتكرر"
+    absence_reasons ||--o{ employee_absences : "سبب الغياب"
+    resource_units ||--o{ resource_unit_outages : "وحدة معطّلة بيوم بعينه"
     profiles ||--o| employees : "حساب دخول اختياري لموظف (profile_id، SET NULL)"
     employees ||--o| employee_schedules : "دوام واحد لكل موظف حاليًا"
     employee_schedules ||--o{ employee_schedule_slots : "فترات/أيام الدوام الفعلية"
@@ -196,6 +205,7 @@ erDiagram
         text name
         employee_role role "ENUM: 10 أدوار (cosmetologist, hairdresser, makeup_artist, manicure_professional, masseur, pedicure_professional, stylist, administrator, executive, owner)"
         uuid profile_id FK "اختياري — حساب دخول لو وجد، ON DELETE SET NULL، unique (حساب واحد = موظف واحد بالأكثر)"
+        text phone_number "رقم الموظف للوحة Work phone — أُضيف بالمرحلة 3.16"
         boolean is_assistant "يحكم ظهور العمود بالتقويم افتراضيًا فقط (زر 'عرض المساعدين') — لا يؤثر على role ولا على الأهلية للاختيار كموظف إضافي"
         timestamptz created_at
     }
@@ -253,6 +263,7 @@ erDiagram
         uuid reschedule_reason_id FK "FK مركّب، ON DELETE RESTRICT، إجباري إذا rescheduled وممنوع لغيرها"
         uuid adjustment_reason_id FK "FK مركّب، ON DELETE RESTRICT، إجباري إذا adjusted وممنوع لغيرها"
         uuid superseded_by_id FK "FK مركّب DEFERRABLE INITIALLY DEFERRED، ON DELETE RESTRICT، unique — مشترك بين rescheduled وadjusted (أُعيدت تسميته من rescheduled_to_id)، إجباري لكليهما وممنوع لغيرهما (CHECK)، وCHECK يمنع الإشارة الذاتية"
+        uuid released_from_id FK "الحجز الأصلي الذي أُفرج عنه لقائمة الانتظار بغياب/تعطّل — أُضيف بالمرحلة 3.13"
         uuid group_id FK "FK مركّب، بدون DEFERRABLE — يساوي id نفسه للصف الأساسي (self-reference)، فيوجد فورًا بلا تبعية دائرية"
         boolean is_primary "CHECK (is_primary = (group_id = id))؛ unique(group_id) WHERE is_primary — أساسي واحد بالضبط لكل مجموعة"
         timestamptz start_time "nullable لحالة waiting فقط"
@@ -270,6 +281,7 @@ erDiagram
         uuid id PK
         uuid salon_id FK "معزول لكل صالون (RLS)"
         text name
+        text system_key "مفتاح ثابت (employee_absence/resource_outage) — الدوال تجد السبب به لا بالاسم، فلا يصل المتصفح نص عربي. فهرس فريد جزئي"
         boolean is_active "مخرج RESTRICT — سبب مستخدم يُعطَّل لا يُحذف"
         integer sort_order
         timestamptz created_at
@@ -334,11 +346,65 @@ erDiagram
         timestamptz created_at
         "unique(service_id, resource_id) — many-to-many، بدائل لا متطلبات متزامنة"
     }
+
+    absence_reasons {
+        uuid id PK
+        uuid salon_id FK "معزول لكل صالون (RLS)"
+        text name
+        text color "صيغة #RRGGBB — لون رأس عمود التقويم عند الغياب"
+        boolean is_active "مخرج RESTRICT — سبب مستخدم يُعطَّل لا يُحذف"
+        integer sort_order
+        timestamptz created_at
+        "منفصل عن cancellation_reasons عمدًا — 'تدريب' ما بينتمي لقائمة إلغاء حجز"
+    }
+
+    employee_absences {
+        uuid id PK
+        uuid salon_id FK "معزول لكل صالون (RLS)"
+        uuid employee_id FK
+        date absence_date
+        uuid absence_reason_id FK
+        timestamptz created_at
+        "وجود الصف = الغياب نفسه، لا عمود حالة ولا صف لكل موظف كل يوم"
+    }
+
+    resource_unit_outages {
+        uuid id PK
+        uuid salon_id FK "معزول لكل صالون (RLS)"
+        uuid resource_unit_id FK "ON DELETE CASCADE — الاستثناء الوحيد عن نمط RESTRICT بالمخطط"
+        date outage_date
+        timestamptz created_at
+        "تنزيل سعة مورد يحذف وحداته، وRESTRICT كان سيمنعه بسبب عطل قديم"
+    }
+
+    employee_day_hours {
+        uuid id PK
+        uuid salon_id FK "معزول لكل صالون (RLS)"
+        uuid employee_id FK
+        date work_date
+        time start_time
+        time end_time
+        timestamptz created_at
+        "يستبدل النمط المتكرر ليوم بعينه لا يضيف إليه — هذا ما يسمح بالتقصير"
+        "منفصل تمامًا عن employee_schedule_exceptions المملوك للحجوزات"
+    }
+
+    salon_contacts {
+        uuid id PK
+        uuid salon_id FK "معزول لكل صالون (RLS)"
+        text name
+        text phone_number
+        integer sort_order
+        timestamptz created_at
+        "RLS: سياستا select/insert فقط — غياب update/delete هو المنع نفسه"
+    }
 ```
 
 **ملاحظة على `employees`, `employee_schedules`, `employee_schedule_slots`, `service_role_prices`:** جداول المرحلة 3 من موديول دفتر المواعيد (تفصيل كامل بقسم 3.7 من `PROJECT_HANDOFF.md`). **قرار معماري جوهري:** `employees` مستقل تمامًا عن `profiles` — موظف ممكن يوجد بلا حساب دخول إطلاقًا (لأخصائية مثلًا ما بتحتاج تدخل عالنظام).
 
 **ملاحظة على `business_hours`, `salon_business_types`, `service_categories`, `services`:** الجداول الأربعة هاي جزء من **موديول دفتر المواعيد** (تفصيل كامل بقسم 3.7 من `PROJECT_HANDOFF.md`). كلهم عندهم Trigger تلقائي يزرع قيم افتراضية (ساعات عمل 9-6، كتالوج خدمات كامل) لأي صالون جديد ينخلق، بغض النظر عن طريقة الإنشاء — لأنه ما في مسار إنشاء صالون بالتطبيق نفسه لسا (كل الصالونات تُنشأ يدويًا بـSupabase).
+
+**ملاحظة على جداول الغياب/التعطّل/الدوام (`absence_reasons`, `employee_absences`, `resource_unit_outages`, `employee_day_hours`) وعلى `salon_contacts`:** جداول مراحل 3.13–3.16 من موديول دفتر المواعيد (تفصيل القرارات بـADR-041 وADR-043 وADR-044 في `ARCHITECTURE.md`). **أسماء الأعمدة وأنواعها أعلاه مفحوصة مباشرة من قاعدة البيانات الحيّة** لا منقولة من توثيق. الخصائص التي لا يكشفها الفحص من التطبيق — قابلية الفراغ، وأهداف المفاتيح الأجنبية المركّبة وسلوك `ON DELETE`، وقيود التفرّد والـ`CHECK`، وسياسات RLS بالتفصيل — مذكورة هنا نقلًا عن قرارات البناء الموثَّقة بالـADR، وتحتاج تأكيدًا باستعلام مباشر إن أُريد اعتمادها حرفيًا.
 
 **ملاحظة على `photo_path`:** هاد عمود إضافي بجدول `clients` نفسه (مش جدول منفصل) — بيخزّن مسار الصورة الشخصية الوحيدة للزبون بـbucket `client-photos` تحت مسار `avatars/{client_id}/...`. مختلف عن `client_files` يلي بيخزّن ملفات عامة متعددة (عقود، مستندات) تحت مسار `files/{client_id}/...` بنفس الـbucket.
 
