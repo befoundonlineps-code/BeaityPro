@@ -61,5 +61,24 @@
     "nameColumn": "الاسم",
     "saveButton": "حفظ الأسعار",
     "emptyHint": "ما في خدمات إلها عمود بالمصفوفة"
+  },
+  "archivedBadge": "مؤرشفة",
+  "searchPlaceholder": "ابحث باسم الخدمة...",
+  "pickCategoryHint": "اختر فئة من الشجرة لعرض خدماتها",
+  "noPriceSet": "لم يتم تحديد سعر الخدمة بعد",
+  "columns": {
+    "name": "الاسم",
+    "duration": "المدة",
+    "price": "السعر"
+  },
+  "categoryToolbar": {
+    "add": "إضافة",
+    "edit": "تعديل",
+    "archive": "الى الأرشفة"
+  },
+  "serviceToolbar": {
+    "copy": "نسخ",
+    "edit": "تعديل",
+    "archive": "أرشفة"
   }
 }
