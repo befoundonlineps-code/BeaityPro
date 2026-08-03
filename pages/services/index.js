@@ -3,7 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import AuthGate from '../../components/AuthGate'
 import AppShell from '../../components/AppShell'
-import ServicesTree from '../../components/ServicesTree'
+import ServicesBrowser from '../../components/ServicesBrowser'
 import ResourcesManager from '../../components/ResourcesManager'
 import ServicesSecondaryBar from '../../components/ServicesSecondaryBar'
 import SetPricesDialog from '../../components/SetPricesDialog'
@@ -46,7 +46,7 @@ export default function ServicesPage() {
 
           <div className="flex flex-col gap-4 p-5">
             {view === 'catalog'
-              ? <ServicesTree salonId={salonId} />
+              ? <ServicesBrowser salonId={salonId} />
               : <ResourcesManager salonId={salonId} />}
           </div>
 

@@ -191,11 +191,19 @@ erDiagram
         text name
         integer duration_minutes "CHECK > 0"
         numeric price "CHECK >= 0"
-        text color "صيغة #RRGGBB، موروث من الفئة الرئيسية"
+        text color "صيغة #RRGGBB، موروث من الفئة الرئيسية. CHECK (color ~ '^#[0-9A-Fa-f]{6}$')"
         service_sex sex "ENUM: all/men/women — افتراضي all"
         boolean is_active
-        integer sort_order
+        integer sort_order "NOT NULL افتراضي 0 — الخدمة الجديدة تبدأ بصفر لا بـnull"
         timestamptz created_at
+        text abbreviation "Nullable — اسم قصير للفواتير والتقارير الضيقة"
+        text bar_code "Nullable — بلا قيد تفرّد عمدًا: التفرّد كان سيرفض نسخة خدمة نُسخت بزر النسخ"
+        text image_path "Nullable — مسار بـbucket service-photos تحت services/{service_id}/… يُكتب بعملية ثانية بعد إدراج الصف لأن المسار يحتوي id"
+        text description "Nullable — نص عادي لا HTML (ADR-047)"
+        numeric planned_cost "Nullable — numeric(10,2). CHECK (planned_cost IS NULL OR planned_cost >= 0). فاضي = لم تُحسب بعد، وصفر = بلا تكلفة"
+        text accounting_direction "Nullable — وجهة محاسبية للتقارير. CHECK: common/hairdressing/barbershop/cosmetology/nails/makeup/massage/tanning. نصّ لا enum ومستقل عن business_type رغم تطابق القيم (ADR-047)"
+        boolean price_proportional_to_duration "NOT NULL افتراضي false — يُخزَّن ولا يقرأه أي منطق بعد"
+        boolean anyone_can_sell "NOT NULL افتراضي true — يُخزَّن ولا يقرأه أي منطق بعد (لا يوجد موديول صلاحيات بيع)"
         "unique(id, salon_id) — أُضيف بالمرحلة 3.ب لدعم ربط service_role_prices"
     }
 
@@ -424,6 +432,8 @@ erDiagram
 **تصحيح على ADR-041:** يصف `ON DELETE CASCADE` على `resource_unit_outages` بأنه «الاستثناء الوحيد عن نمط RESTRICT بالمخطط كله». هذا غير دقيق، ويظهر من الملف نفسه: المخطط كان يحوي ثمانية `CASCADE` قبله (`employee_schedules`، `employee_schedule_slots`، `service_role_prices`، `employee_schedule_exceptions` بعمودين، `resource_units`، `service_resources` بعمودين)، وأُضيف بعده اثنان (`employee_day_hours`، `salon_contacts`). الصحيح أن `CASCADE` هنا **مقصود لأن التابع بلا معنى بدون أصله**، لا أنه استثناء وحيد.
 
 **ملاحظة على `photo_path`:** هاد عمود إضافي بجدول `clients` نفسه (مش جدول منفصل) — بيخزّن مسار الصورة الشخصية الوحيدة للزبون بـbucket `client-photos` تحت مسار `avatars/{client_id}/...`. مختلف عن `client_files` يلي بيخزّن ملفات عامة متعددة (عقود، مستندات) تحت مسار `files/{client_id}/...` بنفس الـbucket.
+
+**ملاحظة على `services.image_path` و bucket `service-photos`:** نفس النمط بالضبط (عمود مسار على الصف نفسه، والبايتات بـStorage) بس **بـbucket منفصل** — صورة الخدمة محتوى كتالوج يُعرض لمن يحجز، وصورة الزبون بيانات شخصية، فما بصير يتشاركوا نفس السياسات. **الـbucket مش مُنشأ بـSQL** — أُنشئ يدويًا بلوحة Supabase مع سياساته و`public`، فما بيظهر بأي سكربت هجرة. وفرق تنفيذي عن `buildAvatarPath`: مُنشئ المسار (`lib/servicePhotos.js`) **بيرمي اسم الملف الأصلي ويبقّي امتداده بس**، لأن مفاتيح Storage محصورة بمجموعة محارف بلا حروف عربية والصالون بيسمّي ملفاته بالعربي.
 
 **ملاحظة على حقول التواصل مقابل حقول التسويق (فرق مهم، اتوضّح لاحقًا بالمحادثة):**
 - `facebook`, `instagram`, `whatsapp_number` = قنوات **تواصل مباشر** مع الزبون نفسه (تراسله عبرها مباشرة).
