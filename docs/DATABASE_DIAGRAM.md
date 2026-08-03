@@ -205,7 +205,7 @@ erDiagram
         text name
         employee_role role "ENUM: 10 أدوار (cosmetologist, hairdresser, makeup_artist, manicure_professional, masseur, pedicure_professional, stylist, administrator, executive, owner)"
         uuid profile_id FK "اختياري — حساب دخول لو وجد، ON DELETE SET NULL، unique (حساب واحد = موظف واحد بالأكثر)"
-        text phone_number "رقم الموظف للوحة Work phone — أُضيف بالمرحلة 3.16"
+        text phone_number "Nullable — رقم الموظف للوحة Work phone — أُضيف بالمرحلة 3.16"
         boolean is_assistant "يحكم ظهور العمود بالتقويم افتراضيًا فقط (زر 'عرض المساعدين') — لا يؤثر على role ولا على الأهلية للاختيار كموظف إضافي"
         timestamptz created_at
     }
@@ -281,7 +281,7 @@ erDiagram
         uuid id PK
         uuid salon_id FK "معزول لكل صالون (RLS)"
         text name
-        text system_key "مفتاح ثابت (employee_absence/resource_outage) — الدوال تجد السبب به لا بالاسم، فلا يصل المتصفح نص عربي. فهرس فريد جزئي"
+        text system_key "Nullable — مفتاح ثابت (employee_absence/resource_outage) — الدوال تجد السبب به لا بالاسم، فلا يصل المتصفح نص عربي. فهرس فريد جزئي"
         boolean is_active "مخرج RESTRICT — سبب مستخدم يُعطَّل لا يُحذف"
         integer sort_order
         timestamptz created_at
@@ -348,55 +348,63 @@ erDiagram
     }
 
     absence_reasons {
-        uuid id PK
-        uuid salon_id FK "معزول لكل صالون (RLS)"
-        text name
-        text color "صيغة #RRGGBB — لون رأس عمود التقويم عند الغياب"
-        boolean is_active "مخرج RESTRICT — سبب مستخدم يُعطَّل لا يُحذف"
-        integer sort_order
-        timestamptz created_at
+        uuid id PK "NOT NULL، افتراضي gen_random_uuid()"
+        uuid salon_id FK "NOT NULL، معزول لكل صالون (RLS) → salons(id) بلا ON DELETE صريح"
+        text name "NOT NULL"
+        text color "Nullable — صيغة #RRGGBB، لون رأس عمود التقويم عند الغياب. CHECK (color IS NULL OR color ~ '^#[0-9A-Fa-f]{6}$')"
+        boolean is_active "NOT NULL، افتراضي true — مخرج RESTRICT: سبب مستخدم يُعطَّل لا يُحذف"
+        integer sort_order "NOT NULL، افتراضي 0"
+        timestamptz created_at "NOT NULL، افتراضي now()"
+        "unique(id, salon_id) — يدعم الـFK المركّب من employee_absences"
+        "RLS: أربع سياسات كاملة (select/insert/update/delete)"
         "منفصل عن cancellation_reasons عمدًا — 'تدريب' ما بينتمي لقائمة إلغاء حجز"
     }
 
     employee_absences {
-        uuid id PK
-        uuid salon_id FK "معزول لكل صالون (RLS)"
-        uuid employee_id FK
-        date absence_date
-        uuid absence_reason_id FK
-        timestamptz created_at
+        uuid id PK "NOT NULL"
+        uuid salon_id FK "NOT NULL → salons(id) بلا ON DELETE صريح"
+        uuid employee_id FK "NOT NULL — FK مركّب (employee_id, salon_id) → employees(id, salon_id)، ON DELETE RESTRICT"
+        date absence_date "NOT NULL"
+        uuid absence_reason_id FK "NOT NULL — FK مركّب (absence_reason_id, salon_id) → absence_reasons(id, salon_id)، ON DELETE RESTRICT"
+        timestamptz created_at "NOT NULL"
+        "unique(employee_id, absence_date) — تأشيرة واحدة لكل موظف باليوم"
+        "RLS: ثلاث سياسات فقط (select/insert/delete) — بلا update، الغياب يُلغى بالحذف لا بالتعديل"
         "وجود الصف = الغياب نفسه، لا عمود حالة ولا صف لكل موظف كل يوم"
     }
 
     resource_unit_outages {
-        uuid id PK
-        uuid salon_id FK "معزول لكل صالون (RLS)"
-        uuid resource_unit_id FK "ON DELETE CASCADE — الاستثناء الوحيد عن نمط RESTRICT بالمخطط"
-        date outage_date
-        timestamptz created_at
-        "تنزيل سعة مورد يحذف وحداته، وRESTRICT كان سيمنعه بسبب عطل قديم"
+        uuid id PK "NOT NULL"
+        uuid salon_id FK "NOT NULL → salons(id) بلا ON DELETE صريح"
+        uuid resource_unit_id FK "NOT NULL — FK مركّب (resource_unit_id, salon_id) → resource_units(id, salon_id)، ON DELETE CASCADE"
+        date outage_date "NOT NULL"
+        timestamptz created_at "NOT NULL"
+        "unique(resource_unit_id, outage_date) — تأشيرة واحدة لكل وحدة باليوم"
+        "RLS: ثلاث سياسات فقط (select/insert/delete) — بلا update"
+        "CASCADE مقصود: تنزيل سعة مورد يحذف وحداته، وRESTRICT كان سيمنعه بسبب عطل قديم"
     }
 
     employee_day_hours {
-        uuid id PK
-        uuid salon_id FK "معزول لكل صالون (RLS)"
-        uuid employee_id FK
-        date work_date
-        time start_time
-        time end_time
-        timestamptz created_at
+        uuid id PK "NOT NULL"
+        uuid salon_id FK "NOT NULL → salons(id) بلا ON DELETE صريح"
+        uuid employee_id FK "NOT NULL — FK مركّب (employee_id, salon_id) → employees(id, salon_id)، ON DELETE CASCADE"
+        date work_date "NOT NULL"
+        time start_time "NOT NULL"
+        time end_time "NOT NULL — CHECK (end_time > start_time)"
+        timestamptz created_at "NOT NULL"
+        "unique(employee_id, work_date) — تجاوز واحد لكل موظف باليوم"
+        "RLS: أربع سياسات كاملة (select/insert/update/delete) — التجاوز يُعدَّل بمكانه"
         "يستبدل النمط المتكرر ليوم بعينه لا يضيف إليه — هذا ما يسمح بالتقصير"
         "منفصل تمامًا عن employee_schedule_exceptions المملوك للحجوزات"
     }
 
     salon_contacts {
-        uuid id PK
-        uuid salon_id FK "معزول لكل صالون (RLS)"
-        text name
-        text phone_number
-        integer sort_order
-        timestamptz created_at
-        "RLS: سياستا select/insert فقط — غياب update/delete هو المنع نفسه"
+        uuid id PK "NOT NULL"
+        uuid salon_id FK "NOT NULL → salons(id)، ON DELETE CASCADE"
+        text name "NOT NULL — CHECK (length(trim(name)) > 0)"
+        text phone_number "NOT NULL — CHECK (length(trim(phone_number)) > 0)"
+        integer sort_order "NOT NULL، افتراضي 0"
+        timestamptz created_at "NOT NULL"
+        "RLS: سياستا select/insert فقط — غياب update/delete هو المنع نفسه، حماية بنيوية لا اعتماد على غياب زر"
     }
 ```
 
@@ -404,7 +412,16 @@ erDiagram
 
 **ملاحظة على `business_hours`, `salon_business_types`, `service_categories`, `services`:** الجداول الأربعة هاي جزء من **موديول دفتر المواعيد** (تفصيل كامل بقسم 3.7 من `PROJECT_HANDOFF.md`). كلهم عندهم Trigger تلقائي يزرع قيم افتراضية (ساعات عمل 9-6، كتالوج خدمات كامل) لأي صالون جديد ينخلق، بغض النظر عن طريقة الإنشاء — لأنه ما في مسار إنشاء صالون بالتطبيق نفسه لسا (كل الصالونات تُنشأ يدويًا بـSupabase).
 
-**ملاحظة على جداول الغياب/التعطّل/الدوام (`absence_reasons`, `employee_absences`, `resource_unit_outages`, `employee_day_hours`) وعلى `salon_contacts`:** جداول مراحل 3.13–3.16 من موديول دفتر المواعيد (تفصيل القرارات بـADR-041 وADR-043 وADR-044 في `ARCHITECTURE.md`). **أسماء الأعمدة وأنواعها أعلاه مفحوصة مباشرة من قاعدة البيانات الحيّة** لا منقولة من توثيق. الخصائص التي لا يكشفها الفحص من التطبيق — قابلية الفراغ، وأهداف المفاتيح الأجنبية المركّبة وسلوك `ON DELETE`، وقيود التفرّد والـ`CHECK`، وسياسات RLS بالتفصيل — مذكورة هنا نقلًا عن قرارات البناء الموثَّقة بالـADR، وتحتاج تأكيدًا باستعلام مباشر إن أُريد اعتمادها حرفيًا.
+**ملاحظة على جداول الغياب/التعطّل/الدوام (`absence_reasons`, `employee_absences`, `resource_unit_outages`, `employee_day_hours`) وعلى `salon_contacts`:** جداول مراحل 3.13–3.16 من موديول دفتر المواعيد (تفصيل القرارات بـADR-041 وADR-043 وADR-044 في `ARCHITECTURE.md`).
+
+**كل ما أعلاه مؤكَّد من قاعدة البيانات الحيّة مباشرة، لا منقول عن توثيق.** أسماء الأعمدة وأنواعها فُحصت من التطبيق، و**تفاصيل التفرّد و`CHECK` و`ON DELETE` وقابلية الفراغ وسياسات RLS تأكَّدت فعليًا باستعلام مباشر على القاعدة الحيّة (`information_schema` + `pg_constraint` + `pg_policies`)، وصفر تناقض مع قرارات ADR-041 وADR-043 وADR-044.**
+
+نمطان يستحقان الانتباه ظهرا بالتأكيد:
+
+- **غياب سياسة `update` قرار لا سهو.** `employee_absences` و`resource_unit_outages` لهما `select`/`insert`/`delete` فقط — تأشيرة الغياب أو التعطّل تُلغى بالحذف لا بالتعديل، فما في حالة "غياب معدَّل" أصلًا. و`salon_contacts` له `select`/`insert` فقط، وهذا هو المنع البنيوي نفسه: RLS ترفض أي عملية بلا سياسة مطابقة.
+- **`RESTRICT` للسجل التاريخي و`CASCADE` للتابع.** `employee_absences` يمنع حذف موظف أو سبب مستخدَم، بينما `employee_day_hours` و`resource_unit_outages` يتبعان صاحبهما، لأن ساعات يوم لموظف محذوف — أو عطل وحدة لم تعد موجودة — لا معنى لهما.
+
+**تصحيح على ADR-041:** يصف `ON DELETE CASCADE` على `resource_unit_outages` بأنه «الاستثناء الوحيد عن نمط RESTRICT بالمخطط كله». هذا غير دقيق، ويظهر من الملف نفسه: المخطط كان يحوي ثمانية `CASCADE` قبله (`employee_schedules`، `employee_schedule_slots`، `service_role_prices`، `employee_schedule_exceptions` بعمودين، `resource_units`، `service_resources` بعمودين)، وأُضيف بعده اثنان (`employee_day_hours`، `salon_contacts`). الصحيح أن `CASCADE` هنا **مقصود لأن التابع بلا معنى بدون أصله**، لا أنه استثناء وحيد.
 
 **ملاحظة على `photo_path`:** هاد عمود إضافي بجدول `clients` نفسه (مش جدول منفصل) — بيخزّن مسار الصورة الشخصية الوحيدة للزبون بـbucket `client-photos` تحت مسار `avatars/{client_id}/...`. مختلف عن `client_files` يلي بيخزّن ملفات عامة متعددة (عقود، مستندات) تحت مسار `files/{client_id}/...` بنفس الـbucket.
 
