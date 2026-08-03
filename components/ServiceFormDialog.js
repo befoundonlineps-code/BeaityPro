@@ -6,8 +6,8 @@ import { reportDbError } from '../lib/dbErrors'
 import { useResources } from '../hooks/useResources'
 import { linksFor } from '../lib/resourceLinks'
 import { validateServiceForm, serviceFormPayload, SEX_OPTIONS, ACCOUNTING_DIRECTIONS } from '../lib/serviceForm'
-import { saveService, setServiceImagePath, saveServiceResources } from '../lib/serviceAdminIO'
-import { buildServicePhotoPath, getPublicServicePhotoUrl, BUCKET } from '../lib/servicePhotos'
+import { saveService, setServiceImagePath, saveServiceResources, deleteServicePhoto } from '../lib/serviceAdminIO'
+import { buildServicePhotoPath, getPublicServicePhotoUrl, photoSavePlan, BUCKET } from '../lib/servicePhotos'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -65,7 +65,13 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
   const [anyoneCanSell, setAnyoneCanSell] = useState(true)
   const [description, setDescription] = useState('')
 
+  // imagePath is what the form intends to store; storedPath is what the row
+  // actually points at right now. They are two different facts, and the
+  // service prop cannot stand in for the second one — it never updates after a
+  // successful save, so a second save in the same open dialog would compare
+  // against a path that stopped being current one save ago.
   const [imagePath, setImagePath] = useState('')
+  const [storedPath, setStoredPath] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const fileInputRef = useRef(null)
@@ -105,6 +111,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
     setAnyoneCanSell(service ? service.anyone_can_sell !== false : true)
     setDescription(service ? service.description || '' : '')
     setImagePath(service ? service.image_path || '' : '')
+    setStoredPath(service ? service.image_path || '' : '')
     setImageFile(null)
   }, [open, service])
 
@@ -156,6 +163,19 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
     setImagePath('')
   }
 
+  // Cleanup, run only once the row has stopped pointing at the old file.
+  //
+  // A failure here does not fail the save and does not reach the screen: the
+  // picture the person asked for is on the service, which is the whole of what
+  // they asked for. All that survives a failed delete is an unreferenced file,
+  // so it goes to the console — the same place reportDbError puts things worth
+  // finding later but not worth interrupting anybody over.
+  async function discardOldPhoto(oldPath) {
+    if (!oldPath) return
+    const { ok, error: removeError } = await deleteServicePhoto(oldPath)
+    if (!ok) console.warn('ServiceFormDialog: orphaned service photo', oldPath, removeError)
+  }
+
   function toggleResource(resourceId) {
     setSelectedResourceIds((prev) =>
       prev.includes(resourceId) ? prev.filter((id) => id !== resourceId) : [...prev, resourceId]
@@ -201,7 +221,15 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
     // which a new service only has once it exists. A failure here leaves a
     // saved service without its picture — real, recoverable, and said plainly
     // rather than swallowed.
-    if (imageFile) {
+    //
+    // Whatever the row pointed at before is deleted once it points somewhere
+    // else. Every path carries Date.now(), so without this each change of a
+    // picture would abandon its predecessor in the bucket forever. Which of
+    // the three cases this is gets decided in lib/servicePhotos.js, where it
+    // can be tested rather than only read.
+    const plan = photoSavePlan({ hasNewFile: !!imageFile, imagePath, storedPath })
+
+    if (plan.action === 'upload') {
       const path = buildServicePhotoPath(serviceId, imageFile.name)
       const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, imageFile)
       if (uploadError) {
@@ -217,18 +245,20 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
         setError(t('services:serviceDialog.imageUploadFailedError'))
         return
       }
+      await discardOldPhoto(plan.removePrevious)
       setImagePath(path)
+      setStoredPath(path)
       setImageFile(null)
-    } else if (imagePath !== (service ? service.image_path || '' : '')) {
-      // Nothing new to upload but the path changed, which is what removing a
-      // picture looks like from here.
-      const { ok: pathOk } = await setServiceImagePath(serviceId, imagePath || null)
+    } else if (plan.action === 'setPath') {
+      const { ok: pathOk } = await setServiceImagePath(serviceId, plan.newPath)
       if (!pathOk) {
         setSaving(false)
         onSaved()
         setError(t('services:serviceDialog.imageUploadFailedError'))
         return
       }
+      await discardOldPhoto(plan.removePrevious)
+      setStoredPath(plan.newPath || '')
     }
 
     const { ok: linksOk } = await saveServiceResources({
