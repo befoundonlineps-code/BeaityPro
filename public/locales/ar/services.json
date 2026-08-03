@@ -48,7 +48,59 @@
     "nameRequiredError": "اسم الخدمة إجباري",
     "durationInvalidError": "المدة لازم تكون أكبر من صفر",
     "priceInvalidError": "السعر ما بصير يكون سالب",
-    "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
+    "plannedCostInvalidError": "التكلفة المخطَّطة لازم تكون رقم موجب، أو اتركها فاضية",
+    "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية",
+
+    "sectionBasics": "بيانات الخدمة",
+    "sectionPricing": "المدة والسعر",
+    "sectionClassification": "التصنيف والخيارات",
+    "sectionMedia": "الصورة والوصف",
+    "sectionResources": "الموارد اللازمة لتقديم الخدمة",
+    "sectionProducts": "حساب المنتجات للخدمة",
+
+    "abbreviationLabel": "اختصار الخدمة",
+    "abbreviationHint": "اسم قصير بيظهر بالأماكن الضيقة زي الفواتير والتقارير. اتركه فاضي إذا الاسم الكامل بكفّي.",
+    "barCodeLabel": "الباركود",
+    "barCodeHint": "رقم الباركود إذا كنت بتستعمل قارئ. مش إجباري، وبيسمح بتكراره بين خدمتين.",
+
+    "plannedCostLabel": "التكلفة المخطَّطة (₪)",
+    "plannedCostHint": "كم بتكلّفك الخدمة فعليًا (مواد ووقت) — بيتخزّن للمقارنة مع السعر لاحقًا. اتركه فاضي إذا لسّه ما حسبتها.",
+
+    "directionLabel": "الوجهة المحاسبية",
+    "directionNone": "غير محدَّدة",
+    "directionCommon": "قسم عام",
+    "directionHint": "لأي قسم بينحسب إيراد هاي الخدمة بالتقارير. مستقلة عن مجلد الخدمة ونوع نشاطه — خدمة بمجلد الأظافر ممكن إيرادها ينحسب على قسم عام.",
+
+    "proportionalLabel": "السعر يتناسب مع المدة",
+    "proportionalHint": "مخزَّن حاليًا بلا مفعول — لسّه ما في حساب تلقائي بيقرأه.",
+    "anyoneCanSellLabel": "أي موظف بيقدر يبيع الخدمة",
+    "anyoneCanSellHint": "مخزَّن حاليًا بلا مفعول — لسّه ما في موديول صلاحيات بيع.",
+
+    "imageLabel": "صورة الخدمة",
+    "imageChooseButton": "اختر صورة",
+    "imageChangeButton": "غيّر الصورة",
+    "imageRemoveButton": "إزالة الصورة",
+    "imageHint": "صورة وحدة للخدمة. بتنرفع بعد ما تضغط حفظ.",
+    "imageTooLargeError": "الصورة أكبر من 5 ميجابايت — اختر وحدة أصغر",
+    "imageUploadFailedError": "انحفظت الخدمة، بس رفع الصورة فشل. افتح الخدمة مرة تانية وجرّب ترفعها لحالها.",
+
+    "descriptionLabel": "الوصف",
+    "descriptionHint": "شرح مختصر للخدمة. نص عادي بلا تنسيق.",
+
+    "resourcesLabel": "الموارد المرتبطة ({{count}} مختار)",
+    "resourcesHint": "الموارد اللي بتقدر تنفَّذ الخدمة فيها — بدائل لا متطلبات مجتمعة، فالحجز بيمشي إذا واحد منها فاضي. نفس الربط اللي بتشوفه لما تفتح المورد وتختار خدماته.",
+    "resourcesEmpty": "ما في موارد مضافة للصالون — أضفها من زر «اضافة المورد» فوق.",
+    "resourcesFailedError": "انحفظت الخدمة، بس ربط الموارد فشل — افتحها مرة تانية وجرّب.",
+
+    "productsHint": "المنتجات اللي بتنستهلك بكل مرة بتنعمل فيها الخدمة، وبتنخصم من المخزون تلقائيًا.",
+    "productsDisabledNotice": "شكل بس — ما في موديول مخزون بالنظام بعد، فما في إشي بينحفظ من هالقسم. معروض عشان تشوف مكانه لما ينبنى.",
+    "productsWarehouseLabel": "المستودع",
+    "productsWarehousePlaceholder": "المستودع الرئيسي",
+    "productsProductColumn": "المنتج",
+    "productsQuantityColumn": "الكمية",
+    "productsProductPlaceholder": "اسم المنتج",
+    "productsAddRow": "إضافة سطر",
+    "productsRemoveRow": "حذف السطر"
   },
   "secondaryItems": {
     "setPrices": "تحديد الاسعار",

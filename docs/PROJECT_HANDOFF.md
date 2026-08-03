@@ -246,9 +246,12 @@
 |---|---|---|
 | ~~السعر يختلف حسب دور/تخصص الموظف~~ | **❌ مطلب مُلغى — قراءة خاطئة للمرجعية (ADR-040)**: السعر واحد لكل خدمة، والمصفوفة تعرضه بعمود الدور المؤدّي | أُلغي |
 | Resources for providing services (غرفة/جهاز بسعة محدودة) | **✅ خلص — راجع قسم 3.8 للتفاصيل الكاملة** | تم |
-| Calculation of products for service (استهلاك منتج) | مؤجّل — يعتمد على موديول Products غير المبني | بعد موديول Products |
-| "Anyone can sell service" + أدوات تسعير جماعية (Increase prices) | مؤجّل — يعتمد على موديول المبيعات/POS غير المبني | بعد موديول المبيعات |
-| "Service price is proportional to duration" | مؤجّل، رخيص لاحقًا (خاصية واجهة بسيطة عند بناء شاشة السعر) | غير مرتبط بأولوية معينة |
+| Calculation of products for service (استهلاك منتج) | **مؤجّل — الشكل مبني ومعطَّل، والموديول لا.** القسم معروض بنافذة الخدمة بمكانه الصحيح لكنه `disabled` مع تنبيه صريح إنه ما بينحفظ منه إشي. فحص القاعدة: ولا واحد من `products`/`inventory`/`warehouse`/`stock` موجود (ADR-047) | بعد موديول Products |
+| "Anyone can sell service" + أدوات تسعير جماعية (Increase prices) | **العمود بينحفظ، والتطبيق مؤجّل.** `services.anyone_can_sell` (افتراضي `true`) بينحفظ من نافذة الخدمة، بس ما في موديول صلاحيات بيع بيقرأه بعد — مكتوب بالتلميح تحت الخانة نفسها | بعد موديول المبيعات |
+| "Service price is proportional to duration" | **العمود بينحفظ، والحساب مؤجّل.** `services.price_proportional_to_duration` (افتراضي `false`) بينحفظ، بس ما في حساب تلقائي بيقرأه — مكتوب بالتلميح تحت الخانة نفسها | غير مرتبط بأولوية معينة |
+| Direction (وجهة محاسبية للخدمة) | **✅ عمود حقيقي — `services.accounting_direction`.** نصّ بـCHECK: أنواع النشاط السبعة + `'common'`. مستقل تمامًا عن `business_type` رغم تطابق القيم — التفصيل وحدود المعرفة بـADR-047 | تم |
+| Picture / Description / Abbreviation / Bar code / Planned cost | **✅ خلص — أعمدة حقيقية بنافذة الخدمة.** الصورة بـbucket `service-photos` (كتابة ثانية بعد إدراج الصف، لأن المسار بيحتوي id) | تم |
+| Resources for providing a service (من طرف الخدمة) | **✅ خلص — نفس `service_resources` من الاتجاه المعاكس**، صفر جدول جديد. منطق الفرق مشترك بين الاتجاهين بـ`lib/resourceLinks.js` | تم |
 
 **ملاحظة مصالحة (غير حاسمة الآن):** `BEAUTY_PRO_REFERENCE.md` يوثّق حالة زبون مرجعية بقيم `potential/active/former/one-time`، مختلفة شوي عن قرارنا أعلاه (`guest/new/active/returning`). **قرارنا يبقى كما هو** (مبني على أحداث محدّدة بدقة أكتر)، بس نضع هذا بعين الاعتبار وقت التنفيذ الفعلي.
 
