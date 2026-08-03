@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { reportDbError } from '../lib/dbErrors'
 import { saveCategory } from '../lib/categoryAdminIO'
+import { parentOptionsFor } from '../lib/categoryVisibility'
 import { BUSINESS_TYPES } from '../lib/serviceTree'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -12,15 +13,19 @@ const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 p
 
 // Adding or renaming a folder in the service catalogue.
 //
-// The parent decides the shape of the rest of the form, because the database
-// does: a root category must declare a business type and a sub-category is
-// forbidden one (service_categories_business_type_check). Rather than let
-// somebody fill in a field that will be rejected on save, the field appears
-// only when it is the one that applies.
+// A business type is optional at every depth, and this used to insist it was
+// required on a root and forbidden below one. That rule was real once and
+// ADR-019 withdrew it: any category at any depth may carry its own type, and
+// one that carries none inherits from the nearest ancestor that does. There
+// is no constraint in the database enforcing the old shape — two direct
+// queries came back with no CHECK and no trigger on service_categories — so
+// the form had been imposing, on its own, a rule the project had decided
+// against, and blocking the mixed folder ADR-019 exists to allow.
 //
-// Only roots and their direct children are offered as parents. The tree the
-// catalogue draws is two deep and every screen that reads it assumes that;
-// a third level would render but sit outside what buildServiceTree returns.
+// Every category is offered as a parent except the one being edited and
+// everything beneath it. Moving a folder inside its own descendant makes a
+// cycle in parent_id, and the tree builder survives cycles quietly, so the
+// whole branch would stop appearing with nothing on screen to explain it.
 export default function CategoryFormDialog({ open, onOpenChange, category, categories, defaultParentId, salonId, onSaved }) {
   const { t } = useTranslation(['services', 'settings', 'common'])
 
@@ -31,7 +36,6 @@ export default function CategoryFormDialog({ open, onOpenChange, category, categ
   const [error, setError] = useState('')
 
   const isEdit = !!category
-  const isRoot = !parentId
 
   useEffect(() => {
     if (!open) return
@@ -41,16 +45,12 @@ export default function CategoryFormDialog({ open, onOpenChange, category, categ
     setBusinessType(category ? category.business_type || '' : '')
   }, [open, category, defaultParentId])
 
-  // A category cannot be its own parent, nor a child of its own descendant.
-  const parentOptions = (categories || []).filter((c) => {
-    if (category && c.id === category.id) return false
-    if (category && c.parent_id === category.id) return false
-    return true
-  })
+  // The rule lives in lib/categoryVisibility.js so it is the thing under test
+  // rather than a copy of it: itself and every descendant are off the list.
+  const parentOptions = parentOptionsFor(category, categories)
 
   function validate() {
     if (!name.trim()) return t('services:categoryDialog.nameRequiredError')
-    if (isRoot && !businessType) return t('services:categoryDialog.typeRequiredError')
     return ''
   }
 
@@ -113,19 +113,18 @@ export default function CategoryFormDialog({ open, onOpenChange, category, categ
             </select>
           </div>
 
-          {/* Only for a root: the database forbids it on a sub-category. */}
-          {isRoot && (
-            <div className="flex flex-col gap-1.5">
-              <Label>{t('services:categoryDialog.typeLabel')}</Label>
-              <select className={FIELD} value={businessType} onChange={(e) => setBusinessType(e.target.value)}>
-                <option value="">{t('services:categoryDialog.typePlaceholder')}</option>
-                {BUSINESS_TYPES.map((bt) => (
-                  <option key={bt} value={bt}>{t(`settings:businessTypes.types.${bt}`)}</option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">{t('services:categoryDialog.typeHint')}</p>
-            </div>
-          )}
+          {/* Offered at every depth, and optional at every depth (ADR-019).
+              Leaving it empty is the common case and means "inherit". */}
+          <div className="flex flex-col gap-1.5">
+            <Label>{t('services:categoryDialog.typeLabel')}</Label>
+            <select className={FIELD} value={businessType} onChange={(e) => setBusinessType(e.target.value)}>
+              <option value="">{t('services:categoryDialog.typeInherit')}</option>
+              {BUSINESS_TYPES.map((bt) => (
+                <option key={bt} value={bt}>{t(`settings:businessTypes.types.${bt}`)}</option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">{t('services:categoryDialog.typeHint')}</p>
+          </div>
 
           {error && <div className="text-sm text-destructive">{error}</div>}
         </div>
