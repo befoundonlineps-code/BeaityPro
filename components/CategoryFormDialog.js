@@ -101,6 +101,7 @@ export default function CategoryFormDialog({ open, onOpenChange, category, categ
           <div className="flex flex-col gap-1.5">
             <Label>{t('services:categoryDialog.nameLabel')}</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+            <p className="text-xs text-muted-foreground">{t('services:categoryDialog.nameHint')}</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -111,6 +112,7 @@ export default function CategoryFormDialog({ open, onOpenChange, category, categ
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            <p className="text-xs text-muted-foreground">{t('services:categoryDialog.parentHint')}</p>
           </div>
 
           {/* Offered at every depth, and optional at every depth (ADR-019).
