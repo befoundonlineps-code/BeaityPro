@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import AuthGate from '../../components/AuthGate'
@@ -8,6 +9,9 @@ import ResourcesManager from '../../components/ResourcesManager'
 import ServicesSecondaryBar from '../../components/ServicesSecondaryBar'
 import SetPricesDialog from '../../components/SetPricesDialog'
 import { useServiceCatalog } from '../../hooks/useServiceCatalog'
+import { sectionTab, sectionQuery } from '../../lib/sectionTabs'
+
+const VIEWS = ['catalog', 'resources']
 
 export async function getServerSideProps({ locale }) {
   return {
@@ -19,10 +23,17 @@ export async function getServerSideProps({ locale }) {
 
 export default function ServicesPage() {
   const { t } = useTranslation(['services', 'common'])
+  const router = useRouter()
   // The catalogue is the screen. Resources is the one other thing that lives
   // here, and it is reached from the bar above rather than from a tab strip —
   // two tabs for two things was a row of chrome saying what one press says.
-  const [view, setView] = useState('catalog')
+  //
+  // In the URL, not in state, per lib/sectionTabs.js. Measured on this very
+  // section: every screen under it read localhost:3000/services unchanged, so
+  // the main menu's "Services" button was a push to the page you were on.
+  const view = sectionTab(VIEWS, router.query.tab)
+  const setView = (next) =>
+    router.push({ pathname: '/services', query: sectionQuery(VIEWS, next) }, undefined, { shallow: true })
   const [pricesOpen, setPricesOpen] = useState(false)
   const { categories, services, reload } = useServiceCatalog()
 
@@ -32,7 +43,9 @@ export default function ServicesPage() {
         <AppShell userEmail={session.user.email} onLogout={logout}>
           <ServicesSecondaryBar
             onSetPrices={() => setPricesOpen(true)}
-            onResources={() => setView((v) => (v === 'resources' ? 'catalog' : 'resources'))}
+            // A value, not an updater: setView is a navigation now and has no
+            // previous state to hand you — `view` is right here.
+            onResources={() => setView(view === 'resources' ? 'catalog' : 'resources')}
             resourcesActive={view === 'resources'}
           />
 

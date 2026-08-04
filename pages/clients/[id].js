@@ -17,6 +17,7 @@ import ClientFilesTab from '../../components/ClientFilesTab'
 import ClientCardsTab from '../../components/ClientCardsTab'
 import ClientHistoryTab from '../../components/ClientHistoryTab'
 import BalanceDialog from '../../components/BalanceDialog'
+import { sectionTab, sectionQuery } from '../../lib/sectionTabs'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
@@ -29,6 +30,8 @@ export async function getServerSideProps({ locale }) {
   }
 }
 
+const PROFILE_TABS = ['information', 'cards', 'history', 'files']
+
 export default function ClientProfilePage() {
   const { t } = useTranslation(['clientProfile', 'common', 'clientsList'])
   const router = useRouter()
@@ -36,8 +39,22 @@ export default function ClientProfilePage() {
 
   const [client, setClient] = useState(null)
   const [form, setForm] = useState(null)
+  // ⚠️ formTab stays in state deliberately, and the contrast with `tab` below
+  // is the whole rule (lib/sectionTabs.js). It is a step inside an edit
+  // somebody is in the middle of — a link to "client 7, form step 2" means
+  // nothing to anybody. The profile tab underneath it is a place: "this
+  // client's history" is worth sending.
   const [formTab, setFormTab] = useState(0)
-  const [tab, setTab] = useState('information')
+  // In the URL, keeping the id that was already there. Switching to History
+  // and pressing back now returns to Information rather than leaving the
+  // client entirely.
+  const tab = sectionTab(PROFILE_TABS, router.query.tab)
+  const setTab = (next) =>
+    router.push(
+      { pathname: '/clients/[id]', query: sectionQuery(PROFILE_TABS, next, { extra: { id } }) },
+      undefined,
+      { shallow: true }
+    )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [duplicateWarning, setDuplicateWarning] = useState(null)

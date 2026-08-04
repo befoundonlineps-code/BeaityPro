@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
@@ -7,6 +6,9 @@ import AppShell from '../../components/AppShell'
 import WorkingHoursSettings from '../../components/WorkingHoursSettings'
 import BusinessTypesSettings from '../../components/BusinessTypesSettings'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { sectionTab, sectionQuery } from '../../lib/sectionTabs'
+
+const TABS = ['workingHours', 'businessTypes']
 
 export async function getServerSideProps({ locale }) {
   return {
@@ -19,13 +21,16 @@ export async function getServerSideProps({ locale }) {
 export default function SettingsPage() {
   const { t } = useTranslation(['settings', 'common'])
   const router = useRouter()
-  const [tab, setTab] = useState('workingHours')
-
-  // Lets other screens deep-link straight to a tab, e.g. /settings?tab=businessTypes
-  useEffect(() => {
-    const requested = router.query.tab
-    if (requested === 'workingHours' || requested === 'businessTypes') setTab(requested)
-  }, [router.query.tab])
+  // ⚠️ This page had the half-measure, and a half-measure was worse than
+  // neither: an effect copied router.query.tab into state so other screens
+  // could deep-link in, while pressing a tab wrote nothing back. The address
+  // was right on arrival and a lie from the first press after it — and the
+  // deep link that came in could not be sent back out.
+  //
+  // Derived from the URL now, in both directions, per lib/sectionTabs.js.
+  const tab = sectionTab(TABS, router.query.tab)
+  const setTab = (next) =>
+    router.push({ pathname: '/settings', query: sectionQuery(TABS, next) }, undefined, { shallow: true })
 
   return (
     <AuthGate>

@@ -10,6 +10,7 @@ import { computeBalance } from '../lib/ledger'
 import { onLedgerChanged } from '../lib/ledgerEvents'
 import { BUCKET, getPublicFileUrl, buildAvatarPath } from '../lib/clientFiles'
 import { emptyForm } from '../constants'
+import { sectionTab, sectionQuery } from '../lib/sectionTabs'
 import AppShell from './AppShell'
 import ClientForm from './ClientForm'
 import ClientQuickViewDialog from './ClientQuickViewDialog'
@@ -18,6 +19,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+
+const LIST_TABS = ['all', 'new']
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 
@@ -38,7 +41,13 @@ export default function ClientsApp({ userEmail, salonId, onLogout }) {
   const [activeTab, setActiveTab] = useState(0)
   const [formOpen, setFormOpen] = useState(false)
   const [duplicateWarning, setDuplicateWarning] = useState(null)
-  const [listTab, setListTab] = useState('all')
+  // "All clients" and "New" are two places, so they live in the URL like every
+  // other section's tabs (lib/sectionTabs.js). `activeTab` above stays in state
+  // because it is a step inside the client form — a link to somebody else's
+  // half-finished edit means nothing.
+  const listTab = sectionTab(LIST_TABS, router.query.tab)
+  const setListTab = (next) =>
+    router.push({ pathname: '/', query: sectionQuery(LIST_TABS, next) }, undefined, { shallow: true })
   const [search, setSearch] = useState('')
   const [ledgerRows, setLedgerRows] = useState([])
   const [quickViewClientId, setQuickViewClientId] = useState(null)
