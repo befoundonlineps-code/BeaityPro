@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient'
 import { reportDbError } from '../lib/dbErrors'
 import { saveProduct, saveSetComponents } from '../lib/productAdminIO'
 import {
-  validateProductForm, productFormPayload,
+  validateProductForm, productFormPayload, productSaveAction,
   ACCOUNTING_DIRECTIONS, PRODUCT_UNITS,
 } from '../lib/productForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -92,14 +92,29 @@ export default function ProductFormDialog({
   // twice when somebody presses save again — the same reason the service
   // dialog holds the id of what it just inserted.
   const [createdId, setCreatedId] = useState(null)
+  const [confirmDrop, setConfirmDrop] = useState(false)
   const effectiveId = product ? product.id : createdId
   const isEdit = !!product
   const isSet = kind === 'set'
+
+  // Derived on every render, not stored, so switching the kind back to "set"
+  // withdraws a pending question by itself — the same reason the browser
+  // derives its visible selection rather than clearing it.
+  const saveAction = productSaveAction({
+    kind,
+    isEdit,
+    savedKind: product ? product.kind : null,
+    componentCount: existingComponentRows.length,
+    confirmed: confirmDrop,
+  })
+  // The answer has been given and the delete is waiting on one more press.
+  const needsDropConfirm = saveAction === 'dropThenSave'
 
   useEffect(() => {
     if (!open) return
     setError('')
     setCreatedId(null)
+    setConfirmDrop(false)
     setName(product ? product.name || '' : '')
     setKind(product ? product.kind || 'product' : 'product')
     setAccountingDirection(product ? product.accounting_direction || '' : '')
@@ -144,6 +159,25 @@ export default function ProductFormDialog({
     return () => { cancelled = true }
   }, [open, product])
 
+  // What the table holds now, after a component save that stopped partway.
+  // The diff is three writes without a transaction, so a delete can land and
+  // the insert be rejected; pressing save again would then diff against a
+  // picture of what was there and try to insert rows that already exist,
+  // colliding with unique(set_product_id, component_product_id). Only
+  // existingComponentRows is refreshed — `components` is what the person
+  // typed and is not ours to overwrite.
+  async function rereadComponentRows(setId) {
+    const { data } = await supabase
+      .from('product_set_components')
+      .select('*')
+      .eq('set_product_id', setId)
+      .order('sort_order')
+    // A failed read leaves the old rows in place. Emptying them here would
+    // turn "we could not look" into "there is nothing there", which is the
+    // exact retry collision this function exists to prevent.
+    if (data) setExistingComponentRows(data)
+  }
+
   // Only real products can be components. The database refuses a set inside a
   // set structurally, and offering one here would be offering a choice that
   // was always going to be rejected.
@@ -182,18 +216,44 @@ export default function ProductFormDialog({
       return
     }
 
-    // Turning a set back into a product while it still has components is
-    // refused by the database — the mirror foreign key on (set_product_id,
-    // set_kind) exists precisely so a component cannot hang off something that
-    // is not a set. Catching it here is the difference between "remove the
-    // components first" and a foreign-key message about a row still in use.
-    if (!isSet && isEdit && product.kind === 'set' && existingComponentRows.length > 0) {
-      setError(t('products:productDialog.stillHasComponentsError'))
+    // Deleting rows is not something to do because somebody changed a dropdown
+    // and pressed save. The count is named, and the second press is the answer.
+    if (saveAction === 'confirmDrop') {
+      setConfirmDrop(true)
+      setError('')
       return
     }
 
     setError('')
     setSaving(true)
+
+    // The components go before the kind does, and the order is forced rather
+    // than chosen: the mirror key refuses a component whose set has stopped
+    // being a set, so updating the product first is the rejected direction.
+    //
+    // If this succeeds and the update below fails, the set keeps its kind and
+    // loses its components — a partial state, and one the window shows: switch
+    // back to "set" and the list is empty, which is the truth. That is the
+    // whole reason this table's writes are allowed to be separate calls at all
+    // (lib/productAdminIO.js).
+    if (saveAction === 'dropThenSave') {
+      const { ok: dropped, error: dropError } = await saveSetComponents({
+        setProductId: product.id,
+        salonId,
+        existingRows: existingComponentRows,
+        components: [],
+      })
+
+      if (!dropped) {
+        setSaving(false)
+        await rereadComponentRows(product.id)
+        setError(dropError
+          ? t(reportDbError(dropError, 'ProductFormDialog.dropComponents'))
+          : t('products:productDialog.dropComponentsFailedError'))
+        return
+      }
+      setExistingComponentRows([])
+    }
 
     const { ok, error: saveError, row } = await saveProduct({
       id: effectiveId,
@@ -225,6 +285,7 @@ export default function ProductFormDialog({
       if (!componentsOk) {
         setSaving(false)
         onSaved()
+        await rereadComponentRows(productId)
         setError(componentsError
           ? t(reportDbError(componentsError, 'ProductFormDialog.components'))
           : t('products:productDialog.componentsFailedError'))
@@ -278,8 +339,12 @@ export default function ProductFormDialog({
                 hint={t('products:productDialog.kindHint')}
               >
                 {/* Changing this changes which fields exist, not just which are
-                    filled in — so it is a choice, not a checkbox. */}
-                <select className={FIELD} value={kind} onChange={(e) => setKind(e.target.value)}>
+                    filled in — so it is a choice, not a checkbox. Changing it
+                    also withdraws a pending "delete the components" answer, so
+                    that going out to "product" and back again asks again
+                    rather than acting on a yes given about a different state. */}
+                <select className={FIELD} value={kind}
+                  onChange={(e) => { setKind(e.target.value); setConfirmDrop(false) }}>
                   <option value="product">{t('products:productDialog.kindProduct')}</option>
                   <option value="set">{t('products:productDialog.kindSet')}</option>
                 </select>
@@ -472,12 +537,25 @@ export default function ProductFormDialog({
           </Section>
         </div>
 
+        {needsDropConfirm && (
+          <div className="shrink-0 rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-sm">
+            {/* `n`, not `count`: passing `count` puts i18next into plural
+                resolution and makes the message depend on which of Arabic's
+                six plural suffixes happens to exist in the file. */}
+            {t('products:productDialog.dropComponentsConfirm', { n: existingComponentRows.length })}
+          </div>
+        )}
+
         {error && <div className="shrink-0 text-sm text-destructive">{error}</div>}
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>
-          <Button disabled={saving} onClick={handleSave}>
-            {saving ? t('common:saving') : t('common:save')}
+          <Button disabled={saving} variant={needsDropConfirm ? 'destructive' : 'default'} onClick={handleSave}>
+            {saving
+              ? t('common:saving')
+              : needsDropConfirm
+                ? t('products:productDialog.dropComponentsButton')
+                : t('common:save')}
           </Button>
         </DialogFooter>
       </DialogContent>

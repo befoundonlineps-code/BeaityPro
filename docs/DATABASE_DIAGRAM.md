@@ -523,7 +523,7 @@ erDiagram
         uuid component_product_id FK "RESTRICT — المكوّن منتج مستقل له حركاته"
         product_kind component_kind "قيمته ثابتة 'product' عمدًا: نصف مفتاح أجنبي على products(id, kind) يجعل 'المكوّن لا يكون طقمًا' قيدًا بنيويًا لا حارسًا تطبيقيًا"
         numeric quantity_base "CHECK > 0"
-        integer sort_order
+        integer sort_order "NOT NULL DEFAULT 0 — والافتراضي فخّ: كل صف بيقول إنه الأول، فـ.order('sort_order') بترجّعهن بترتيب غير محدَّد. النافذة بتكتب موقع السطر بالقائمة صراحةً"
         "الدورة (طقم أ ⊃ طقم ب ⊃ طقم أ) مستحيلة لا محروسة — فالتعاود يختفي من البيع والتكلفة وعرض المخزون وتنبيه النفاد معًا. ويُرفض أيضًا تحويل منتج إلى طقم وهو مكوّن بطقم آخر"
     }
 ```
