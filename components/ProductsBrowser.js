@@ -10,7 +10,6 @@ import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { reportDbError } from '../lib/dbErrors'
 import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
-import { useProductCatalog } from '../hooks/useProductCatalog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,9 +25,14 @@ import { Button } from '@/components/ui/button'
 // error — success, as far as the client can tell. Archiving is the only act,
 // and stock_movements holds product_id with ON DELETE RESTRICT anyway, so
 // anything ever moved could never have been removed.
-export default function ProductsBrowser({ salonId, suppliers }) {
+// ⚠️ The catalogue arrives as a prop rather than being read here. It used to
+// call useProductCatalog itself, which gave this tab its own copy of the list —
+// so a product created here never appeared on the document screens until the
+// page was reloaded, and the most ordinary path in the module (new item arrives
+// → create the product → go and receive it) ended with it missing.
+export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
   const { t } = useTranslation(['products', 'common'])
-  const { categories, products, loading, error, reload } = useProductCatalog()
+  const { categories, products, loading, error, reload } = catalogue
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedProductId, setSelectedProductId] = useState(null)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
 import AuthGate from '../../components/AuthGate'
@@ -11,6 +11,7 @@ import StockDocumentScreen from '../../components/StockDocumentScreen'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
+import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
 
 export async function getServerSideProps({ locale }) {
   return {
@@ -30,15 +31,35 @@ const BREADCRUMB = {
   transfer: 'products:breadcrumbTransfer',
 }
 
-// The four views that are one screen with a doc type, rather than four screens.
-const DOCUMENT_VIEWS = ['supply', 'write_off', 'return_to_supplier', 'transfer']
-
 export default function ProductsPage() {
   const { t } = useTranslation(['products', 'common'])
-  // The catalogue is the screen; storages and suppliers are reached from the
-  // bar above rather than from a tab strip, the same as resources on the
-  // services page.
-  const [view, setView] = useState('catalog')
+  const router = useRouter()
+
+  // ⚠️ The tab lives in the URL, not in component state, and the owner found
+  // out why the hard way. With it in state every tab was the same address, so
+  // pressing "Products" in the main menu — which does router.push('/products')
+  // — was a push to the page you were already on. Next sees no navigation and
+  // does nothing, and somebody inside a sub-tab has no way back but the menu
+  // that will not answer.
+  //
+  // Three more followed from the same cause and are fixed by the same line:
+  // the browser's back button skipped the whole products section rather than
+  // stepping between tabs, no tab could be bookmarked or sent to anybody, and
+  // a reload dropped you on the catalogue — which was the very thing we were
+  // telling people to do to work around the stale product list.
+  //
+  // Derived, never stored. The fallback for an unknown tab lives in
+  // lib/productsView.js so it can be tested.
+  const view = productsView(router.query.tab)
+
+  function setView(next) {
+    router.push(
+      { pathname: '/products', query: productsQuery(next) },
+      undefined,
+      // The page's data is already loaded; this is a tab, not a fetch.
+      { shallow: true }
+    )
+  }
 
   // Read once here rather than inside each screen. The product window's
   // consignment dropdown needs the suppliers while standing on the catalogue,
@@ -47,9 +68,14 @@ export default function ProductsPage() {
   // same four tables on one page.
   const directories = useInventoryDirectories()
   const { employees } = useEmployees()
-  // The supply screen needs the products, and so does the catalogue below it.
-  // ProductsBrowser keeps its own copy for now rather than being rewired in the
-  // same step that adds a document — one change at a time.
+
+  // ⚠️ One catalogue for the whole page, and this is the second bug the owner
+  // found. ProductsBrowser used to call this hook itself, so the tab that
+  // creates a product refreshed its own copy and the document screens kept
+  // theirs — and the most ordinary path there is (goods arrive with a new item
+  // → create the product → go and receive it) ended with the product missing
+  // from the list. Worse than an inconvenience: somebody who cannot find what
+  // they just made will look for a reason, and may make it again.
   const catalogue = useProductCatalog()
 
   return (
@@ -68,7 +94,11 @@ export default function ProductsPage() {
 
           <div className="flex flex-col gap-4 p-5">
             {view === 'catalog' && (
-              <ProductsBrowser salonId={salonId} suppliers={directories.suppliers} />
+              <ProductsBrowser
+                salonId={salonId}
+                suppliers={directories.suppliers}
+                catalogue={catalogue}
+              />
             )}
             {view === 'storages' && (
               <StoragesManager
@@ -81,7 +111,7 @@ export default function ProductsPage() {
                 salonId={salonId}
               />
             )}
-            {DOCUMENT_VIEWS.includes(view) && (
+            {isDocumentView(view) && (
               <StockDocumentScreen
                 // Keyed on the doc type so switching documents starts a fresh
                 // form. Without it React keeps the old state under the new
