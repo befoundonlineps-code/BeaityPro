@@ -169,6 +169,29 @@ export default function ProductFormDialog({
       return
     }
 
+    // A component row somebody started and left blank must not disappear on
+    // its own. Dropping it silently is the same fault as reading an untouched
+    // count as zero: the person sees a save succeed and their line gone, with
+    // nothing having said why.
+    if (isSet && components.some((c) => c.productId && !(Number(c.quantityBase) > 0))) {
+      setError(t('products:productDialog.componentQuantityError'))
+      return
+    }
+    if (isSet && components.some((c) => !c.productId && String(c.quantityBase ?? '').trim() !== '')) {
+      setError(t('products:productDialog.componentProductError'))
+      return
+    }
+
+    // Turning a set back into a product while it still has components is
+    // refused by the database — the mirror foreign key on (set_product_id,
+    // set_kind) exists precisely so a component cannot hang off something that
+    // is not a set. Catching it here is the difference between "remove the
+    // components first" and a foreign-key message about a row still in use.
+    if (!isSet && isEdit && product.kind === 'set' && existingComponentRows.length > 0) {
+      setError(t('products:productDialog.stillHasComponentsError'))
+      return
+    }
+
     setError('')
     setSaving(true)
 

@@ -47,6 +47,11 @@ export default function ProductCategoryFormDialog({
     setParentId(category ? category.parent_id || '' : defaultParentId || '')
   }, [open, category, defaultParentId])
 
+  // ⚠️ `categories` is the whole list, deliberately — never the tree's filtered
+  // copy. Passing a list thinned by "hide archived" would leave an archived
+  // folder out of the parent options, which reads as "you may not put it
+  // there" when the truth is only that it is not on screen. The rule is about
+  // cycles, and nothing else may narrow it.
   const parentOptions = parentOptionsFor(category, categories)
 
   async function handleSave() {
