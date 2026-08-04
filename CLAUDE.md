@@ -189,9 +189,33 @@ drop function if exists my_function(uuid, timestamptz, uuid);
   قابل للترجمة و`hint` عربي ساكن بالقاعدة. والشرط **وجود `hint`** لا وجود
   رسالة — استثناء داخلي برسالة تقنية بلا `hint` ما بينعرض كأنه مكتوب لحدا.
 
-  والشاشات بتستعمل `dbErrorSentence(error, t, context)` من
-  [lib/dbErrors.js](lib/dbErrors.js) — مش `t(reportDbError(...))`، لأن إرجاع
-  مفتاح ما بيقدر إلا يرمي الـ`hint`.
+  **وكل الشاشات بتستعمل `dbErrorSentence(error, t, context, overrides)`** من
+  [lib/dbErrors.js](lib/dbErrors.js) — **طريق واحد، مش تلاتة**. إرجاع مفتاح ما
+  بيقدر إلا يرمي الـ`hint`، فلازم المُساعِد ياخد `t` ويرجّع جملة.
+
+  والحارس بـ[lib/oneErrorEntryPoint.test.js](lib/oneErrorEntryPoint.test.js)
+  بيمنع رجوع الشوكة: أي شاشة بتلفّ مفتاح خطأ بـ`t()` بإيدها بتسقّطه.
+
+## البناء والسيرفر
+
+- **`next build` بيكتب فوق نفس `.next` اللي سيرفر التطوير عم يخدم منه**، فأي
+  بناء والسيرفر شغّال بيخلّي كل المسارات `500`
+  (`Cannot find module './chunks/vendor-chunks/next.js'`). صار.
+
+  **الحل مش قاعدة تتذكّرها — مجلّد منفصل:**
+
+  ```
+  NEXT_BUILD_DIR=.next-check npx next build
+  ```
+
+  `next.config.js` بيقرأ المتغيّر، وبلاه بيبقى `.next` العادي فنشر الإنتاج ما
+  بيتغيّر. **القاعدة بتنُنسى، والمسار المنفصل ما بينُنسى.**
+
+- **⚠️ و`next build` ما بيمسك اللي بيبان إنه بيمسكه — مقيس.** حُقن خطاف مشروط
+  (`if (…) useState()`) و**نجح البناء**: ما في ESLint مثبَّت ولا TypeScript،
+  وكل المسارات `ƒ` فما بتنرسم وقت البناء. يعني خطوة «Linting and checking
+  validity of types» فاضية عمليًا. **اللي بيسدّ الفجوة `eslint` +
+  `eslint-config-next`** (فيه `rules-of-hooks`) — بند ٣٢.
 
 ## الواجهة
 

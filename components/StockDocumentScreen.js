@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react'
-import { rpcErrorKey } from '../lib/rpcErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { postStockDocument, transferStock } from '../lib/stockIO'
 import {
   validateStockDocument, documentTotals, stockDocumentPayload, storageChoices, docForm,
@@ -127,7 +127,9 @@ export default function StockDocumentScreen({
     setSaving(false)
 
     if (!ok) {
-      setError(postError ? t(rpcErrorKey(postError)) : t('products:stock.noRowsError'))
+      setError(postError
+        ? dbErrorSentence(postError, t, `StockDocumentScreen.${docType}`)
+        : t('products:stock.noRowsError'))
       return
     }
 

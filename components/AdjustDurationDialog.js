@@ -4,8 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 import { resolveAdjustedEnd, planDurationAdjustment } from '../lib/durationAdjustment'
 import { evaluatePlacement, combineGroupPlacement } from '../lib/bookingPlacement'
 import { loadGroupOccupancy } from '../lib/placementIO'
-import { reportDbError } from '../lib/dbErrors'
-import { reportRpcError } from '../lib/rpcErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import AdjustmentReasonManagerDialog from './AdjustmentReasonManagerDialog'
 import TimeRange from './TimeRange'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -83,7 +82,7 @@ export default function AdjustDurationDialog({
       })
       if (loadError) {
         setSaving(false)
-        setError(t(reportDbError(loadError, 'adjustDuration.loadOccupancy')))
+        setError(dbErrorSentence(loadError, t, 'adjustDuration.loadOccupancy'))
         return
       }
 
@@ -143,7 +142,7 @@ export default function AdjustDurationDialog({
         // it wants wording of its own rather than dbErrors' generic clash.
         setError(t('appointments:adjustDialog.conflictGenericError'))
       } else {
-        setError(t(reportRpcError(rpcError, 'adjustAppointmentDuration')))
+        setError(dbErrorSentence(rpcError, t, 'adjustAppointmentDuration'))
       }
       return
     }

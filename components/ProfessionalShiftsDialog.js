@@ -8,8 +8,7 @@ import { loadReleaseCandidates, markEmployeeAbsent, clearEmployeeAbsence } from 
 import { getAvatarColor } from '../lib/avatarColor'
 import { setEmployeeDayHours, clearEmployeeDayHours } from '../lib/dayHoursIO'
 import { availableWindowsForDate, dayHoursForDate } from '../lib/employeeAvailability'
-import { reportDbError } from '../lib/dbErrors'
-import { reportRpcError } from '../lib/rpcErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import ReleasePreviewList from './ReleasePreviewList'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -148,7 +147,7 @@ export default function ProfessionalShiftsDialog({
     })
     setBusy(false)
     if (saveError) {
-      setError(t(reportDbError(saveError, 'setEmployeeDayHours')))
+      setError(dbErrorSentence(saveError, t, 'setEmployeeDayHours'))
       return
     }
     onDone()
@@ -161,7 +160,7 @@ export default function ProfessionalShiftsDialog({
     const { error: deleteError } = await clearEmployeeDayHours({ employeeId, dateISO })
     setBusy(false)
     if (deleteError) {
-      setError(t(reportDbError(deleteError, 'clearEmployeeDayHours')))
+      setError(dbErrorSentence(deleteError, t, 'clearEmployeeDayHours'))
       return
     }
     onDone()
@@ -182,7 +181,7 @@ export default function ProfessionalShiftsDialog({
       const { error: deleteError } = await clearEmployeeAbsence({ employeeId, dateISO })
       setBusy(false)
       if (deleteError) {
-        setError(t(reportDbError(deleteError, 'clearEmployeeAbsence')))
+        setError(dbErrorSentence(deleteError, t, 'clearEmployeeAbsence'))
         return
       }
       onDone()
@@ -199,7 +198,7 @@ export default function ProfessionalShiftsDialog({
     const { rows, error: loadError } = await loadReleaseCandidates({ target, from, to })
     setBusy(false)
     if (loadError) {
-      setError(t(reportDbError(loadError, 'loadReleaseCandidates')))
+      setError(dbErrorSentence(loadError, t, 'loadReleaseCandidates'))
       return
     }
 
@@ -225,9 +224,9 @@ export default function ProfessionalShiftsDialog({
       // appointment_not_cancellable means something different here than in the
       // actions dialog: somebody is releasing a whole day, and a booking that
       // moved underneath them is stale news rather than a refusal.
-      setError(t(reportRpcError(rpcError, 'markEmployeeAbsent', {
+      setError(dbErrorSentence(rpcError, t, 'markEmployeeAbsent', {
         appointment_not_cancellable: 'appointments:dayStatus.staleError',
-      })))
+      }))
       setVerifying(false)
       return
     }

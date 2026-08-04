@@ -3,7 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { Phone, Plus, Search } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { buildDirectory, SOURCE_EMPLOYEE } from '../lib/contactDirectory'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,7 +56,7 @@ export default function WorkPhoneDialog({
       .insert([{ salon_id: salonId, name: name.trim(), phone_number: phone.trim() }])
     setSaving(false)
     if (saveError) {
-      setError(t(reportDbError(saveError, 'addSalonContact')))
+      setError(dbErrorSentence(saveError, t, 'addSalonContact'))
       return
     }
     setName('')

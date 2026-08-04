@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { saveServicePrices } from '../lib/servicePricingIO'
 import {
   PRICING_COLUMNS,
@@ -70,7 +70,7 @@ export default function SetPricesDialog({ open, onOpenChange, categories, servic
     const { error: saveError } = await saveServicePrices(pending)
     if (saveError) {
       setSaving(false)
-      setError(t(reportDbError(saveError, 'SetPricesDialog.save')))
+      setError(dbErrorSentence(saveError, t, 'SetPricesDialog.save'))
       // Whatever got through stays written; reloading shows the caller which
       // rows moved rather than leaving the dialog claiming none did.
       onSaved()

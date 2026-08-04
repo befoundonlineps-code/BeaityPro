@@ -31,7 +31,7 @@ import {
 } from '../lib/appointmentGrid'
 import { availableWindowsForDate, isWithinAnyWindow, exceptionWindowFor } from '../lib/employeeAvailability'
 import { supabase } from '../lib/supabaseClient'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { approveErrorKey } from '../lib/appointmentCard'
 import { clusterAppointments } from '../lib/resourceAllocation'
 import {
@@ -440,7 +440,7 @@ export default function AppointmentCalendar({ salonId }) {
       return
     }
     if (rpcError) {
-      setQuickActionError(t(reportDbError(rpcError, 'confirmPendingAppointment')))
+      setQuickActionError(dbErrorSentence(rpcError, t, 'confirmPendingAppointment'))
       return
     }
 

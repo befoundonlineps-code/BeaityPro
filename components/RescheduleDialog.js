@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { isServiceAllowedForRole } from '../lib/bookingPlacement'
 import { planReschedule, commitReschedule, rescheduleErrorKey, RESCHEDULE_ERROR_KEYS } from '../lib/rescheduleFlow'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import RescheduleReasonManagerDialog from './RescheduleReasonManagerDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -103,7 +103,7 @@ export default function RescheduleDialog({
 
     if (planError) {
       setSaving(false)
-      setError(t(reportDbError(planError, 'reschedule.plan')))
+      setError(dbErrorSentence(planError, t, 'reschedule.plan'))
       return
     }
     if (!plan.ok) {
@@ -127,7 +127,7 @@ export default function RescheduleDialog({
       return
     }
     if (result.error) {
-      setError(t(reportDbError(result.error, 'rescheduleAppointment')))
+      setError(dbErrorSentence(result.error, t, 'rescheduleAppointment'))
       return
     }
 

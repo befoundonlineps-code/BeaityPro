@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Plus, Minus, ImageOff } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { useResources } from '../hooks/useResources'
 import { linksFor } from '../lib/resourceLinks'
 import { validateServiceForm, serviceFormPayload, SEX_OPTIONS, ACCOUNTING_DIRECTIONS } from '../lib/serviceForm'
@@ -209,7 +209,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
     if (!ok) {
       setSaving(false)
       setError(saveError
-        ? t(reportDbError(saveError, 'ServiceFormDialog.save'))
+        ? dbErrorSentence(saveError, t, 'ServiceFormDialog.save')
         : t('services:serviceDialog.noRowsError'))
       return
     }

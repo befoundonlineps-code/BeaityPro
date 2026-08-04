@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { saveCategory } from '../lib/categoryAdminIO'
 import { parentOptionsFor } from '../lib/categoryVisibility'
 import { BUSINESS_TYPES } from '../lib/serviceTree'
@@ -79,7 +79,7 @@ export default function CategoryFormDialog({ open, onOpenChange, category, categ
 
     if (!ok) {
       setError(saveError
-        ? t(reportDbError(saveError, 'CategoryFormDialog.save'))
+        ? dbErrorSentence(saveError, t, 'CategoryFormDialog.save')
         : t('services:toggleFailedMessage'))
       return
     }

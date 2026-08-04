@@ -11,8 +11,7 @@ import { servicesForRole } from '../lib/roleServiceFilter'
 import { serviceUsesResources, orderedUnitsForService, availableUnitsFor } from '../lib/resourceAllocation'
 import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole, combineGroupPlacement } from '../lib/bookingPlacement'
 import { loadOccupancy, loadGroupOccupancy, attemptOnEachUnit } from '../lib/placementIO'
-import { reportDbError } from '../lib/dbErrors'
-import { reportRpcError } from '../lib/rpcErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { cn } from '@/lib/utils'
 import { Plus, X, Minus, Clock, UserRound, Bold, Italic, Underline, Palette } from 'lucide-react'
 import { useRouter } from 'next/router'
@@ -254,7 +253,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
         .select()
       setSaving(false)
       if (saveError) {
-        setError(t(reportDbError(saveError, 'createWaitingEntry')))
+        setError(dbErrorSentence(saveError, t, 'createWaitingEntry'))
         return
       }
       if (!data || data.length === 0) {
@@ -412,7 +411,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       if (saveError) {
         if (exhausted) setError(t('appointments:formDialog.allResourcesBusyError'))
         else if (kind === 'employee') setError(t('appointments:formDialog.conflictError'))
-        else setError(t(reportRpcError(saveError, 'convertWaitingAppointment')))
+        else setError(dbErrorSentence(saveError, t, 'convertWaitingAppointment'))
         return
       }
       if (!data) {
@@ -461,7 +460,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
     if (saveError) {
       if (exhausted) setError(t('appointments:formDialog.allResourcesBusyError'))
       else if (kind === 'employee') setError(t('appointments:formDialog.conflictError'))
-      else setError(t(reportDbError(saveError, 'createBooking')))
+      else setError(dbErrorSentence(saveError, t, 'createBooking'))
       return
     }
     if (!data || data.length !== groupRows.length) {

@@ -3,8 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { TriangleAlert } from 'lucide-react'
 import { classifyBulkRelease, releaseWindow } from '../lib/bulkRelease'
 import { loadReleaseCandidates, markResourceUnitsOut, clearResourceUnitOutages } from '../lib/bulkReleaseIO'
-import { reportDbError } from '../lib/dbErrors'
-import { reportRpcError } from '../lib/rpcErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import ReleasePreviewList from './ReleasePreviewList'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -60,7 +59,7 @@ export default function ResourceDayDialog({
     const { rows, error: loadError } = await loadReleaseCandidates({ target, from, to })
     setBusy(false)
     if (loadError) {
-      setError(t(reportDbError(loadError, 'loadReleaseCandidates')))
+      setError(dbErrorSentence(loadError, t, 'loadReleaseCandidates'))
       return
     }
     setPlan(classifyBulkRelease({ appointments: rows, target, cutoff: new Date() }))
@@ -83,9 +82,9 @@ export default function ResourceDayDialog({
       // appointment_not_cancellable means something different here than in the
       // actions dialog: somebody is releasing a whole day, and a booking that
       // moved underneath them is stale news rather than a refusal.
-      setError(t(reportRpcError(rpcError, 'markResourceUnitsOut', {
+      setError(dbErrorSentence(rpcError, t, 'markResourceUnitsOut', {
         appointment_not_cancellable: 'appointments:dayStatus.staleError',
-      })))
+      }))
       return
     }
 
@@ -99,7 +98,7 @@ export default function ResourceDayDialog({
     const { error: deleteError } = await clearResourceUnitOutages({ unitIds: [unitId], dateISO })
     setBusy(false)
     if (deleteError) {
-      setError(t(reportDbError(deleteError, 'clearResourceUnitOutages')))
+      setError(dbErrorSentence(deleteError, t, 'clearResourceUnitOutages'))
       return
     }
     onDone()

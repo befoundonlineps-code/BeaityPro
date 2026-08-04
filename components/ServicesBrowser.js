@@ -13,7 +13,7 @@ import ServiceFormDialog from './ServiceFormDialog'
 import CategoryFormDialog from './CategoryFormDialog'
 import { setCategoryArchived, setServiceArchived, insertServiceCopy } from '../lib/categoryAdminIO'
 import { copyName, serviceCopyPayload } from '../lib/serviceCopy'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -141,7 +141,7 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
 
     if (!ok) {
       setError(writeError
-        ? t(reportDbError(writeError, 'ServicesBrowser.copyService'))
+        ? dbErrorSentence(writeError, t, 'ServicesBrowser.copyService')
         : t('services:toggleFailedMessage'))
       return
     }
@@ -165,7 +165,7 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
 
     if (!ok) {
       setError(writeError
-        ? t(reportDbError(writeError, 'ServicesBrowser.archiveService'))
+        ? dbErrorSentence(writeError, t, 'ServicesBrowser.archiveService')
         : t('services:toggleFailedMessage'))
       return
     }
@@ -184,7 +184,7 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
 
     if (!ok) {
       setError(writeError
-        ? t(reportDbError(writeError, 'ServicesBrowser.archiveCategory'))
+        ? dbErrorSentence(writeError, t, 'ServicesBrowser.archiveCategory')
         : t('services:toggleFailedMessage'))
       return
     }

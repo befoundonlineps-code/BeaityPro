@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { exceptionWindowFor } from '../lib/employeeAvailability'
-import { reportDbError } from '../lib/dbErrors'
-import { reportRpcError } from '../lib/rpcErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { canRemoveParticipant, sortPrimaryFirst } from '../lib/participants'
 import CancellationReasonManagerDialog from './CancellationReasonManagerDialog'
 import TimeRange from './TimeRange'
@@ -65,7 +64,7 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        t(reportRpcError(rpcError, 'confirmPendingAppointment'))
+        dbErrorSentence(rpcError, t, 'confirmPendingAppointment')
       )
       return
     }
@@ -88,7 +87,7 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        t(reportRpcError(rpcError, 'cancelAppointment'))
+        dbErrorSentence(rpcError, t, 'cancelAppointment')
       )
       return
     }
@@ -110,7 +109,7 @@ export default function AppointmentActionsDialog({
       .select()
     setBusy(false)
     if (updateError) {
-      setError(t(reportDbError(updateError, 'markNoShow')))
+      setError(dbErrorSentence(updateError, t, 'markNoShow'))
       return
     }
     if (!data || data.length === 0) {
@@ -136,7 +135,7 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        t(reportRpcError(rpcError, 'removeParticipant'))
+        dbErrorSentence(rpcError, t, 'removeParticipant')
       )
       return
     }

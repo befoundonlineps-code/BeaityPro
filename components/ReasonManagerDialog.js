@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -73,7 +73,7 @@ export default function ReasonManagerDialog({
     setSaving(true)
     const { error: saveError } = await supabase.from(table).insert([{ name: nameInput.trim(), salon_id: salonId }])
     setSaving(false)
-    if (saveError) setError(t(reportDbError(saveError, `add:${table}`)))
+    if (saveError) setError(dbErrorSentence(saveError, t, `add:${table}`))
     else {
       setAddOpen(false)
       onChanged()
@@ -86,7 +86,7 @@ export default function ReasonManagerDialog({
     setSaving(true)
     const { error: saveError } = await supabase.from(table).update({ name: nameInput.trim() }).eq('id', selectedReason.id)
     setSaving(false)
-    if (saveError) setError(t(reportDbError(saveError, `edit:${table}`)))
+    if (saveError) setError(dbErrorSentence(saveError, t, `edit:${table}`))
     else {
       setEditOpen(false)
       onChanged()
@@ -109,7 +109,7 @@ export default function ReasonManagerDialog({
         setInUse(true)
         setError(t(key('deleteInUseMessage'), { name }))
       } else {
-        setError(t(reportDbError(deleteError, `delete:${table}`)))
+        setError(dbErrorSentence(deleteError, t, `delete:${table}`))
       }
       return
     }
@@ -131,7 +131,7 @@ export default function ReasonManagerDialog({
       .update({ is_active: !selectedReason.is_active })
       .eq('id', selectedReason.id)
     setSaving(false)
-    if (toggleError) setError(t(reportDbError(toggleError, `toggle:${table}`)))
+    if (toggleError) setError(dbErrorSentence(toggleError, t, `toggle:${table}`))
     else onChanged()
   }
 
