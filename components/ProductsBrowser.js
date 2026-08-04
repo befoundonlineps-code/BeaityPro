@@ -3,7 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { AlertTriangle } from 'lucide-react'
 import TwoPaneBrowser from './TwoPaneBrowser'
 import { buildProductTree } from '../lib/productTree'
-import { isCategoryArchived, visibleCategories } from '../lib/categoryVisibility'
+import { isCategoryArchived } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { reportDbError } from '../lib/dbErrors'
 import { useProductCatalog } from '../hooks/useProductCatalog'
@@ -39,11 +39,13 @@ export default function ProductsBrowser() {
   // it applies to both panes rather than to one of them.
   const [hideArchived, setHideArchived] = useState(false)
 
-  const treeCategories = useMemo(
-    () => (hideArchived ? visibleCategories(categories) : categories),
-    [categories, hideArchived]
+  // The hiding rule is in lib/productTree.js, not spelled out here: it thins
+  // the flat list before the walk so archiving stays inherited, and that is a
+  // claim worth a test rather than a reading.
+  const tree = useMemo(
+    () => buildProductTree(categories, products, { hideArchived }),
+    [categories, products, hideArchived]
   )
-  const tree = useMemo(() => buildProductTree(treeCategories, products), [treeCategories, products])
   const byId = useMemo(() => indexCategoriesById(categories), [categories])
 
   const rows = useMemo(() => {
