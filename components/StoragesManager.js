@@ -4,7 +4,7 @@ import { AlertTriangle, Plus, Archive, Pencil } from 'lucide-react'
 import StorageFormDialog from './StorageFormDialog'
 import { reportDbError } from '../lib/dbErrors'
 import { setStorageArchived } from '../lib/inventoryAdminIO'
-import { responsiblesVisible } from '../lib/storageForm'
+import { responsiblesVisible, responsibleCounts } from '../lib/storageForm'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,8 +28,8 @@ export default function StoragesManager({
 
   const employeeName = (id) => (employees || []).find((e) => e.id === id)?.name || '—'
 
-  function responsibleCount(storageId) {
-    return (responsibles || []).filter((r) => r.storage_id === storageId).length
+  function countsFor(storageId) {
+    return responsibleCounts((responsibles || []).filter((r) => r.storage_id === storageId))
   }
 
   async function toggleArchived(storage) {
@@ -110,11 +110,30 @@ export default function StoragesManager({
                   {s.kind === 'professional' && (
                     <Badge variant="outline">{employeeName(s.owner_employee_id)}</Badge>
                   )}
-                  {responsiblesVisible(s.kind) && (
-                    <Badge variant="outline">
-                      {t('products:storages.responsiblesBadge', { count: responsibleCount(s.id) })}
-                    </Badge>
-                  )}
+                  {/* Two badges, never one total. Two people named is two
+                      people; two roles ticked is everybody in them today and
+                      everybody hired into them later — and one number hides
+                      exactly that difference. */}
+                  {responsiblesVisible(s.kind) && (() => {
+                    const { people, roles } = countsFor(s.id)
+                    if (people === 0 && roles === 0) {
+                      return <Badge variant="outline">{t('products:storages.noResponsiblesBadge')}</Badge>
+                    }
+                    return (
+                      <>
+                        {people > 0 && (
+                          <Badge variant="outline">
+                            {t('products:storages.peopleBadge', { count: people })}
+                          </Badge>
+                        )}
+                        {roles > 0 && (
+                          <Badge variant="outline">
+                            {t('products:storages.rolesBadge', { count: roles })}
+                          </Badge>
+                        )}
+                      </>
+                    )
+                  })()}
                   {s.sale_enabled === false && (
                     <Badge variant="outline">{t('products:storages.noSaleBadge')}</Badge>
                   )}

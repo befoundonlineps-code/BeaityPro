@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient'
 import { reportDbError } from '../lib/dbErrors'
 import { saveProduct, saveSetComponents } from '../lib/productAdminIO'
 import {
-  validateProductForm, productFormPayload, productSaveAction,
+  validateProductForm, productFormPayload, productSaveAction, componentChoices,
   ACCOUNTING_DIRECTIONS, PRODUCT_UNITS,
 } from '../lib/productForm'
 import { supplierChoices } from '../lib/supplierForm'
@@ -179,12 +179,15 @@ export default function ProductFormDialog({
     if (data) setExistingComponentRows(data)
   }
 
-  // Only real products can be components. The database refuses a set inside a
-  // set structurally, and offering one here would be offering a choice that
-  // was always going to be rejected.
-  const componentChoices = (products || []).filter(
-    (p) => p.kind !== 'set' && p.is_active !== false && p.id !== (product ? product.id : null)
-  )
+  // ⚠️ `products` arrives unfiltered from ProductsBrowser — measured: it passes
+  // the hook's list, while the "hide archived" tick only narrows `rows`, the
+  // table beside the tree. So this window never loses a component because a
+  // filter is on behind it, which would have been a link between a view filter
+  // and a dialog's contents with no meaning at all.
+  const choices = componentChoices(products, {
+    setId: product ? product.id : null,
+    selectedIds: components.map((c) => c.productId).filter(Boolean),
+  })
 
   const values = {
     name, categoryId: product ? product.category_id : categoryId, kind, accountingDirection,
@@ -233,10 +236,12 @@ export default function ProductFormDialog({
     // being a set, so updating the product first is the rejected direction.
     //
     // If this succeeds and the update below fails, the set keeps its kind and
-    // loses its components — a partial state, and one the window shows: switch
-    // back to "set" and the list is empty, which is the truth. That is the
-    // whole reason this table's writes are allowed to be separate calls at all
-    // (lib/productAdminIO.js).
+    // loses its components. Nothing reads that partial state, and pressing save
+    // again reconciles it: existingComponentRows is now [], so the same list
+    // still on screen is written back as inserts. That is the whole reason this
+    // table's writes are allowed to be separate calls at all — see the note in
+    // lib/productAdminIO.js, and note what it does NOT claim: the window is
+    // showing what was typed, not what the table holds.
     if (saveAction === 'dropThenSave') {
       const { ok: dropped, error: dropError } = await saveSetComponents({
         setProductId: product.id,
@@ -413,7 +418,7 @@ export default function ProductFormDialog({
                       {supplierChoices(suppliers, supplierId).map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.is_active === false
-                            ? t('products:productDialog.supplierArchived', { name: s.name })
+                            ? t('products:archivedOption', { name: s.name })
                             : s.name}
                         </option>
                       ))}
@@ -505,10 +510,14 @@ export default function ProductFormDialog({
                       onChange={(e) => setComponentAt(index, { productId: e.target.value })}
                     >
                       <option value="">{t('products:productDialog.componentNone')}</option>
-                      {componentChoices
+                      {choices
                         .filter((p) => p.id === c.productId || !components.some((x) => x.productId === p.id))
                         .map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                          <option key={p.id} value={p.id}>
+                            {p.is_active === false
+                              ? t('products:archivedOption', { name: p.name })
+                              : p.name}
+                          </option>
                         ))}
                     </select>
                   </div>

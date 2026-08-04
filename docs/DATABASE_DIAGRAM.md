@@ -484,6 +484,7 @@ erDiagram
         uuid storage_id FK "CASCADE"
         uuid employee_id FK "RESTRICT — أحدهما فقط"
         employee_role role
+        storage_kind storage_kind "⏳ بانتظار تشغيل المالك: قيمته ثابتة 'common' عمدًا — نصف مفتاح أجنبي على storages(id, kind) يجعل «لا مسؤولين لمستودع مهني» قيدًا بنيويًا لا صمتًا بالواجهة"
         "CHECK: (employee_id IS NOT NULL) <> (role IS NOT NULL). unique(storage_id, employee_id) وunique(storage_id, role) — NULL متمايز فتعدد صفوف الأدوار مسموح"
     }
 

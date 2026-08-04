@@ -177,17 +177,27 @@ export default function SupplierFormDialog({
 
             {contacts.map((c, index) => (
               <div key={c.id || index} className="flex flex-col gap-2 rounded-lg border border-border/60 p-2.5">
+                {/* Labels, not placeholders. A placeholder disappears the
+                    moment the box is filled, so somebody reopening a supplier
+                    next month cannot tell the family name from the given one —
+                    and the two swapped is a mistake that never shows at all. */}
                 <div className="flex items-start gap-2">
                   <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
-                    <Input placeholder={t('products:supplierDialog.lastNameLabel')}
-                      value={c.lastName} onChange={(e) => setContactAt(index, { lastName: e.target.value })} />
-                    <Input placeholder={t('products:supplierDialog.firstNameLabel')}
-                      value={c.firstName} onChange={(e) => setContactAt(index, { firstName: e.target.value })} />
-                    <Input placeholder={t('products:supplierDialog.positionLabel')}
-                      value={c.position} onChange={(e) => setContactAt(index, { position: e.target.value })} />
+                    <Field label={t('products:supplierDialog.lastNameLabel')}>
+                      <Input value={c.lastName}
+                        onChange={(e) => setContactAt(index, { lastName: e.target.value })} />
+                    </Field>
+                    <Field label={t('products:supplierDialog.firstNameLabel')}>
+                      <Input value={c.firstName}
+                        onChange={(e) => setContactAt(index, { firstName: e.target.value })} />
+                    </Field>
+                    <Field label={t('products:supplierDialog.positionLabel')}>
+                      <Input value={c.position}
+                        onChange={(e) => setContactAt(index, { position: e.target.value })} />
+                    </Field>
                   </div>
                   <Button
-                    type="button" variant="outline" size="icon" className="size-8 shrink-0"
+                    type="button" variant="outline" size="icon" className="mt-6 size-8 shrink-0"
                     title={t('products:supplierDialog.contactRemove')}
                     onClick={() => setContacts((prev) => prev.filter((_, i) => i !== index))}
                   >
@@ -195,13 +205,16 @@ export default function SupplierFormDialog({
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <Input placeholder={t('products:supplierDialog.phoneLabel')}
-                    value={c.phone} onChange={(e) => setContactAt(index, { phone: e.target.value })} />
-                  <Input placeholder={t('products:supplierDialog.emailLabel')}
-                    value={c.email} onChange={(e) => setContactAt(index, { email: e.target.value })} />
+                  <Field label={t('products:supplierDialog.phoneLabel')}>
+                    <Input value={c.phone} onChange={(e) => setContactAt(index, { phone: e.target.value })} />
+                  </Field>
+                  <Field label={t('products:supplierDialog.emailLabel')}>
+                    <Input value={c.email} onChange={(e) => setContactAt(index, { email: e.target.value })} />
+                  </Field>
                 </div>
-                <Input placeholder={t('products:supplierDialog.notesLabel')}
-                  value={c.notes} onChange={(e) => setContactAt(index, { notes: e.target.value })} />
+                <Field label={t('products:supplierDialog.notesLabel')}>
+                  <Input value={c.notes} onChange={(e) => setContactAt(index, { notes: e.target.value })} />
+                </Field>
               </div>
             ))}
 

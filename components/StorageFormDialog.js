@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
+import { User } from 'lucide-react'
 import { reportDbError } from '../lib/dbErrors'
 import { saveStorage, saveStorageResponsibles } from '../lib/inventoryAdminIO'
 import {
-  validateStorage, storagePayload, responsiblesVisible, responsibleKey,
+  validateStorage, storagePayload, responsiblesVisible, responsibleKey, storageSaveAction,
   STORAGE_KINDS, FINE_BASES,
 } from '../lib/storageForm'
 import { EMPLOYEE_ROLES } from '../lib/employeeRoles'
@@ -11,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30'
 
@@ -71,6 +73,7 @@ export default function StorageFormDialog({
   // A storage created here whose responsibles then fail must not be created
   // twice when somebody presses save again.
   const [createdId, setCreatedId] = useState(null)
+  const [confirmDrop, setConfirmDrop] = useState(false)
 
   const isEdit = !!storage
   const effectiveId = storage ? storage.id : createdId
@@ -78,10 +81,18 @@ export default function StorageFormDialog({
     ? (responsibles || []).filter((r) => r.storage_id === storage.id)
     : []
 
+  // Derived every render, so putting the kind back to "common" withdraws the
+  // question by itself.
+  const saveAction = storageSaveAction({
+    kind, isEdit, responsibleCount: existingRows.length, confirmed: confirmDrop,
+  })
+  const needsDropConfirm = saveAction === 'dropThenSave'
+
   useEffect(() => {
     if (!open) return
     setError('')
     setCreatedId(null)
+    setConfirmDrop(false)
     setName(storage ? storage.name || '' : '')
     setKind(storage ? storage.kind || 'common' : 'common')
     setOwnerEmployeeId(storage ? storage.owner_employee_id || '' : '')
@@ -113,8 +124,35 @@ export default function StorageFormDialog({
       return
     }
 
+    // Somebody stops being answerable for a storage because a radio button
+    // moved. That is worth one question, with the count in it.
+    if (saveAction === 'confirmDrop') {
+      setConfirmDrop(true)
+      setError('')
+      return
+    }
+
     setError('')
     setSaving(true)
+
+    // The rows go before the kind does, and the order is forced rather than
+    // chosen: the mirror key on (storage_id, storage_kind) refuses a
+    // responsible whose storage has stopped being common, so updating the
+    // storage first is the rejected direction. Same as the set → product
+    // switch in ProductFormDialog, deliberately.
+    if (saveAction === 'dropThenSave') {
+      const { ok: dropped, error: dropError } = await saveStorageResponsibles({
+        storageId: storage.id, salonId, existingRows, selectedKeys: [],
+      })
+
+      if (!dropped) {
+        setSaving(false)
+        setError(dropError
+          ? t(reportDbError(dropError, 'StorageFormDialog.dropResponsibles'))
+          : t('products:storageDialog.dropResponsiblesFailedError'))
+        return
+      }
+    }
 
     const { ok, error: saveError, row } = await saveStorage({
       id: effectiveId,
@@ -133,9 +171,6 @@ export default function StorageFormDialog({
     const storageId = row.id
     setCreatedId(storageId)
 
-    // A professional storage keeps whatever responsible rows it had rather than
-    // having them deleted — nothing reads them while it is professional, and
-    // switching back restores exactly what was there. See storageForm.js.
     if (responsiblesVisible(kind)) {
       const { ok: linksOk, error: linksError } = await saveStorageResponsibles({
         storageId, salonId, existingRows, selectedKeys,
@@ -216,12 +251,15 @@ export default function StorageFormDialog({
             <div className="flex flex-col gap-2">
               {STORAGE_KINDS.map((k) => (
                 <label key={k} className="flex cursor-pointer items-center gap-2 text-sm">
+                  {/* Changing the kind withdraws a pending "remove them" answer,
+                      so going out to professional and back asks again rather
+                      than acting on a yes given about a different state. */}
                   <input
                     type="radio"
                     className="accent-primary"
                     name="storage-kind"
                     checked={kind === k}
-                    onChange={() => setKind(k)}
+                    onChange={() => { setKind(k); setConfirmDrop(false) }}
                   />
                   <span>{t(`products:storageDialog.kind_${k}`)}</span>
                 </label>
@@ -276,11 +314,15 @@ export default function StorageFormDialog({
                 <div className="flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
                   {EMPLOYEE_ROLES.map((role) => (
                     <div key={role} className="flex flex-col">
-                      {/* A role and every employee holding it are separate
-                          rows in the table, not a group header and its
-                          members: ticking the role makes whoever holds it in
-                          future answerable too, which ticking them one by one
-                          does not. */}
+                      {/* ⚠️ A role row and a person row are different kinds of
+                          promise, and they used to be indistinguishable: same
+                          weight, same box, same alignment, with only "that
+                          reads like a name" to tell them apart — which fails
+                          on the first employee whose name resembles a trade.
+                          Ticking a role makes everybody hired into it next
+                          year answerable at this fine percentage, and nobody
+                          should write that rule without being shown they are
+                          writing one. Hence the badge, not just the nesting. */}
                       <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm font-medium hover:bg-muted/60">
                         <input
                           type="checkbox"
@@ -289,17 +331,21 @@ export default function StorageFormDialog({
                           onChange={() => toggleKey(`role:${role}`)}
                         />
                         <span>{t(`employees:roles.${role}`)}</span>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {t('products:storageDialog.roleBadge')}
+                        </Badge>
                       </label>
                       {byRole(role).map((e) => (
                         <label key={e.id}
-                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm ps-6 hover:bg-muted/60">
+                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm ps-6 text-muted-foreground hover:bg-muted/60">
                           <input
                             type="checkbox"
                             className="accent-primary"
                             checked={selectedKeys.includes(`employee:${e.id}`)}
                             onChange={() => toggleKey(`employee:${e.id}`)}
                           />
-                          <span>{e.name}</span>
+                          <User className="size-3.5 shrink-0" />
+                          <span className="text-foreground">{e.name}</span>
                         </label>
                       ))}
                     </div>
@@ -310,12 +356,22 @@ export default function StorageFormDialog({
           </Section>
         </div>
 
+        {needsDropConfirm && (
+          <div className="shrink-0 rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-sm">
+            {t('products:storageDialog.dropResponsiblesConfirm', { n: existingRows.length })}
+          </div>
+        )}
+
         {error && <div className="shrink-0 text-sm text-destructive">{error}</div>}
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>
-          <Button disabled={saving} onClick={handleSave}>
-            {saving ? t('common:saving') : t('common:save')}
+          <Button disabled={saving} variant={needsDropConfirm ? 'destructive' : 'default'} onClick={handleSave}>
+            {saving
+              ? t('common:saving')
+              : needsDropConfirm
+                ? t('products:storageDialog.dropResponsiblesButton')
+                : t('common:save')}
           </Button>
         </DialogFooter>
       </DialogContent>
