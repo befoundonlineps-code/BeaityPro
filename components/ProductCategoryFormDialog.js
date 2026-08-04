@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { saveProductCategory } from '../lib/productAdminIO'
 import { productCategoryPayload, validateProductCategory } from '../lib/productForm'
 import { parentOptionsFor } from '../lib/categoryVisibility'
@@ -74,7 +74,7 @@ export default function ProductCategoryFormDialog({
 
     if (!ok) {
       setError(saveError
-        ? t(reportDbError(saveError, 'ProductCategoryFormDialog.save'))
+        ? dbErrorSentence(saveError, t, 'ProductCategoryFormDialog.save')
         : t('products:categoryDialog.noRowsError'))
       return
     }

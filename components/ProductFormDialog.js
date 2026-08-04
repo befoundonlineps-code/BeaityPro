@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { saveProduct, saveSetComponents } from '../lib/productAdminIO'
 import {
   validateProductForm, productFormPayload, productSaveAction, componentChoices,
@@ -254,7 +254,7 @@ export default function ProductFormDialog({
         setSaving(false)
         await rereadComponentRows(product.id)
         setError(dropError
-          ? t(reportDbError(dropError, 'ProductFormDialog.dropComponents'))
+          ? dbErrorSentence(dropError, t, 'ProductFormDialog.dropComponents')
           : t('products:productDialog.dropComponentsFailedError'))
         return
       }
@@ -271,7 +271,7 @@ export default function ProductFormDialog({
     if (!ok) {
       setSaving(false)
       setError(saveError
-        ? t(reportDbError(saveError, 'ProductFormDialog.save'))
+        ? dbErrorSentence(saveError, t, 'ProductFormDialog.save')
         : t('products:productDialog.noRowsError'))
       return
     }
@@ -293,7 +293,7 @@ export default function ProductFormDialog({
         onSaved()
         await rereadComponentRows(productId)
         setError(componentsError
-          ? t(reportDbError(componentsError, 'ProductFormDialog.components'))
+          ? dbErrorSentence(componentsError, t, 'ProductFormDialog.components')
           : t('products:productDialog.componentsFailedError'))
         return
       }

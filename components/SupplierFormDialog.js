@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Plus, Trash2 } from 'lucide-react'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { saveSupplier, saveSupplierContacts } from '../lib/inventoryAdminIO'
 import { validateSupplier, supplierPayload, validateSupplierContacts } from '../lib/supplierForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -112,7 +112,7 @@ export default function SupplierFormDialog({
     if (!ok) {
       setSaving(false)
       setError(saveError
-        ? t(reportDbError(saveError, 'SupplierFormDialog.save'))
+        ? dbErrorSentence(saveError, t, 'SupplierFormDialog.save')
         : t('products:supplierDialog.noRowsError'))
       return
     }
@@ -128,7 +128,7 @@ export default function SupplierFormDialog({
       setSaving(false)
       onSaved()
       setError(contactsError
-        ? t(reportDbError(contactsError, 'SupplierFormDialog.contacts'))
+        ? dbErrorSentence(contactsError, t, 'SupplierFormDialog.contacts')
         : t('products:supplierDialog.contactsFailedError'))
       return
     }

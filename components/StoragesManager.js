@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, Plus, Archive, Pencil } from 'lucide-react'
 import StorageFormDialog from './StorageFormDialog'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { setStorageArchived } from '../lib/inventoryAdminIO'
 import { responsiblesVisible, responsibleCounts } from '../lib/storageForm'
 import { Card, CardContent } from '@/components/ui/card'
@@ -41,7 +41,7 @@ export default function StoragesManager({
     setBusy(false)
     if (!ok) {
       setActionError(writeError
-        ? t(reportDbError(writeError, 'StoragesManager.archive'))
+        ? dbErrorSentence(writeError, t, 'StoragesManager.archive')
         : t('products:storages.archiveFailed'))
       return
     }
@@ -56,7 +56,7 @@ export default function StoragesManager({
           <AlertTriangle className="size-4 shrink-0 text-destructive" />
           <span className="text-sm font-medium text-destructive">{t('products:loadFailedTitle')}</span>
           <span className="text-xs text-muted-foreground">
-            {t(reportDbError(error, 'StoragesManager.load'))}
+            {dbErrorSentence(error, t, 'StoragesManager.load')}
           </span>
           <Button type="button" variant="outline" size="sm" className="ms-auto" onClick={reload}>
             {t('products:retry')}

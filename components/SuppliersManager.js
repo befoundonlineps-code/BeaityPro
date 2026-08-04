@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, Plus, Archive, Pencil } from 'lucide-react'
 import SupplierFormDialog from './SupplierFormDialog'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { setSupplierArchived } from '../lib/inventoryAdminIO'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -40,7 +40,7 @@ export default function SuppliersManager({
     setBusy(false)
     if (!ok) {
       setActionError(writeError
-        ? t(reportDbError(writeError, 'SuppliersManager.archive'))
+        ? dbErrorSentence(writeError, t, 'SuppliersManager.archive')
         : t('products:suppliers.archiveFailed'))
       return
     }
@@ -54,7 +54,7 @@ export default function SuppliersManager({
           <AlertTriangle className="size-4 shrink-0 text-destructive" />
           <span className="text-sm font-medium text-destructive">{t('products:loadFailedTitle')}</span>
           <span className="text-xs text-muted-foreground">
-            {t(reportDbError(error, 'SuppliersManager.load'))}
+            {dbErrorSentence(error, t, 'SuppliersManager.load')}
           </span>
           <Button type="button" variant="outline" size="sm" className="ms-auto" onClick={reload}>
             {t('products:retry')}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { User } from 'lucide-react'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { saveStorage, saveStorageResponsibles } from '../lib/inventoryAdminIO'
 import {
   validateStorage, storagePayload, responsiblesVisible, responsibleKey,
@@ -156,7 +156,7 @@ export default function StorageFormDialog({
       if (!dropped) {
         setSaving(false)
         setError(dropError
-          ? t(reportDbError(dropError, 'StorageFormDialog.dropResponsibles'))
+          ? dbErrorSentence(dropError, t, 'StorageFormDialog.dropResponsibles')
           : t('products:storageDialog.dropResponsiblesFailedError'))
         return
       }
@@ -171,7 +171,7 @@ export default function StorageFormDialog({
     if (!ok) {
       setSaving(false)
       setError(saveError
-        ? t(reportDbError(saveError, 'StorageFormDialog.save'))
+        ? dbErrorSentence(saveError, t, 'StorageFormDialog.save')
         : t('products:storageDialog.noRowsError'))
       return
     }
@@ -188,7 +188,7 @@ export default function StorageFormDialog({
         setSaving(false)
         onSaved()
         setError(linksError
-          ? t(reportDbError(linksError, 'StorageFormDialog.responsibles'))
+          ? dbErrorSentence(linksError, t, 'StorageFormDialog.responsibles')
           : t('products:storageDialog.responsiblesFailedError'))
         return
       }

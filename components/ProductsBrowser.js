@@ -8,7 +8,7 @@ import { buildProductTree, countProducts } from '../lib/productTree'
 import { treeContains } from '../lib/categoryTree'
 import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
-import { reportDbError } from '../lib/dbErrors'
+import { dbErrorSentence } from '../lib/dbErrors'
 import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -108,7 +108,7 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
     setBusy(false)
     if (!ok) {
       setActionError(writeError
-        ? t(reportDbError(writeError, 'ProductsBrowser.archiveProduct'))
+        ? dbErrorSentence(writeError, t, 'ProductsBrowser.archiveProduct')
         : t('products:archiveDialog.failedMessage'))
       return
     }
@@ -125,7 +125,7 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
     setBusy(false)
     if (!ok) {
       setActionError(writeError
-        ? t(reportDbError(writeError, 'ProductsBrowser.archiveCategory'))
+        ? dbErrorSentence(writeError, t, 'ProductsBrowser.archiveCategory')
         : t('products:archiveDialog.failedMessage'))
       return
     }
@@ -160,7 +160,7 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
             {t('products:loadFailedTitle')}
           </span>
           <span className="text-xs text-muted-foreground">
-            {t(reportDbError(error, 'ProductsBrowser.load'))}
+            {dbErrorSentence(error, t, 'ProductsBrowser.load')}
           </span>
           <span className="text-xs text-muted-foreground">{t('products:loadFailedHint')}</span>
           <Button type="button" variant="outline" size="sm" className="ms-auto" onClick={reload}>
