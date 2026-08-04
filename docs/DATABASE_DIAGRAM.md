@@ -484,7 +484,7 @@ erDiagram
         uuid storage_id FK "CASCADE"
         uuid employee_id FK "RESTRICT — أحدهما فقط"
         employee_role role
-        storage_kind storage_kind "⏳ بانتظار تشغيل المالك: قيمته ثابتة 'common' عمدًا — نصف مفتاح أجنبي على storages(id, kind) يجعل «لا مسؤولين لمستودع مهني» قيدًا بنيويًا لا صمتًا بالواجهة"
+        storage_kind storage_kind "⏳ بانتظار تشغيل المالك: قيمته ثابتة 'common' عمدًا — نصف مفتاح أجنبي على storages(id, kind) يجعل «لا مسؤولين لمستودع مهني» قيدًا بنيويًا لا صمتًا بالواجهة. وسلوكه عند الحذف يطابق سلوك storage_id لا أكثر: مفتاح مرآة وظيفته الصحّة لا دورة الحياة، ومفتاحان يختلفان عليها يجعل الأشدّ يقرّر والأضعف يكذب على قارئه"
         "CHECK: (employee_id IS NOT NULL) <> (role IS NOT NULL). unique(storage_id, employee_id) وunique(storage_id, role) — NULL متمايز فتعدد صفوف الأدوار مسموح"
     }
 
@@ -550,6 +550,7 @@ erDiagram
         uuid set_product_id FK "CASCADE — المكوّنات جزء من تعريف الطقم"
         uuid component_product_id FK "RESTRICT — المكوّن منتج مستقل له حركاته"
         product_kind component_kind "قيمته ثابتة 'product' عمدًا: نصف مفتاح أجنبي على products(id, kind) يجعل 'المكوّن لا يكون طقمًا' قيدًا بنيويًا لا حارسًا تطبيقيًا"
+        product_kind set_kind "⚠️ مفتاح (set_product_id, set_kind) أُنشئ بلا ON DELETE بينما شقيقه set_product_id بـCASCADE. لا أثر اليوم — المنتجات لا تُحذف (RESTRICT من stock_movements) — لكن لو حُذف طقم يومًا، المرآة بـNO ACTION ترفض والـCASCADE ما بينفّذ. بند صيانة: alter واحد ليطابقا"
         numeric quantity_base "CHECK > 0"
         integer sort_order "NOT NULL DEFAULT 0 — والافتراضي فخّ: كل صف بيقول إنه الأول، فـ.order('sort_order') بترجّعهن بترتيب غير محدَّد. النافذة بتكتب موقع السطر بالقائمة صراحةً"
         "الدورة (طقم أ ⊃ طقم ب ⊃ طقم أ) مستحيلة لا محروسة — فالتعاود يختفي من البيع والتكلفة وعرض المخزون وتنبيه النفاد معًا. ويُرفض أيضًا تحويل منتج إلى طقم وهو مكوّن بطقم آخر"

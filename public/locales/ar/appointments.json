@@ -26,7 +26,7 @@
   },
   "employeeCluster": {
     "blockLabel": "مواعيد متعددة",
-    "blockCount": "{{count}} مواعيد",
+    "blockCount": "مواعيد: {{count}}",
     "dialogTitle": "مواعيد متراكبة — {{name}}",
     "timeColumn": "الوقت",
     "clientColumn": "الزبون",
@@ -134,9 +134,9 @@
     "serviceLabel": "الخدمة",
     "plannedLabel": "المخطّط",
     "actualEndLabel": "وقت الانتهاء الفعلي",
-    "minutesText": "{{count}} دقيقة",
-    "extendHint": "الجلسة رح تصير {{count}} دقيقة — تمديد.",
-    "shortenHint": "الجلسة رح تُسجَّل {{count}} دقيقة — إنهاء مبكر، والوقت الباقي بيتحرر فورًا.",
+    "minutesText": "المدة بالدقائق: {{count}}",
+    "extendHint": "الجلسة رح تصير مدتها {{count}} د — تمديد.",
+    "shortenHint": "الجلسة رح تُسجَّل بمدة {{count}} د — إنهاء مبكر، والوقت الباقي بيتحرر فورًا.",
     "reasonLabel": "سبب التعديل",
     "reasonPlaceholder": "اختر سبب التعديل...",
     "reasonRequiredError": "لازم تختار سبب التعديل",
@@ -172,7 +172,7 @@
   "resourceColumn": {
     "capacityLabel": "مورد · سعة {{count}}",
     "bookedBlock": "مواعيد تم حجزها",
-    "bookedCount": "{{count}} مواعيد"
+    "bookedCount": "مواعيد: {{count}}"
   },
   "resourceDialog": {
     "title": "مواعيد {{name}}",
@@ -336,7 +336,7 @@
     "resetHoursButton": "رجوع للدوام المعتاد",
     "overrideNotice": "ساعات معدّلة لهذا اليوم فقط",
     "oneDayOnlyNotice": "التعديل لهذا اليوم فقط — الدوام الأسبوعي المتكرر ما بيتغيّر.",
-    "bookingsOutsideNotice": "في {{count}} حجز برّا الساعات الجديدة. بيضلوا قائمين زي ما هم — بس صاروا خارج الدوام."
+    "bookingsOutsideNotice": "في حجوزات برّا الساعات الجديدة (العدد: {{count}}). بيضلوا قائمين زي ما هم — بس صاروا خارج الدوام."
   },
   "workPhone": {
     "title": "هاتف العمل",
