@@ -1,35 +1,41 @@
 {
   "breadcrumbProducts": "المنتجات",
   "breadcrumbCatalog": "كتالوج المنتجات",
-
   "searchPlaceholder": "ابحث باسم المنتج...",
   "pickCategoryHint": "اختر مجلّدًا من الشجرة لعرض منتجاته",
   "emptyCategory": "ما في منتجات بهاد المجلّد",
   "hideArchived": "إخفاء المؤرشف",
   "archivedBadge": "مؤرشف",
   "setBadge": "طقم",
-
   "loadFailedTitle": "تعذّر تحميل الكتالوج",
   "loadFailedHint": "المعروض تحت ممكن يكون قديمًا أو ناقصًا — مش بالضرورة إنه فاضي فعلًا.",
   "retry": "إعادة المحاولة",
-
   "noCategoriesTitle": "ما في مجلدات بعد",
   "noCategoriesHint": "كتالوج المنتجات بيبدأ فاضي — أول مجلّد بينضاف بالخطوة الجاية.",
-
   "priceShort": "{{price}} ₪",
   "inContainerValue": "{{count}} {{unit}}",
-
   "units": {
     "pcs": "قطعة",
     "ml": "مل",
     "g": "غرام"
   },
-
   "columns": {
     "abbreviation": "الاختصار",
     "name": "الاسم",
     "inContainer": "بالعبوة",
     "purchasePrice": "سعر الشراء",
     "retailPrice": "سعر البيع"
+  },
+  "stock": {
+    "productRequired": "اختر منتجًا للسطر",
+    "uomInvalid": "وحدة الإدخال غير صالحة",
+    "uomUnavailable": "هاد المنتج ما إله جزئية محدَّدة — أدخل بالعبوة أو بالوحدة",
+    "quantityRequired": "الكمية لازم تكون رقمًا غير صفر",
+    "wholePiecesOnly": "القطع ما بتتجزّأ — الكمية لازم تطلع عددًا صحيحًا من القطع",
+    "unitCostRequired": "سعر الشراء إجباري بالتوريد، ولا بصير سالبًا",
+    "docTypeNotSupported": "نوع المستند هاد إله شاشته الخاصة",
+    "documentEmpty": "المستند بلا سطور",
+    "duplicateProduct": "المنتج مكرر بنفس المستند — اجمعه بسطر واحد",
+    "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية"
   }
 }
