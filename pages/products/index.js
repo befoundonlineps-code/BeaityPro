@@ -8,9 +8,11 @@ import ProductsSecondaryBar from '../../components/ProductsSecondaryBar'
 import StoragesManager from '../../components/StoragesManager'
 import SuppliersManager from '../../components/SuppliersManager'
 import StockDocumentScreen from '../../components/StockDocumentScreen'
+import StockDocumentsList from '../../components/StockDocumentsList'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
+import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
 
 export async function getServerSideProps({ locale }) {
@@ -29,6 +31,7 @@ const BREADCRUMB = {
   write_off: 'products:breadcrumbWriteOff',
   return_to_supplier: 'products:breadcrumbReturn',
   transfer: 'products:breadcrumbTransfer',
+  documents: 'products:breadcrumbDocuments',
 }
 
 export default function ProductsPage() {
@@ -77,6 +80,7 @@ export default function ProductsPage() {
   // from the list. Worse than an inconvenience: somebody who cannot find what
   // they just made will look for a reason, and may make it again.
   const catalogue = useProductCatalog()
+  const stockDocuments = useStockDocuments()
 
   return (
     <AuthGate>
@@ -123,7 +127,19 @@ export default function ProductsPage() {
                 suppliers={directories.suppliers}
                 products={catalogue.products}
                 loading={directories.loading || catalogue.loading}
-                onPosted={catalogue.reload}
+                onPosted={() => { catalogue.reload(); stockDocuments.reload() }}
+              />
+            )}
+            {view === 'documents' && (
+              <StockDocumentsList
+                documents={stockDocuments.documents}
+                movements={stockDocuments.movements}
+                products={catalogue.products}
+                storages={directories.storages}
+                suppliers={directories.suppliers}
+                loading={stockDocuments.loading || catalogue.loading}
+                error={stockDocuments.error}
+                reload={stockDocuments.reload}
               />
             )}
             {view === 'suppliers' && (

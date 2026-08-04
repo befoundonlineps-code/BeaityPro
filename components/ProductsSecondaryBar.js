@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next'
-import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight } from 'lucide-react'
+import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ScrollText } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
@@ -35,6 +35,8 @@ const ITEMS = [
   { view: 'write_off', icon: PackageMinus, key: 'writeOff' },
   { view: 'return_to_supplier', icon: Undo2, key: 'returnToSupplier' },
   { view: 'transfer', icon: ArrowLeftRight, key: 'transfer' },
+  // Last, because it is where you go after posting rather than to post.
+  { view: 'documents', icon: ScrollText, key: 'documents' },
 ]
 
 export default function ProductsSecondaryBar({ view, onSelect }) {
