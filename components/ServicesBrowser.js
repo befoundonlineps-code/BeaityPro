@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
-import { Plus, Minus, Pencil, Archive, Copy, Search } from 'lucide-react'
+import { Plus, Pencil, Archive, Copy } from 'lucide-react'
+import TwoPaneBrowser, { ToolButton } from './TwoPaneBrowser'
 import { buildServiceTree } from '../lib/serviceTree'
 import { browserScreen } from '../lib/servicesScreen'
 import { isCategoryArchived, countAffectedServices } from '../lib/categoryVisibility'
@@ -17,74 +18,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-
-// A toolbar button: an icon over a word, the same shape the reference screen
-// uses and the same one the clients bar already uses in this app.
-function ToolButton({ icon: Icon, label, disabled, onClick }) {
-  return (
-    <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={onClick}>
-      <Icon />
-      {label}
-    </Button>
-  )
-}
-
-// One row of the category tree. Folders open and close on their own button so
-// that selecting a folder and opening it stay two different acts — picking a
-// category to add a service to should not force its contents open.
-function CategoryRow({ node, depth, expanded, onToggle, selectedId, onSelect, archived, t }) {
-  const hasChildren = (node.children || []).length > 0
-  const open = expanded.has(node.id)
-  const selected = selectedId === node.id
-
-  return (
-    <div>
-      <div
-        className={`flex items-center gap-1 rounded-md ${selected ? 'bg-primary/10' : 'hover:bg-muted'}`}
-        style={{ paddingInlineStart: `${depth * 14}px` }}
-      >
-        {hasChildren ? (
-          <button
-            type="button"
-            onClick={() => onToggle(node.id)}
-            className="flex size-5 shrink-0 items-center justify-center rounded border border-border text-muted-foreground"
-          >
-            {open ? <Minus className="size-2.5" /> : <Plus className="size-2.5" />}
-          </button>
-        ) : (
-          <span className="size-5 shrink-0" />
-        )}
-
-        <button
-          type="button"
-          onClick={() => onSelect(node.id)}
-          className={`min-w-0 flex-1 truncate px-1 py-1.5 text-start text-sm ${
-            selected ? 'font-medium text-primary' : ''
-          } ${archived ? 'text-muted-foreground line-through' : ''}`}
-        >
-          {node.name}
-        </button>
-
-        {archived && <Badge variant="outline" className="shrink-0">{t('services:archivedBadge')}</Badge>}
-      </div>
-
-      {open && (node.children || []).map((sub) => (
-        <CategoryRow
-          key={sub.id}
-          node={sub}
-          depth={depth + 1}
-          expanded={expanded}
-          onToggle={onToggle}
-          selectedId={selectedId}
-          onSelect={onSelect}
-          archived={archived || sub.is_active === false}
-          t={t}
-        />
-      ))}
-    </div>
-  )
-}
 
 // The services screen: the folders on one side, what is in the selected one on
 // the other.
@@ -143,7 +76,9 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
   const { t } = useTranslation(['services', 'common'])
   const reload = onReload
 
-  const [expanded, setExpanded] = useState(() => new Set())
+  // `expanded` moved into TwoPaneBrowser: nothing here ever read which
+  // folders were open. The selected folder and the search text stay, because
+  // both decide which rows this screen shows.
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedServiceId, setSelectedServiceId] = useState(null)
   const [search, setSearch] = useState('')
@@ -173,15 +108,6 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
   }, [services, selectedCategoryId, search])
 
   const selectedService = rows.find((s) => s.id === selectedServiceId) || null
-
-  function toggle(id) {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
 
   function selectCategory(id) {
     setSelectedCategoryId(id)
@@ -269,23 +195,19 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
 
   return (
     <>
-      <div className="relative flex min-h-0 flex-col gap-3 lg:h-[calc(100vh-15rem)] lg:flex-row" aria-busy={loading}>
-        {/* Said over the screen rather than instead of it. Instead of it was
-            the bug: a different element here means React takes this one down,
-            and everything chosen on it goes with it. It does not swallow
-            clicks — the catalogue arriving is no reason to freeze the folder
-            you were about to open. */}
-        {loading && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center rounded-xl bg-background/40 pt-10">
-            <span className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground shadow-sm">
-              {t('common:loading')}
-            </span>
-          </div>
-        )}
-
-        {/* ── The folders ─────────────────────────────────────────────── */}
-        <div className="flex min-h-0 flex-col rounded-xl border border-border lg:w-80">
-          <div className="flex shrink-0 items-center gap-0.5 border-b border-border px-1 py-1">
+      <TwoPaneBrowser
+        loading={loading}
+        tree={tree}
+        isArchived={(root) => isCategoryArchived(root, byId)}
+        archivedLabel={t('services:archivedBadge')}
+        selectedCategoryId={selectedCategoryId}
+        onSelectCategory={selectCategory}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t('services:searchPlaceholder')}
+        pickCategoryHint={t('services:pickCategoryHint')}
+        treeToolbar={
+          <>
             <ToolButton
               icon={Plus}
               label={t('services:categoryToolbar.add')}
@@ -305,28 +227,10 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
               disabled={!selectedCategory}
               onClick={() => setArchiveTarget(selectedCategory)}
             />
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto p-1">
-            {tree.map((root) => (
-              <CategoryRow
-                key={root.id}
-                node={root}
-                depth={0}
-                expanded={expanded}
-                onToggle={toggle}
-                selectedId={selectedCategoryId}
-                onSelect={selectCategory}
-                archived={isCategoryArchived(root, byId)}
-                t={t}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── What is in the selected one ─────────────────────────────── */}
-        <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border">
-          <div className="flex shrink-0 flex-wrap items-center gap-0.5 border-b border-border px-1 py-1">
+          </>
+        }
+        itemsToolbar={
+          <>
             <ToolButton
               icon={Plus}
               label={t('services:addServiceButton')}
@@ -356,75 +260,57 @@ export function ServicesBrowserView({ categories, services, types, salonId, load
               disabled={!selectedService || busy}
               onClick={toggleServiceArchived}
             />
-
-            <div className="relative ms-auto w-56">
-              <Search className="pointer-events-none absolute inset-y-0 end-2 my-auto size-3.5 text-muted-foreground" />
-              <Input
-                className="pe-7"
-                placeholder={t('services:searchPlaceholder')}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {!selectedCategoryId ? (
-            <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
-              {t('services:pickCategoryHint')}
-            </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted/60 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 text-start font-medium">{t('services:columns.name')}</th>
-                    <th className="w-28 px-3 py-2 text-start font-medium">{t('services:columns.duration')}</th>
-                    <th className="w-32 px-3 py-2 text-start font-medium">{t('services:columns.price')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((s) => (
-                    <tr
-                      key={s.id}
-                      onClick={() => setSelectedServiceId(s.id)}
-                      onDoubleClick={() => setDialog({ service: s, categoryId: selectedCategoryId })}
-                      className={`cursor-pointer border-b border-border/60 ${
-                        selectedServiceId === s.id ? 'bg-primary/10' : 'hover:bg-muted/60'
-                      }`}
-                    >
-                      <td className="px-3 py-1.5">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className="size-2.5 shrink-0 rounded-full"
-                            style={{ background: s.color || 'var(--color-muted-foreground)' }}
-                          />
-                          <span className={s.is_active ? '' : 'text-muted-foreground line-through'}>{s.name}</span>
-                          {!s.is_active && <Badge variant="outline">{t('services:inactiveBadge')}</Badge>}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5 text-muted-foreground">
-                        {t('services:minutesShort', { count: s.duration_minutes })}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {Number(s.price) > 0
-                          ? t('services:priceShort', { price: Number(s.price).toLocaleString('ar') })
-                          : <span className="text-muted-foreground">{t('services:noPriceSet')}</span>}
-                      </td>
-                    </tr>
-                  ))}
-                  {rows.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
-                        {search.trim() ? t('common:noResults') : t('services:emptyCategory')}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+          </>
+        }
+      >
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-muted/60 text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 text-start font-medium">{t('services:columns.name')}</th>
+              <th className="w-28 px-3 py-2 text-start font-medium">{t('services:columns.duration')}</th>
+              <th className="w-32 px-3 py-2 text-start font-medium">{t('services:columns.price')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => (
+              <tr
+                key={s.id}
+                onClick={() => setSelectedServiceId(s.id)}
+                onDoubleClick={() => setDialog({ service: s, categoryId: selectedCategoryId })}
+                className={`cursor-pointer border-b border-border/60 ${
+                  selectedServiceId === s.id ? 'bg-primary/10' : 'hover:bg-muted/60'
+                }`}
+              >
+                <td className="px-3 py-1.5">
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="size-2.5 shrink-0 rounded-full"
+                      style={{ background: s.color || 'var(--color-muted-foreground)' }}
+                    />
+                    <span className={s.is_active ? '' : 'text-muted-foreground line-through'}>{s.name}</span>
+                    {!s.is_active && <Badge variant="outline">{t('services:inactiveBadge')}</Badge>}
+                  </span>
+                </td>
+                <td className="px-3 py-1.5 text-muted-foreground">
+                  {t('services:minutesShort', { count: s.duration_minutes })}
+                </td>
+                <td className="px-3 py-1.5">
+                  {Number(s.price) > 0
+                    ? t('services:priceShort', { price: Number(s.price).toLocaleString('ar') })
+                    : <span className="text-muted-foreground">{t('services:noPriceSet')}</span>}
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                  {search.trim() ? t('common:noResults') : t('services:emptyCategory')}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </TwoPaneBrowser>
 
       <ServiceFormDialog
         open={!!dialog}
