@@ -5,9 +5,13 @@
   "searchPlaceholder": "ابحث باسم المنتج...",
   "pickCategoryHint": "اختر مجلّدًا من الشجرة لعرض منتجاته",
   "emptyCategory": "ما في منتجات بهاد المجلّد",
-  "showArchived": "إظهار المؤرشف",
+  "hideArchived": "إخفاء المؤرشف",
   "archivedBadge": "مؤرشف",
   "setBadge": "طقم",
+
+  "loadFailedTitle": "تعذّر تحميل الكتالوج",
+  "loadFailedHint": "المعروض تحت ممكن يكون قديمًا أو ناقصًا — مش بالضرورة إنه فاضي فعلًا.",
+  "retry": "إعادة المحاولة",
 
   "noCategoriesTitle": "ما في مجلدات بعد",
   "noCategoriesHint": "كتالوج المنتجات بيبدأ فاضي — أول مجلّد بينضاف بالخطوة الجاية.",
