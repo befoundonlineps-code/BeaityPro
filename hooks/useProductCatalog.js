@@ -27,25 +27,39 @@ export function useProductCatalog() {
 
   async function load() {
     setLoading(true)
-    const [cats, prods] = await Promise.all([
-      supabase.from('product_categories').select('*').order('sort_order'),
-      supabase.from('products').select('*').order('sort_order'),
-    ])
+    try {
+      const [cats, prods] = await Promise.all([
+        supabase.from('product_categories').select('*').order('sort_order'),
+        supabase.from('products').select('*').order('sort_order'),
+      ])
 
-    const failure = cats.error || prods.error
-    if (failure) {
-      // What was on screen stays on screen. Replacing it with [] would turn a
-      // failed refresh into an empty catalogue — the same lie, told about a
-      // catalogue that had rows a second ago instead of one that never did.
-      setError(failure)
+      // Either query failing fails both. A catalogue with its folders read and
+      // its products missing is not a half-loaded catalogue, it is a wrong one.
+      const failure = cats.error || prods.error
+      if (failure) {
+        // What was on screen stays on screen. Replacing it with [] would turn
+        // a failed refresh into an empty catalogue — the same lie, told about
+        // a catalogue that had rows a second ago instead of one that never did.
+        setError(failure)
+        return
+      }
+
+      setError(null)
+      setCategories(cats.data || [])
+      setProducts(prods.data || [])
+    } catch (thrown) {
+      // supabase-js catches fetch failures and returns them in `error` rather
+      // than throwing, so this is unlikely — which is the reason to have it.
+      // Without it a throw skips every line below and `loading` stays true
+      // forever, leaving the overlay sitting over a screen that will never
+      // load: no data, no error, no retry. That is this file's own subject —
+      // a screen that reassures while broken — coming in through a third door,
+      // and it would rest on a library's promise not to change its mind.
+      setError(thrown)
+    } finally {
+      // Every path, including the two returns above and anything thrown.
       setLoading(false)
-      return
     }
-
-    setError(null)
-    setCategories(cats.data || [])
-    setProducts(prods.data || [])
-    setLoading(false)
   }
 
   return { categories, products, loading, error, reload: load }

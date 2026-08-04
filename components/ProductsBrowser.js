@@ -3,6 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { AlertTriangle } from 'lucide-react'
 import TwoPaneBrowser from './TwoPaneBrowser'
 import { buildProductTree } from '../lib/productTree'
+import { treeContains } from '../lib/categoryTree'
 import { isCategoryArchived } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { reportDbError } from '../lib/dbErrors'
@@ -48,15 +49,27 @@ export default function ProductsBrowser() {
   )
   const byId = useMemo(() => indexCategoriesById(categories), [categories])
 
+  // A selection that survived the folder leaving the tree points at something
+  // nobody can see: the right pane would keep listing its products while the
+  // left pane shows nothing selected, and in step 3 the toolbar buttons would
+  // edit and archive a folder that is not on screen. The same ADR-048 shape —
+  // state naming what is no longer drawn — coming in through a filter.
+  //
+  // Derived rather than cleared. Hiding is a view filter, not a destructive
+  // act, so unticking the box puts the person back where they were instead of
+  // making them find the folder again. Nothing is written, so nothing can be
+  // written wrongly.
+  const visibleSelectedId = treeContains(tree, selectedCategoryId) ? selectedCategoryId : null
+
   const rows = useMemo(() => {
-    if (!selectedCategoryId) return []
+    if (!visibleSelectedId) return []
     const q = search.trim().toLowerCase()
     return (products || [])
-      .filter((p) => p.category_id === selectedCategoryId)
+      .filter((p) => p.category_id === visibleSelectedId)
       .filter((p) => !hideArchived || p.is_active !== false)
       .filter((p) => !q || (p.name || '').toLowerCase().includes(q))
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-  }, [products, selectedCategoryId, search, hideArchived])
+  }, [products, visibleSelectedId, search, hideArchived])
 
   function selectCategory(id) {
     setSelectedCategoryId(id)
@@ -95,7 +108,7 @@ export default function ProductsBrowser() {
         tree={tree}
         isArchived={(root) => isCategoryArchived(root, byId)}
         archivedLabel={t('products:archivedBadge')}
-        selectedCategoryId={selectedCategoryId}
+        selectedCategoryId={visibleSelectedId}
         onSelectCategory={selectCategory}
         search={search}
         onSearchChange={setSearch}
