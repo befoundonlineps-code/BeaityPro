@@ -7,7 +7,7 @@ import ProductsBrowser from '../../components/ProductsBrowser'
 import ProductsSecondaryBar from '../../components/ProductsSecondaryBar'
 import StoragesManager from '../../components/StoragesManager'
 import SuppliersManager from '../../components/SuppliersManager'
-import SupplyDocumentScreen from '../../components/SupplyDocumentScreen'
+import StockDocumentScreen from '../../components/StockDocumentScreen'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
@@ -25,7 +25,13 @@ const BREADCRUMB = {
   storages: 'products:breadcrumbStorages',
   suppliers: 'products:breadcrumbSuppliers',
   supply: 'products:breadcrumbSupply',
+  write_off: 'products:breadcrumbWriteOff',
+  return_to_supplier: 'products:breadcrumbReturn',
+  transfer: 'products:breadcrumbTransfer',
 }
+
+// The four views that are one screen with a doc type, rather than four screens.
+const DOCUMENT_VIEWS = ['supply', 'write_off', 'return_to_supplier', 'transfer']
 
 export default function ProductsPage() {
   const { t } = useTranslation(['products', 'common'])
@@ -75,13 +81,18 @@ export default function ProductsPage() {
                 salonId={salonId}
               />
             )}
-            {view === 'supply' && (
-              <SupplyDocumentScreen
+            {DOCUMENT_VIEWS.includes(view) && (
+              <StockDocumentScreen
+                // Keyed on the doc type so switching documents starts a fresh
+                // form. Without it React keeps the old state under the new
+                // shape, and a supplier picked for a return would still be
+                // sitting there on a write-off that has no supplier field.
+                key={view}
+                docType={view}
                 storages={directories.storages}
                 suppliers={directories.suppliers}
                 products={catalogue.products}
                 loading={directories.loading || catalogue.loading}
-                salonId={salonId}
                 onPosted={catalogue.reload}
               />
             )}

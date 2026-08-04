@@ -1,11 +1,14 @@
 import { useTranslation } from 'next-i18next'
-import { Warehouse, Truck, PackagePlus } from 'lucide-react'
+import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
 // Same shape as the services bar down to the class list — deliberately, because
 // two bars that look alike by accident drift apart the first time either is
-// touched. The reference reaches both of these from the products toolbar too.
+// touched. The reference reaches all of these from its products toolbar too,
+// each as its own button rather than one button with a type picker, and this
+// follows it: the four documents differ in which fields they even have, so a
+// picker would redraw the form under somebody mid-entry.
 function SecondaryItem({ icon: IconComp, label, active, onClick }) {
   return (
     <button
@@ -22,30 +25,32 @@ function SecondaryItem({ icon: IconComp, label, active, onClick }) {
   )
 }
 
+// The directories first, then the documents that write movements. The bar
+// scrolls sideways when it has to (overflow-x-auto), which is why six entries
+// is a layout question rather than a design one.
+const ITEMS = [
+  { view: 'storages', icon: Warehouse, key: 'storages' },
+  { view: 'suppliers', icon: Truck, key: 'suppliers' },
+  { view: 'supply', icon: PackagePlus, key: 'supply' },
+  { view: 'write_off', icon: PackageMinus, key: 'writeOff' },
+  { view: 'return_to_supplier', icon: Undo2, key: 'returnToSupplier' },
+  { view: 'transfer', icon: ArrowLeftRight, key: 'transfer' },
+]
+
 export default function ProductsSecondaryBar({ view, onSelect }) {
   const { t } = useTranslation(['products', 'common'])
 
   return (
     <div className="flex w-full items-center gap-1 overflow-x-auto border-b border-sidebar-border bg-muted/40 px-4 py-1.5">
-      <SecondaryItem
-        icon={Warehouse}
-        label={t('products:secondaryItems.storages')}
-        active={view === 'storages'}
-        onClick={() => onSelect(view === 'storages' ? 'catalog' : 'storages')}
-      />
-      <SecondaryItem
-        icon={Truck}
-        label={t('products:secondaryItems.suppliers')}
-        active={view === 'suppliers'}
-        onClick={() => onSelect(view === 'suppliers' ? 'catalog' : 'suppliers')}
-      />
-      {/* The first entry here that writes a movement rather than a definition. */}
-      <SecondaryItem
-        icon={PackagePlus}
-        label={t('products:secondaryItems.supply')}
-        active={view === 'supply'}
-        onClick={() => onSelect(view === 'supply' ? 'catalog' : 'supply')}
-      />
+      {ITEMS.map((item) => (
+        <SecondaryItem
+          key={item.view}
+          icon={item.icon}
+          label={t(`products:secondaryItems.${item.key}`)}
+          active={view === item.view}
+          onClick={() => onSelect(view === item.view ? 'catalog' : item.view)}
+        />
+      ))}
     </div>
   )
 }
