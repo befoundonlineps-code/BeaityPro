@@ -326,6 +326,8 @@
     "reverseConfirm": "اعكس المستند",
     "direction_in": "داخل",
     "direction_out": "خارج",
-    "fromStorage": "من: {{name}}"
+    "fromStorage": "من: {{name}}",
+    "andMore": "وغيرها: {{n}}",
+    "contains": "فيه: {{names}}"
   }
 }

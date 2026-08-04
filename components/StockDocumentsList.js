@@ -5,6 +5,7 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { reverseStockDocument } from '../lib/stockIO'
 import {
   sortDocuments, movementsOf, movementFrames, reversalState,
+  documentProductNames, documentDate,
 } from '../lib/stockDocumentList'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -127,7 +128,7 @@ export default function StockDocumentsList({
                   >
                     {isOpen ? <ChevronDown className="size-4 shrink-0" /> : <ChevronLeft className="size-4 shrink-0" />}
                     <span className="font-medium">{t(`products:docs.${doc.doc_type}.title`)}</span>
-                    <span className="text-sm text-muted-foreground">{doc.doc_date}</span>
+                    <span className="text-sm text-muted-foreground">{documentDate(doc.doc_date)}</span>
                   </button>
 
                   <div className="flex flex-wrap items-center gap-2">
@@ -142,6 +143,21 @@ export default function StockDocumentsList({
                       </Badge>
                     )}
                     {doc.supplier_id && <Badge variant="outline">{nameOf(suppliers, doc.supplier_id)}</Badge>}
+                    {/* Named on the row too, so two documents that share a
+                        date, a storage and a supplier can be told apart before
+                        anybody presses anything — the list was as ambiguous as
+                        the confirmation was. */}
+                    {(() => {
+                      const { names, more } = documentProductNames(movements, doc.id, productsById)
+                      if (names.length === 0) return null
+                      return (
+                        <Badge variant="outline">
+                          {t('products:documents.contains', {
+                            names: names.join('، ') + (more > 0 ? '…' : ''),
+                          })}
+                        </Badge>
+                      )
+                    })()}
                     <Badge variant="outline">
                       {t('products:documents.lineCount', { n: lines.length })}
                     </Badge>
@@ -244,8 +260,31 @@ export default function StockDocumentsList({
                 reorder. */}
             <p className="flex flex-wrap items-center gap-2 font-medium">
               {confirming && <span>{t(`products:docs.${confirming.doc_type}.title`)}</span>}
-              {confirming && <span className="text-muted-foreground">{confirming.doc_date}</span>}
+              {confirming && <span className="text-muted-foreground">{documentDate(confirming.doc_date)}</span>}
             </p>
+            {/* ⚠️ What is IN it, because nothing else tells two apart. The owner
+                has two supply documents on the same date, into the same
+                storage, from the same supplier, with the same line count — the
+                box described both, and he could not tell them apart an hour
+                after posting them. stock_documents has no doc_number, so the
+                contents are the only human handle there is. A destructive
+                confirmation described by something that does not identify its
+                target is worse than one with no description: the first
+                reassures. */}
+            {confirming && (() => {
+              const { names, more } = documentProductNames(movements, confirming.id, productsById)
+              if (names.length === 0) return null
+              return (
+                <p className="flex flex-wrap items-center gap-1.5">
+                  {names.map((name) => <Badge key={name} variant="secondary">{name}</Badge>)}
+                  {more > 0 && <Badge variant="outline">{t('products:documents.andMore', { n: more })}</Badge>}
+                  <Badge variant="outline">{nameOf(storages, confirming.storage_id)}</Badge>
+                  {confirming.supplier_id && (
+                    <Badge variant="outline">{nameOf(suppliers, confirming.supplier_id)}</Badge>
+                  )}
+                </p>
+              )
+            })()}
             <p className="text-muted-foreground">{t('products:documents.reverseMessage')}</p>
             {actionError && <div className="text-destructive">{actionError}</div>}
           </div>
