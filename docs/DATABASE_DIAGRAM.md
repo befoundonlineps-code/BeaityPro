@@ -485,7 +485,8 @@ erDiagram
         uuid employee_id FK "RESTRICT — أحدهما فقط"
         employee_role role
         storage_kind storage_kind "⏳ بانتظار تشغيل المالك: قيمته ثابتة 'common' عمدًا — نصف مفتاح أجنبي على storages(id, kind) يجعل «لا مسؤولين لمستودع مهني» قيدًا بنيويًا لا صمتًا بالواجهة. وسلوكه عند الحذف يطابق سلوك storage_id لا أكثر: مفتاح مرآة وظيفته الصحّة لا دورة الحياة، ومفتاحان يختلفان عليها يجعل الأشدّ يقرّر والأضعف يكذب على قارئه"
-        "CHECK: (employee_id IS NOT NULL) <> (role IS NOT NULL). unique(storage_id, employee_id) وunique(storage_id, role) — NULL متمايز فتعدد صفوف الأدوار مسموح"
+        "⚠️ CHECK: (employee_id IS NOT NULL) <> (role IS NOT NULL) — **ادّعاء تصميم غير مقروء من القاعدة بعد**، والمفتاح المركّب لا يسدّه (NULL بمفتاح أجنبي يمرّ مجّانًا بـMATCH SIMPLE) ولا القيدان الفريدان (unique(storage_id, employee_id) لا يرى صفّين كلاهما NULL هناك). فحتى يُقرأ: صفّ لا يسمّي أحدًا ممكن، والتطبيق يعطيه مفتاح orphan:<id> فلا يطابق شيئًا مؤشَّرًا ويُحذف بأول حفظ، ولا يُعدّ بأي شارة"
+        "unique(storage_id, employee_id) وunique(storage_id, role) — NULL متمايز فتعدد صفوف الأدوار مسموح"
     }
 
     suppliers {

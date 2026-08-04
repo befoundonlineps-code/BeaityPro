@@ -4,7 +4,8 @@ import { User } from 'lucide-react'
 import { reportDbError } from '../lib/dbErrors'
 import { saveStorage, saveStorageResponsibles } from '../lib/inventoryAdminIO'
 import {
-  validateStorage, storagePayload, responsiblesVisible, responsibleKey, storageSaveAction,
+  validateStorage, storagePayload, responsiblesVisible, responsibleKey,
+  storageSaveAction, responsibleCounts,
   STORAGE_KINDS, FINE_BASES,
 } from '../lib/storageForm'
 import { EMPLOYEE_ROLES } from '../lib/employeeRoles'
@@ -83,8 +84,15 @@ export default function StorageFormDialog({
 
   // Derived every render, so putting the kind back to "common" withdraws the
   // question by itself.
+  //
+  // ⚠️ Counted, not measured by length. A row naming neither an employee nor a
+  // role appears in no list on screen, so counting it here would put a number
+  // in the question that nothing on the screen accounts for — "2 responsibles
+  // will be removed" beside one name. Such a row is still removed by the save;
+  // it is just not something to tell somebody they are losing.
+  const { people, roles } = responsibleCounts(existingRows)
   const saveAction = storageSaveAction({
-    kind, isEdit, responsibleCount: existingRows.length, confirmed: confirmDrop,
+    kind, isEdit, responsibleCount: people + roles, confirmed: confirmDrop,
   })
   const needsDropConfirm = saveAction === 'dropThenSave'
 
@@ -358,7 +366,7 @@ export default function StorageFormDialog({
 
         {needsDropConfirm && (
           <div className="shrink-0 rounded-lg border border-destructive/40 bg-destructive/5 p-2.5 text-sm">
-            {t('products:storageDialog.dropResponsiblesConfirm', { n: existingRows.length })}
+            {t('products:storageDialog.dropResponsiblesConfirm', { n: people + roles })}
           </div>
         )}
 
