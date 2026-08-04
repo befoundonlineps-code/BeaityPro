@@ -37,7 +37,9 @@
     "documentEmpty": "المستند بلا سطور",
     "duplicateProduct": "المنتج مكرر بنفس المستند — اجمعه بسطر واحد",
     "noRowsError": "تعذّر التأكد من نجاح الحفظ — جرّب مرة تانية",
-    "countInvalid": "العدد لازم يكون رقمًا صفرًا أو أكبر — ما في عدد سالب"
+    "countInvalid": "العدد لازم يكون رقمًا صفرًا أو أكبر — ما في عدد سالب",
+    "storageNotFound": "المستودع مش موجود أو ما إلك صلاحية عليه",
+    "transferSameStorage": "مستودع المصدر والوجهة نفسه — اختر مستودعين مختلفين"
   },
   "categoryToolbar": {
     "add": "إضافة",
@@ -138,7 +140,8 @@
   "breadcrumbSuppliers": "الموردون",
   "secondaryItems": {
     "storages": "المستودعات",
-    "suppliers": "الموردون"
+    "suppliers": "الموردون",
+    "supply": "توريد بضاعة"
   },
   "storages": {
     "hint": "المستودعات اللي بينحفظ فيها المخزون. مستودع عام للصالون، ومستودع أخصائي بيخصّ موظفة وحدة.",
@@ -224,5 +227,34 @@
     "noRowsError": "ما انحفظ المورد — تأكّد من صلاحياتك وجرّب مرة تانية.",
     "contactsFailedError": "انحفظ المورد، بس حفظ جهات الاتصال فشل — افتحه مرة تانية وجرّب."
   },
-  "archivedOption": "{{name}} (مؤرشف)"
+  "archivedOption": "{{name}} (مؤرشف)",
+  "breadcrumbSupply": "توريد بضاعة",
+  "supply": {
+    "hint": "بضاعة واصلة من مورد لمستودع. المستند ما بينعدّل بعد التسجيل — حركة المخزون سجلّ لا مسوّدة.",
+    "storageLabel": "المستودع المستلِم",
+    "storageNone": "اختر مستودعًا",
+    "storageRequiredError": "اختر المستودع اللي وصلت عليه البضاعة",
+    "supplierLabel": "المورّد",
+    "supplierNone": "اختر مورّدًا",
+    "supplierRequiredError": "اختر المورّد اللي جابت منه البضاعة",
+    "supplierEmptyHint": "ما في موردين مسجّلين — ضيف مورد من شريط \"الموردون\" فوق.",
+    "dateLabel": "تاريخ المستند",
+    "dateRequiredError": "حدّد تاريخ المستند",
+    "noteLabel": "ملاحظة",
+    "linesTitle": "سطور المستند",
+    "summary": "السطور (العدد: {{lines}}) · الإجمالي: {{total}} ₪",
+    "productLabel": "المنتج",
+    "productNone": "اختر منتجًا",
+    "quantityLabel": "الكمية",
+    "uomLabel": "وحدة الإدخال",
+    "uom_package": "عبوة",
+    "uom_portion": "جزئية",
+    "uom_unit": "وحدة أساسية",
+    "unitCostLabel": "سعر الشراء للوحدة المُدخَلة (₪)",
+    "nominalHint": "السعر الاسمي المسجّل: {{price}} ₪",
+    "rowAdd": "إضافة سطر",
+    "rowRemove": "حذف السطر",
+    "postButton": "تسجيل التوريد",
+    "postedMessage": "انسجّل التوريد، والأرصدة اتحدّثت."
+  }
 }

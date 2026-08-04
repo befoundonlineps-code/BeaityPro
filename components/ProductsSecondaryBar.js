@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next'
-import { Warehouse, Truck } from 'lucide-react'
+import { Warehouse, Truck, PackagePlus } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
@@ -38,6 +38,13 @@ export default function ProductsSecondaryBar({ view, onSelect }) {
         label={t('products:secondaryItems.suppliers')}
         active={view === 'suppliers'}
         onClick={() => onSelect(view === 'suppliers' ? 'catalog' : 'suppliers')}
+      />
+      {/* The first entry here that writes a movement rather than a definition. */}
+      <SecondaryItem
+        icon={PackagePlus}
+        label={t('products:secondaryItems.supply')}
+        active={view === 'supply'}
+        onClick={() => onSelect(view === 'supply' ? 'catalog' : 'supply')}
       />
     </div>
   )

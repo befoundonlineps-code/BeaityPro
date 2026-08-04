@@ -7,7 +7,9 @@ import ProductsBrowser from '../../components/ProductsBrowser'
 import ProductsSecondaryBar from '../../components/ProductsSecondaryBar'
 import StoragesManager from '../../components/StoragesManager'
 import SuppliersManager from '../../components/SuppliersManager'
+import SupplyDocumentScreen from '../../components/SupplyDocumentScreen'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
+import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
 
 export async function getServerSideProps({ locale }) {
@@ -22,6 +24,7 @@ const BREADCRUMB = {
   catalog: 'products:breadcrumbCatalog',
   storages: 'products:breadcrumbStorages',
   suppliers: 'products:breadcrumbSuppliers',
+  supply: 'products:breadcrumbSupply',
 }
 
 export default function ProductsPage() {
@@ -38,6 +41,10 @@ export default function ProductsPage() {
   // same four tables on one page.
   const directories = useInventoryDirectories()
   const { employees } = useEmployees()
+  // The supply screen needs the products, and so does the catalogue below it.
+  // ProductsBrowser keeps its own copy for now rather than being rewired in the
+  // same step that adds a document — one change at a time.
+  const catalogue = useProductCatalog()
 
   return (
     <AuthGate>
@@ -66,6 +73,16 @@ export default function ProductsPage() {
                 error={directories.error}
                 reload={directories.reload}
                 salonId={salonId}
+              />
+            )}
+            {view === 'supply' && (
+              <SupplyDocumentScreen
+                storages={directories.storages}
+                suppliers={directories.suppliers}
+                products={catalogue.products}
+                loading={directories.loading || catalogue.loading}
+                salonId={salonId}
+                onPosted={catalogue.reload}
               />
             )}
             {view === 'suppliers' && (
