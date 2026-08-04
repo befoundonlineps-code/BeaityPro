@@ -4,6 +4,7 @@ import { Pencil, TriangleAlert } from 'lucide-react'
 import { classifyBulkRelease, releaseWindow } from '../lib/bulkRelease'
 import { loadReleaseCandidates, markEmployeeAbsent, clearEmployeeAbsence } from '../lib/bulkReleaseIO'
 import { reportDbError } from '../lib/dbErrors'
+import { reportRpcError } from '../lib/rpcErrors'
 import ReleasePreviewList from './ReleasePreviewList'
 import ReasonManagerDialog from './ReasonManagerDialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -95,16 +96,12 @@ export default function EmployeeDayDialog({
     setBusy(false)
 
     if (rpcError) {
-      const message = rpcError.message || ''
-      setError(
-        message.includes('employee_already_absent')
-          ? t('appointments:dayStatus.alreadyAbsentError')
-          : message.includes('missing_system_cancellation_reason')
-          ? t('appointments:dayStatus.missingSystemReasonError')
-          : message.includes('appointment_not_cancellable')
-          ? t('appointments:dayStatus.staleError')
-          : t(reportDbError(rpcError, 'markEmployeeAbsent'))
-      )
+      // appointment_not_cancellable means something different here than in the
+      // actions dialog: somebody is releasing a whole day, and a booking that
+      // moved underneath them is stale news rather than a refusal.
+      setError(t(reportRpcError(rpcError, 'markEmployeeAbsent', {
+        appointment_not_cancellable: 'appointments:dayStatus.staleError',
+      })))
       return
     }
 

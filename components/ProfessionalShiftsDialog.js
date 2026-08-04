@@ -9,6 +9,7 @@ import { getAvatarColor } from '../lib/avatarColor'
 import { setEmployeeDayHours, clearEmployeeDayHours } from '../lib/dayHoursIO'
 import { availableWindowsForDate, dayHoursForDate } from '../lib/employeeAvailability'
 import { reportDbError } from '../lib/dbErrors'
+import { reportRpcError } from '../lib/rpcErrors'
 import ReleasePreviewList from './ReleasePreviewList'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -221,16 +222,12 @@ export default function ProfessionalShiftsDialog({
     setBusy(false)
 
     if (rpcError) {
-      const message = rpcError.message || ''
-      setError(
-        message.includes('employee_already_absent')
-          ? t('appointments:dayStatus.alreadyAbsentError')
-          : message.includes('missing_system_cancellation_reason')
-          ? t('appointments:dayStatus.missingSystemReasonError')
-          : message.includes('appointment_not_cancellable')
-          ? t('appointments:dayStatus.staleError')
-          : t(reportDbError(rpcError, 'markEmployeeAbsent'))
-      )
+      // appointment_not_cancellable means something different here than in the
+      // actions dialog: somebody is releasing a whole day, and a booking that
+      // moved underneath them is stale news rather than a refusal.
+      setError(t(reportRpcError(rpcError, 'markEmployeeAbsent', {
+        appointment_not_cancellable: 'appointments:dayStatus.staleError',
+      })))
       setVerifying(false)
       return
     }

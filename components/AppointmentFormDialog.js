@@ -12,6 +12,7 @@ import { serviceUsesResources, orderedUnitsForService, availableUnitsFor } from 
 import { resolvePlacementWindow, evaluatePlacement, isServiceAllowedForRole, combineGroupPlacement } from '../lib/bookingPlacement'
 import { loadOccupancy, loadGroupOccupancy, attemptOnEachUnit } from '../lib/placementIO'
 import { reportDbError } from '../lib/dbErrors'
+import { reportRpcError } from '../lib/rpcErrors'
 import { cn } from '@/lib/utils'
 import { Plus, X, Minus, Clock, UserRound, Bold, Italic, Underline, Palette } from 'lucide-react'
 import { useRouter } from 'next/router'
@@ -411,9 +412,7 @@ export default function AppointmentFormDialog({ open, onOpenChange, salonId, ini
       if (saveError) {
         if (exhausted) setError(t('appointments:formDialog.allResourcesBusyError'))
         else if (kind === 'employee') setError(t('appointments:formDialog.conflictError'))
-        else if (saveError.message?.includes('appointment_not_waiting')) {
-          setError(t('appointments:formDialog.notWaitingError'))
-        } else setError(t(reportDbError(saveError, 'convertWaitingAppointment')))
+        else setError(t(reportRpcError(saveError, 'convertWaitingAppointment')))
         return
       }
       if (!data) {

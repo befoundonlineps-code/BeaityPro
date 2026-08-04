@@ -3,6 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { supabase } from '../lib/supabaseClient'
 import { exceptionWindowFor } from '../lib/employeeAvailability'
 import { reportDbError } from '../lib/dbErrors'
+import { reportRpcError } from '../lib/rpcErrors'
 import { canRemoveParticipant, sortPrimaryFirst } from '../lib/participants'
 import CancellationReasonManagerDialog from './CancellationReasonManagerDialog'
 import TimeRange from './TimeRange'
@@ -64,9 +65,7 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        rpcError.message?.includes('appointment_not_pending')
-          ? t('appointments:actionsDialog.notPendingError')
-          : t(reportDbError(rpcError, 'confirmPendingAppointment'))
+        t(reportRpcError(rpcError, 'confirmPendingAppointment'))
       )
       return
     }
@@ -89,9 +88,7 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        rpcError.message?.includes('appointment_not_cancellable')
-          ? t('appointments:actionsDialog.notCancellableError')
-          : t(reportDbError(rpcError, 'cancelAppointment'))
+        t(reportRpcError(rpcError, 'cancelAppointment'))
       )
       return
     }
@@ -139,11 +136,7 @@ export default function AppointmentActionsDialog({
     setBusy(false)
     if (rpcError) {
       setError(
-        rpcError.message?.includes('participant_is_primary')
-          ? t('appointments:actionsDialog.isPrimaryError')
-          : rpcError.message?.includes('participant_not_removable')
-          ? t('appointments:actionsDialog.notRemovableError')
-          : t(reportDbError(rpcError, 'removeParticipant'))
+        t(reportRpcError(rpcError, 'removeParticipant'))
       )
       return
     }

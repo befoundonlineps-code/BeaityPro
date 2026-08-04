@@ -5,6 +5,7 @@ import { resolveAdjustedEnd, planDurationAdjustment } from '../lib/durationAdjus
 import { evaluatePlacement, combineGroupPlacement } from '../lib/bookingPlacement'
 import { loadGroupOccupancy } from '../lib/placementIO'
 import { reportDbError } from '../lib/dbErrors'
+import { reportRpcError } from '../lib/rpcErrors'
 import AdjustmentReasonManagerDialog from './AdjustmentReasonManagerDialog'
 import TimeRange from './TimeRange'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -135,14 +136,14 @@ export default function AdjustDurationDialog({
     setSaving(false)
 
     if (rpcError) {
-      if (rpcError.message?.includes('appointment_not_adjustable')) {
-        setError(t('appointments:adjustDialog.notAdjustableError'))
-      } else if (rpcError.code === '23P01') {
+      if (rpcError.code === '23P01') {
         // The pre-check went stale between reading and writing — the
         // exclusion constraint is the real guarantee, as everywhere else.
+        // Checked before the raised codes because this one is a SQLSTATE, and
+        // it wants wording of its own rather than dbErrors' generic clash.
         setError(t('appointments:adjustDialog.conflictGenericError'))
       } else {
-        setError(t(reportDbError(rpcError, 'adjustAppointmentDuration')))
+        setError(t(reportRpcError(rpcError, 'adjustAppointmentDuration')))
       }
       return
     }

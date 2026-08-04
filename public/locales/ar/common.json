@@ -34,5 +34,20 @@
     "confirm": "تأكيد",
     "invalidAmount": "أدخل مبلغ صحيح أكبر من صفر"
   },
-  "close": "إغلاق"
+  "close": "إغلاق",
+  "rpcError": {
+    "appointmentNotFound": "الحجز ما عاد موجودًا — حدّث الشاشة",
+    "notMarkableNoShow": "هاد الحجز ما بحالة تسمح بتسجيل عدم حضور",
+    "cancellationReasonRequired": "سبب الإلغاء إجباري",
+    "rescheduleReasonRequired": "سبب إعادة الجدولة إجباري",
+    "adjustmentReasonRequired": "سبب تعديل المدة إجباري",
+    "endBeforeStart": "وقت النهاية قبل وقت البداية",
+    "noChange": "ما في تغيير على المدة",
+    "invalidTarget": "نوع الهدف غير صالح",
+    "invalidTimeRange": "المدى الزمني غير صالح",
+    "rangeEntirelyPast": "المدى المختار كله بالماضي",
+    "employeeRequired": "لازم تختار موظفًا",
+    "resourceUnitsRequired": "لازم تختار وحدة مورد واحدة على الأقل",
+    "serviceRequired": "لازم تختار خدمة"
+  }
 }
