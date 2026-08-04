@@ -26,7 +26,7 @@ import { Button } from '@/components/ui/button'
 // error — success, as far as the client can tell. Archiving is the only act,
 // and stock_movements holds product_id with ON DELETE RESTRICT anyway, so
 // anything ever moved could never have been removed.
-export default function ProductsBrowser({ salonId }) {
+export default function ProductsBrowser({ salonId, suppliers }) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = useProductCatalog()
 
@@ -308,7 +308,7 @@ export default function ProductsBrowser({ salonId }) {
         categoryId={visibleSelectedId}
         categories={categories}
         products={products}
-        suppliers={[]}
+        suppliers={suppliers}
         salonId={salonId}
         onSaved={reload}
       />

@@ -8,6 +8,7 @@ import {
   validateProductForm, productFormPayload, productSaveAction,
   ACCOUNTING_DIRECTIONS, PRODUCT_UNITS,
 } from '../lib/productForm'
+import { supplierChoices } from '../lib/supplierForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -395,11 +396,26 @@ export default function ProductFormDialog({
                   onChange={(e) => setIsConsignment(e.target.checked)}
                 />
                 {isConsignment && (
-                  <Field label={t('products:productDialog.supplierLabel')}>
+                  <Field
+                    label={t('products:productDialog.supplierLabel')}
+                    hint={supplierChoices(suppliers, supplierId).length === 0
+                      ? t('products:productDialog.supplierEmptyHint')
+                      : undefined}
+                  >
+                    {/* An archived supplier that is already chosen stays on the
+                        list: dropping it would show an empty box and the next
+                        save would reassign the product to nobody — which the
+                        CHECK on is_consignment refuses anyway, so the person
+                        would get a database error for a choice they never
+                        made. */}
                     <select className={FIELD} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                       <option value="">{t('products:productDialog.supplierNone')}</option>
-                      {(suppliers || []).filter((s) => s.is_active !== false).map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
+                      {supplierChoices(suppliers, supplierId).map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.is_active === false
+                            ? t('products:productDialog.supplierArchived', { name: s.name })
+                            : s.name}
+                        </option>
                       ))}
                     </select>
                   </Field>

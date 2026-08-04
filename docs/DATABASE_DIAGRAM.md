@@ -487,6 +487,33 @@ erDiagram
         "CHECK: (employee_id IS NOT NULL) <> (role IS NOT NULL). unique(storage_id, employee_id) وunique(storage_id, role) — NULL متمايز فتعدد صفوف الأدوار مسموح"
     }
 
+    suppliers {
+        uuid id PK
+        uuid salon_id FK
+        text name
+        text phone
+        text email
+        text website
+        text notes
+        boolean is_active
+        integer sort_order
+        "لا عنوان ولا حساب بنكي ولا عملة — بخلاف نافذة المرجعية. تلك حقول بيلزمها برنامج محاسبة روسي ليصدر أمر دفع، وما في شي هون بيصدر شي"
+    }
+
+    supplier_contacts {
+        uuid id PK
+        uuid salon_id FK
+        uuid supplier_id FK "CASCADE"
+        text last_name
+        text first_name
+        text position
+        text phone
+        text email
+        text notes
+        integer sort_order
+        "الاسم على عمودين لا واحد، تبعًا للمرجعية. النافذة بترفض صفًا فيه منصب بلا اسم ولا رقم — بيبان جهة اتصال شغّالة وما فيه طريقة توصله"
+    }
+
     products {
         uuid id PK
         uuid salon_id FK
@@ -531,6 +558,8 @@ erDiagram
 **ملاحظة على `product_categories`:** نسخة طبق الأصل من `service_categories` **بلا `business_type`**. والسبب ليس أن التصنيف المحاسبي انتقل للمنتج — `business_type` على `service_categories` ليس تصنيفًا محاسبيًا أصلًا، بل **رؤية** (من يرى الفئة حسب نوع نشاط الصالون، ADR-019) ومستقل تمامًا عن `accounting_direction`. السبب الصحيح: المنتجات لا تحتاج تصفية رؤية حسب الدور — الشامبو يراه الجميع. الخلط بين العمودين هو نفسه الالتباس الذي كلّف علّة ADR-019.
 
 **ملاحظة على سياسات RLS:** `select`/`insert`/`update` على السبعة، و`delete` على الثلاثة التابعة فقط (`supplier_contacts`, `storage_responsibles`, `product_set_components`). **غياب سياسة `delete` عن `suppliers`/`storages`/`product_categories`/`products` قرار لا سهو** — الأرشفة (`is_active`) هي الطريق الوحيد، وRLS ترفض أي عملية بلا سياسة مطابقة فالمنع بنيوي. وبما أن الحذف يعود بصفر صفوف لا بخطأ، **الواجهة لا تعرض زر حذف لهذه الأربعة إطلاقًا**.
+
+**⚠️ كيف عُرفت أعمدة `suppliers` و`supplier_contacts` أعلاه:** بفحص PostgREST عمودًا عمودًا، لا بقراءة سكربت الخطوة ١. RLS ترجّع `[]` بلا جلسة فما في صف يُقرأ، **لكن العمود غير الموجود يُرفض من المخطِّط قبل ما توصل RLS** (`42703` باسمه)، والموجود يرجع `200 []` — فالفرق بين موجود وغائب مقيس. **وما لا يراه هذا الفحص إطلاقًا: النوع، ولا `NOT NULL`، ولا الافتراضي، ولا أي قيد.** فأي ادّعاء عن هذه لازمه المالك يشغّل SQL. وأول قائمة مرشَّحات جرّبتها (`name`, `full_name`, `contact_name`) رجعت كلها غائبة، فبدا الجدول بلا اسم — والحقيقة إن العمودين `last_name`/`first_name` وما كانوا بالقائمة. الفحص كان سليمًا والمرشَّحات كانت ناقصة.
 
 **ما ليس هنا بعد:** `stock_documents` و`stock_movements` وview الأرصدة — الخطوة ٥، ومشروطة بإقرار اقتراح الذرّية/RPC. وحتى تصل، **لا يوجد رصيد**: شاشة المنتجات لا تعرض عمودَي "Remaining" لأن صفرًا معناه "لا شيء متبقٍّ" بينما الحقيقة "غير معروف".
 
