@@ -1,32 +1,43 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
-import { AlertTriangle } from 'lucide-react'
-import TwoPaneBrowser from './TwoPaneBrowser'
-import { buildProductTree } from '../lib/productTree'
+import { AlertTriangle, Plus, Pencil, Archive } from 'lucide-react'
+import TwoPaneBrowser, { ToolButton } from './TwoPaneBrowser'
+import ProductFormDialog from './ProductFormDialog'
+import ProductCategoryFormDialog from './ProductCategoryFormDialog'
+import { buildProductTree, countProducts } from '../lib/productTree'
 import { treeContains } from '../lib/categoryTree'
-import { isCategoryArchived } from '../lib/categoryVisibility'
+import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { reportDbError } from '../lib/dbErrors'
+import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
 import { useProductCatalog } from '../hooks/useProductCatalog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
-// The products screen, reading only.
+// The products screen.
 //
 // Same shape as the services screen and the same component underneath
 // (TwoPaneBrowser), which is why the folder tree, the inherited archiving and
 // the loading overlay of ADR-048 all work here without being written twice.
 //
-// Loading is passed down, never rendered instead of the browser — the rule
-// ADR-048 exists for. There is no second screen to swap to here, so nothing
-// gates the render at all.
-export default function ProductsBrowser() {
+// ⚠️ No delete button anywhere, for a product or a folder. Neither table has
+// an RLS delete policy, so a delete comes back with zero rows rather than an
+// error — success, as far as the client can tell. Archiving is the only act,
+// and stock_movements holds product_id with ON DELETE RESTRICT anyway, so
+// anything ever moved could never have been removed.
+export default function ProductsBrowser({ salonId }) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = useProductCatalog()
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedProductId, setSelectedProductId] = useState(null)
   const [search, setSearch] = useState('')
+  const [dialog, setDialog] = useState(null)              // { product }
+  const [categoryDialog, setCategoryDialog] = useState(null) // { category }
+  const [archiveTarget, setArchiveTarget] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState('')
 
   // Off by default, and it hides rather than reveals — the inverse of the
   // reference's "Archive" box, deliberately.
@@ -76,6 +87,57 @@ export default function ProductsBrowser() {
     setSelectedProductId(null)
   }
 
+  const selectedCategory = visibleSelectedId ? byId[visibleSelectedId] : null
+  const selectedProduct = rows.find((p) => p.id === selectedProductId) || null
+  // Its own flag, not the resolved state: a folder hidden only by an archived
+  // parent is not restorable from here — you put the parent back and it comes
+  // with it — so the button follows what this row says about itself.
+  const selectedIsArchived = selectedCategory?.is_active === false
+
+  async function toggleProductArchived() {
+    if (!selectedProduct) return
+    setBusy(true)
+    setActionError('')
+    const { ok, error: writeError } = await setProductArchived(
+      selectedProduct.id, selectedProduct.is_active !== false
+    )
+    setBusy(false)
+    if (!ok) {
+      setActionError(writeError
+        ? t(reportDbError(writeError, 'ProductsBrowser.archiveProduct'))
+        : t('products:archiveDialog.failedMessage'))
+      return
+    }
+    reload()
+  }
+
+  async function confirmArchiveCategory() {
+    if (!archiveTarget) return
+    setBusy(true)
+    setActionError('')
+    const { ok, error: writeError } = await setProductCategoryArchived(
+      archiveTarget.id, archiveTarget.is_active !== false
+    )
+    setBusy(false)
+    if (!ok) {
+      setActionError(writeError
+        ? t(reportDbError(writeError, 'ProductsBrowser.archiveCategory'))
+        : t('products:archiveDialog.failedMessage'))
+      return
+    }
+    setArchiveTarget(null)
+    reload()
+  }
+
+  // How many products an archive takes with it, at any depth. "23 products" is
+  // the part somebody needs to hear before agreeing.
+  const affectedCount = archiveTarget
+    ? (() => {
+        const ids = descendantIds(archiveTarget, categories)
+        return (products || []).filter((p) => ids.has(p.category_id)).length
+      })()
+    : 0
+
   const money = (value) =>
     value === null || value === undefined
       ? <span className="text-muted-foreground">—</span>
@@ -123,16 +185,64 @@ export default function ProductsBrowser() {
             <span className="text-xs">{t('products:noCategoriesHint')}</span>
           </div>
         }
-        itemsToolbar={
-          <label className="flex cursor-pointer items-center gap-2 px-2 text-sm">
-            <input
-              type="checkbox"
-              className="accent-primary"
-              checked={hideArchived}
-              onChange={(e) => setHideArchived(e.target.checked)}
+        treeToolbar={
+          <>
+            <ToolButton
+              icon={Plus}
+              label={t('products:categoryToolbar.add')}
+              onClick={() => setCategoryDialog({ category: null })}
             />
-            {t('products:hideArchived')}
-          </label>
+            <ToolButton
+              icon={Pencil}
+              label={t('products:categoryToolbar.edit')}
+              disabled={!selectedCategory}
+              onClick={() => setCategoryDialog({ category: selectedCategory })}
+            />
+            <ToolButton
+              icon={Archive}
+              label={t(selectedIsArchived
+                ? 'products:categoryToolbar.restore'
+                : 'products:categoryToolbar.archive')}
+              disabled={!selectedCategory}
+              onClick={() => setArchiveTarget(selectedCategory)}
+            />
+          </>
+        }
+        itemsToolbar={
+          <>
+            <ToolButton
+              icon={Plus}
+              label={t('products:productToolbar.add')}
+              disabled={!visibleSelectedId}
+              onClick={() => setDialog({ product: null })}
+            />
+            <ToolButton
+              icon={Pencil}
+              label={t('products:productToolbar.edit')}
+              disabled={!selectedProduct}
+              onClick={() => setDialog({ product: selectedProduct })}
+            />
+            {/* No confirmation, unlike a folder: this takes one product off the
+                list and the same press puts it back. */}
+            <ToolButton
+              icon={Archive}
+              label={t(selectedProduct && selectedProduct.is_active === false
+                ? 'products:productToolbar.restore'
+                : 'products:productToolbar.archive')}
+              disabled={!selectedProduct || busy}
+              onClick={toggleProductArchived}
+            />
+
+            <label className="flex cursor-pointer items-center gap-2 px-2 text-sm">
+              <input
+                type="checkbox"
+                className="accent-primary"
+                checked={hideArchived}
+                onChange={(e) => setHideArchived(e.target.checked)}
+              />
+              {t('products:hideArchived')}
+            </label>
+          </>
         }
       >
         <table className="w-full text-sm">
@@ -188,6 +298,63 @@ export default function ProductsBrowser() {
           </tbody>
         </table>
       </TwoPaneBrowser>
+
+      {actionError && <div className="text-sm text-destructive">{actionError}</div>}
+
+      <ProductFormDialog
+        open={!!dialog}
+        onOpenChange={(open) => { if (!open) setDialog(null) }}
+        product={dialog?.product}
+        categoryId={visibleSelectedId}
+        categories={categories}
+        products={products}
+        suppliers={[]}
+        salonId={salonId}
+        onSaved={reload}
+      />
+
+      <ProductCategoryFormDialog
+        open={!!categoryDialog}
+        onOpenChange={(open) => { if (!open) setCategoryDialog(null) }}
+        category={categoryDialog?.category}
+        categories={categories}
+        defaultParentId={categoryDialog?.category ? null : visibleSelectedId}
+        salonId={salonId}
+        onSaved={reload}
+      />
+
+      {/* Archiving a folder is asked about rather than done. It reaches
+          further than this screen, and the count says how far. */}
+      <Dialog open={!!archiveTarget} onOpenChange={(o) => { if (!o) { setArchiveTarget(null); setActionError('') } }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {t(archiveTarget?.is_active === false
+                ? 'products:archiveDialog.restoreTitle'
+                : 'products:archiveDialog.archiveTitle')}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2 text-sm">
+            <p className="font-medium">{archiveTarget?.name}</p>
+            <p className="text-muted-foreground">
+              {t(archiveTarget?.is_active === false
+                ? 'products:archiveDialog.restoreMessage'
+                : 'products:archiveDialog.archiveMessage', { count: affectedCount })}
+            </p>
+            {actionError && <div className="text-destructive">{actionError}</div>}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setArchiveTarget(null); setActionError('') }}>
+              {t('common:discard')}
+            </Button>
+            <Button disabled={busy} onClick={confirmArchiveCategory}>
+              {busy ? t('common:saving') : t('common:done')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
