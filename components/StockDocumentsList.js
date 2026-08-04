@@ -131,7 +131,11 @@ export default function StockDocumentsList({
                   </button>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">{nameOf(storages, doc.storage_id)}</Badge>
+                    <Badge variant="secondary">
+                      {doc.to_storage_id
+                        ? t('products:documents.fromStorage', { name: nameOf(storages, doc.storage_id) })
+                        : nameOf(storages, doc.storage_id)}
+                    </Badge>
                     {doc.to_storage_id && (
                       <Badge variant="secondary">
                         {t('products:documents.toStorage', { name: nameOf(storages, doc.to_storage_id) })}
@@ -174,6 +178,25 @@ export default function StockDocumentsList({
                             <td className="py-1.5 text-muted-foreground">
                               {nameOf(storages, m.storage_id)}
                             </td>
+                            {/* ⚠️ Direction on every line, as a word. Without
+                                it a write-off line reads exactly like a supply
+                                line, and a reversal — whose lines are the
+                                exact opposite of the document it undoes, shown
+                                right beside it — reads as a copy of the
+                                mistake rather than its correction. A word and
+                                not a sign, because a minus inside an Arabic
+                                line is a neutral character between two
+                                directions. */}
+                            <td className="py-1.5">
+                              {movementFrames(m, productsById[m.product_id]).direction && (
+                                <Badge
+                                  variant={movementFrames(m, productsById[m.product_id]).direction === 'in'
+                                    ? 'secondary' : 'outline'}
+                                >
+                                  {t(`products:documents.direction_${movementFrames(m, productsById[m.product_id]).direction}`)}
+                                </Badge>
+                              )}
+                            </td>
                             <td className="py-1.5">{quantityText(m)}</td>
                             <td className="py-1.5 text-muted-foreground">
                               {/* A stamped cost of zero is a real number here,
@@ -189,7 +212,7 @@ export default function StockDocumentsList({
                         ))}
                         {lines.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="py-3 text-center text-muted-foreground">
+                            <td colSpan={5} className="py-3 text-center text-muted-foreground">
                               {t('products:documents.noLines')}
                             </td>
                           </tr>

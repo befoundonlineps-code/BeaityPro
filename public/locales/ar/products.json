@@ -323,6 +323,9 @@
     "reverseButton": "عكس",
     "reverseTitle": "عكس المستند",
     "reverseMessage": "رح ينتسجّل مستند مضاد بيلغي أثر هاد المستند على الأرصدة. المستندان بيضلّوا ظاهرين — التاريخ بيقول إنه صار غلط وانصحّح، لا إنه ما صار.",
-    "reverseConfirm": "اعكس المستند"
+    "reverseConfirm": "اعكس المستند",
+    "direction_in": "داخل",
+    "direction_out": "خارج",
+    "fromStorage": "من: {{name}}"
   }
 }
