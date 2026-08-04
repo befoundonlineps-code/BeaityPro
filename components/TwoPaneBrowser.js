@@ -142,9 +142,14 @@ export default function TwoPaneBrowser({
 
       {/* ── The folders ───────────────────────────────────────────────── */}
       <div className="flex min-h-0 flex-col rounded-xl border border-border lg:w-80">
-        <div className="flex shrink-0 items-center gap-0.5 border-b border-border px-1 py-1">
-          {treeToolbar}
-        </div>
+        {/* Rendered only when there is something to put in it. A screen with
+            no folder actions yet would otherwise get an empty bordered strip
+            that reads as a broken toolbar rather than an absent one. */}
+        {treeToolbar && (
+          <div className="flex shrink-0 items-center gap-0.5 border-b border-border px-1 py-1">
+            {treeToolbar}
+          </div>
+        )}
 
         <div className="min-h-0 flex-1 overflow-y-auto p-1">
           {roots.length === 0 && treeEmpty

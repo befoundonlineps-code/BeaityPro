@@ -1,0 +1,31 @@
+{
+  "breadcrumbProducts": "المنتجات",
+  "breadcrumbCatalog": "كتالوج المنتجات",
+
+  "searchPlaceholder": "ابحث باسم المنتج...",
+  "pickCategoryHint": "اختر مجلّدًا من الشجرة لعرض منتجاته",
+  "emptyCategory": "ما في منتجات بهاد المجلّد",
+  "showArchived": "إظهار المؤرشف",
+  "archivedBadge": "مؤرشف",
+  "setBadge": "طقم",
+
+  "noCategoriesTitle": "ما في مجلدات بعد",
+  "noCategoriesHint": "كتالوج المنتجات بيبدأ فاضي — أول مجلّد بينضاف بالخطوة الجاية.",
+
+  "priceShort": "{{price}} ₪",
+  "inContainerValue": "{{count}} {{unit}}",
+
+  "units": {
+    "pcs": "قطعة",
+    "ml": "مل",
+    "g": "غرام"
+  },
+
+  "columns": {
+    "abbreviation": "الاختصار",
+    "name": "الاسم",
+    "inContainer": "بالعبوة",
+    "purchasePrice": "سعر الشراء",
+    "retailPrice": "سعر البيع"
+  }
+}

@@ -2,7 +2,7 @@ export const SECTIONS = [
   { key: 'clients', active: true, icon: 'clients', route: '/' },
   { key: 'appointments', active: true, icon: 'appointments', route: '/appointments' },
   { key: 'calls', active: false, icon: 'calls' },
-  { key: 'products', active: false, icon: 'products' },
+  { key: 'products', active: true, icon: 'products', route: '/products' },
   { key: 'services', active: true, icon: 'services', route: '/services' },
   { key: 'groups', active: false, icon: 'groups' },
   { key: 'marketing', active: false, icon: 'marketing' },

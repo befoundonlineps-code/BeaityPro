@@ -441,6 +441,101 @@ erDiagram
 
 ---
 
+## 1.ب موديول المنتجات والمخزون — المرحلة الأولى (منشأة فعليًا، مؤكَّدة بالتشغيل)
+
+سبعة جداول وستة أنواع، أُنشئت بالخطوة ١ وتحقَّق منها المالك باستعلامات قرأت الحالة الفعلية: **الجداول ٧/٧ · RLS مفعّلة ٧/٧ · قيد `accounting_direction` مطابق حرفيًا لنظيره على `services` · نطاق السياسات `{public}` كباقي المشروع · PostgreSQL 17.6**.
+
+```mermaid
+erDiagram
+    salons ||--o{ suppliers : "موردو الصالون"
+    suppliers ||--o{ supplier_contacts : "جهات اتصال متعددة (CASCADE)"
+    salons ||--o{ storages : "مستودعات"
+    employees ||--o| storages : "مالك المستودع الشخصي (owner_employee_id، RESTRICT)"
+    storages ||--o{ storage_responsibles : "المسؤولون ماليًا (CASCADE)"
+    salons ||--o{ product_categories : "مجلدات المنتجات (شجرة تشاور على نفسها)"
+    product_categories ||--o{ product_categories : "مجلّد ← مجلّدات فرعية (parent_id، RESTRICT)"
+    product_categories ||--o{ products : "منتجات المجلّد (RESTRICT)"
+    suppliers ||--o{ products : "مورد الأمانة (اختياري، RESTRICT)"
+    products ||--o{ product_set_components : "مكوّنات الطقم (CASCADE من الطقم)"
+    products ||--o{ product_set_components : "المنتج كمكوّن (RESTRICT، وkind='product' حصرًا)"
+
+    storages {
+        uuid id PK
+        uuid salon_id FK "معزول لكل صالون (RLS)"
+        text name
+        text image_path
+        storage_kind kind "ENUM: common / professional"
+        uuid owner_employee_id FK "FK مركّب، RESTRICT. CHECK: (kind='professional') = (owner_employee_id IS NOT NULL)"
+        boolean packages_only "Products only by packages"
+        boolean sale_enabled "Sale from storage — والثلاثة تحته أبناؤه"
+        boolean sale_by_volume
+        boolean sale_by_portion
+        boolean sale_by_units
+        numeric fine_percent "CHECK بين 0 و100"
+        fine_basis fine_basis "ENUM: purchase_price / sales_price"
+        boolean is_active
+        integer sort_order
+        "⚠️ مخالفة واعية للمرجعية: هي تربط مستودع الأخصائي بدور، ونحن بموظف — لأن رصيدًا لكل موظفة لا يتحقق ببركة مشتركة. منسدلة الدور أداة إنشاء بالجملة بالواجهة فقط، ولا يُنشأ مستودع تلقائيًا لكل موظفة"
+    }
+
+    storage_responsibles {
+        uuid id PK
+        uuid salon_id FK
+        uuid storage_id FK "CASCADE"
+        uuid employee_id FK "RESTRICT — أحدهما فقط"
+        employee_role role
+        "CHECK: (employee_id IS NOT NULL) <> (role IS NOT NULL). unique(storage_id, employee_id) وunique(storage_id, role) — NULL متمايز فتعدد صفوف الأدوار مسموح"
+    }
+
+    products {
+        uuid id PK
+        uuid salon_id FK
+        uuid category_id FK "NOT NULL، FK مركّب، RESTRICT"
+        text name
+        product_kind kind "ENUM: product / set"
+        text accounting_direction "Nullable — CHECK مطابق حرفيًا لـservices_accounting_direction_check. الوجهة المحاسبية، مستقلة عن business_type"
+        product_unit base_unit "ENUM: pcs / ml / g — الوحدة الأساسية، وكل كمية بالحركات تُخزَّن بها"
+        numeric units_per_package "In Container، CHECK > 0"
+        numeric units_per_portion "Portion size، بالوحدة الأساسية نفسها"
+        boolean sell_by_packages
+        numeric package_price "Retail price"
+        boolean sell_by_portions
+        numeric portion_price
+        numeric nominal_purchase_price "⚠️ اسمي عمدًا: افتراضي مستند التوريد وأساس الغرامة. التكلفة الفعلية تُشتقّ من الحركات المختومة ولا تُقرأ من هنا"
+        numeric low_supply_units
+        text abbreviation
+        text bar_code "مفهرس (salon_id, bar_code) للمسح بالقارئ، بلا قيد تفرّد"
+        text image_path
+        text description
+        boolean part_of_actual_cost
+        boolean is_consignment "CHECK: لا أمانة بلا مورد"
+        uuid supplier_id FK "RESTRICT"
+        numeric portion_output "للأطقم فقط"
+        boolean is_active
+        integer sort_order
+        "unique(id, salon_id) + unique(id, kind) — الثاني نصف المفتاح المانع لتعشيش الأطقم"
+    }
+
+    product_set_components {
+        uuid id PK
+        uuid salon_id FK
+        uuid set_product_id FK "CASCADE — المكوّنات جزء من تعريف الطقم"
+        uuid component_product_id FK "RESTRICT — المكوّن منتج مستقل له حركاته"
+        product_kind component_kind "قيمته ثابتة 'product' عمدًا: نصف مفتاح أجنبي على products(id, kind) يجعل 'المكوّن لا يكون طقمًا' قيدًا بنيويًا لا حارسًا تطبيقيًا"
+        numeric quantity_base "CHECK > 0"
+        integer sort_order
+        "الدورة (طقم أ ⊃ طقم ب ⊃ طقم أ) مستحيلة لا محروسة — فالتعاود يختفي من البيع والتكلفة وعرض المخزون وتنبيه النفاد معًا. ويُرفض أيضًا تحويل منتج إلى طقم وهو مكوّن بطقم آخر"
+    }
+```
+
+**ملاحظة على `product_categories`:** نسخة طبق الأصل من `service_categories` **بلا `business_type`**. والسبب ليس أن التصنيف المحاسبي انتقل للمنتج — `business_type` على `service_categories` ليس تصنيفًا محاسبيًا أصلًا، بل **رؤية** (من يرى الفئة حسب نوع نشاط الصالون، ADR-019) ومستقل تمامًا عن `accounting_direction`. السبب الصحيح: المنتجات لا تحتاج تصفية رؤية حسب الدور — الشامبو يراه الجميع. الخلط بين العمودين هو نفسه الالتباس الذي كلّف علّة ADR-019.
+
+**ملاحظة على سياسات RLS:** `select`/`insert`/`update` على السبعة، و`delete` على الثلاثة التابعة فقط (`supplier_contacts`, `storage_responsibles`, `product_set_components`). **غياب سياسة `delete` عن `suppliers`/`storages`/`product_categories`/`products` قرار لا سهو** — الأرشفة (`is_active`) هي الطريق الوحيد، وRLS ترفض أي عملية بلا سياسة مطابقة فالمنع بنيوي. وبما أن الحذف يعود بصفر صفوف لا بخطأ، **الواجهة لا تعرض زر حذف لهذه الأربعة إطلاقًا**.
+
+**ما ليس هنا بعد:** `stock_documents` و`stock_movements` وview الأرصدة — الخطوة ٥، ومشروطة بإقرار اقتراح الذرّية/RPC. وحتى تصل، **لا يوجد رصيد**: شاشة المنتجات لا تعرض عمودَي "Remaining" لأن صفرًا معناه "لا شيء متبقٍّ" بينما الحقيقة "غير معروف".
+
+---
+
 ## 2. الإضافات المخطَّطة (قيد البناء حاليًا أو قادمة)
 
 ```mermaid
