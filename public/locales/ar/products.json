@@ -345,7 +345,7 @@
     "columnProduct": "المنتج",
     "columnBalance": "الرصيد",
     "columnCost": "متوسّط التكلفة",
-    "columnValue": "القيمة",
+    "columnValue": "القيمة (₪)",
     "inBase": "بال{{unit}}: {{n}}",
     "unitCost": "تكلفة ال{{unit}}: {{price}} ₪",
     "totalValue": "قيمة المستودع: {{total}} ₪",
@@ -365,7 +365,13 @@
     "emptyNoStockTitle": "ما في مخزون مسجَّل بعد",
     "emptyNoStockHint": "المنتجات موجودة وما انسجّلت عليها حركات — ابدأ بمستند توريد.",
     "loadFailedTitle": "تعذّر تحميل الأرصدة",
-    "loadFailedHint": "ما بينعرض إشي هون لحدّ ما تنجح القراءة — الفراغ مش جواب."
+    "loadFailedHint": "ما بينعرض إشي هون لحدّ ما تنجح القراءة — الفراغ مش جواب.",
+    "unvalued": "وغير مقوَّم: منتجات (العدد: {{n}})",
+    "unvaluedHint": "بضاعة موجودة تكلفتها المسجَّلة صفر، فما بتدخل المجموع — والمجموع بيقول شو استثنى.",
+    "counterpart": "المقابل عند {{storage}}: {{n}}",
+    "groupData": "مشاكل بالسجل — بتنصلح بتصحيح مستند",
+    "groupOperational": "إشارات تشغيل — بتنصلح بأمر شراء",
+    "groupRest": "الباقي"
   },
   "breadcrumbBalances": "الأرصدة"
 }

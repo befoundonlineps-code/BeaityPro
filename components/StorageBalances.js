@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, TrendingDown } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import {
-  balanceRows, emptyReason, sortBalanceRows,
-  BALANCE_STATE, COST_STATE, EMPTY_REASON,
+  balanceRows, emptyReason, sortBalanceRows, storageValueSummary,
+  problemKind, counterpartBalances,
+  BALANCE_STATE, COST_STATE, EMPTY_REASON, PROBLEM_KIND,
 } from '../lib/balanceView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -32,13 +33,25 @@ export default function StorageBalances({
   const money = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 2 })
   const quantity = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 3 })
   const unitOf = (product) => t(`products:units.${product.base_unit || 'pcs'}`)
+  const nameOfStorage = (id) => (storages || []).find((s) => s.id === id)?.name || '—'
 
-  // Only rows with a real balance AND a real average contribute — a NULL
-  // average is not zero, so a storage's value is the sum of what is known and
-  // says nothing about what is not.
-  const storageValue = rows
-    .filter((r) => r.costState === COST_STATE.KNOWN || r.costState === COST_STATE.ZERO)
-    .reduce((sum, r) => sum + r.balanceBase * r.avgCost, 0)
+  // ⚠️ Two kinds of "wrong", separated on the page rather than merged into one
+  // rank. A record that is incomplete or impossible is fixed by correcting a
+  // document; a low shelf is fixed by ordering. Different act, different
+  // person, different urgency — and one rank makes somebody read all three
+  // with one eye.
+  const GROUP_LABEL = {
+    [PROBLEM_KIND.DATA]: 'products:balances.groupData',
+    [PROBLEM_KIND.OPERATIONAL]: 'products:balances.groupOperational',
+    [PROBLEM_KIND.NONE]: 'products:balances.groupRest',
+  }
+
+  // ⚠️ The total holds out stock recorded at zero cost AND says how much it
+  // held out. The first version summed "what is known", which excluded NULL
+  // because it could and kept the zeros because it could not — so a line said
+  // "its value is unknown" while the total counted it as nothing. Arithmetic
+  // does not read badges.
+  const { total, unvaluedProducts } = storageValueSummary(rows)
 
   if (loading) {
     return <div className="py-10 text-center text-sm text-muted-foreground">{t('common:loading')}</div>
@@ -64,9 +77,27 @@ export default function StorageBalances({
         </select>
 
         {rows.length > 0 && (
-          <Badge variant="secondary" className="ms-auto">
-            {t('products:balances.totalValue', { total: money(storageValue) })}
-          </Badge>
+          <div className="ms-auto flex flex-wrap items-center gap-1.5">
+            <Badge variant="secondary">
+              {t('products:balances.totalValue', { total: money(total) })}
+            </Badge>
+            {/* ⚠️ A total that excludes something says what it excluded.
+                Excluding it silently would produce a figure smaller than the
+                truth with nobody able to ask why — the fault we keep removing.
+                The rule holds for every total after this one. */}
+            {unvaluedProducts > 0 && (
+              <Badge variant="outline" title={t('products:balances.unvaluedHint')}>
+                {/* ⚠️ A COUNT OF PRODUCTS, never a summed quantity. My first
+                    version added the held-out balances together — and those
+                    are each in their own product's base unit, so pieces and
+                    millilitres would have gone into one figure. That is the
+                    rule enforced on every other screen, broken inside the
+                    function written to make a total honest. A count has no
+                    unit and is always true. */}
+                {t('products:balances.unvalued', { n: unvaluedProducts })}
+              </Badge>
+            )}
+          </div>
         )}
       </div>
 
@@ -117,12 +148,21 @@ export default function StorageBalances({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row, index) => (
+                <Fragment key={row.product.id}>
+                  {/* The kind changes here, so the page says so. */}
+                  {(index === 0 || problemKind(rows[index - 1]) !== problemKind(row)) && (
+                    <tr data-group={problemKind(row)}>
+                      <td colSpan={4} className="pt-4 pb-1 text-xs text-muted-foreground">
+                        {t(GROUP_LABEL[problemKind(row)])}
+                      </td>
+                    </tr>
+                  )}
                 <tr
-                  key={row.product.id}
                   data-product-id={row.product.id}
                   data-balance-state={row.balanceState}
                   data-cost-state={row.costState}
+                  data-problem-kind={problemKind(row)}
                   className="border-b border-border/40 last:border-0"
                 >
                   <td className="py-2">
@@ -156,6 +196,22 @@ export default function StorageBalances({
                             {t('products:balances.negativeBadge')}
                           </Badge>
                         )}
+                        {/* ⚠️ Where the other half is. The commonest cause of a
+                            negative balance is a transfer recorded before the
+                            supply, so the counterpart is the most useful
+                            context this row can carry — and the -75 here has a
+                            +75 sitting in another storage that this screen
+                            already has in hand. */}
+                        {row.balanceState === BALANCE_STATE.NEGATIVE
+                          && counterpartBalances({ balances, productId: row.product.id, storageId })
+                            .map((other) => (
+                              <span key={other.storage_id} className="text-xs text-muted-foreground">
+                                {t('products:balances.counterpart', {
+                                  n: quantity(other.balance_base),
+                                  storage: nameOfStorage(other.storage_id),
+                                })}
+                              </span>
+                            ))}
                         {/* ⚠️ A SECOND, separate alarm: this one is about
                             QUANTITY. The one below is about VALUE. One badge
                             for both would rebuild what this module spent
@@ -201,6 +257,7 @@ export default function StorageBalances({
                       : money(row.balanceBase * row.avgCost)}
                   </td>
                 </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>
