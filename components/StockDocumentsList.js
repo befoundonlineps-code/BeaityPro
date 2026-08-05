@@ -5,7 +5,7 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { reverseStockDocument } from '../lib/stockIO'
 import {
   sortDocuments, movementsOf, movementFrames, reversalState,
-  documentProductNames, documentDate, costFrames, documentValue,
+  documentProductNames, documentDate, costFrames, documentValue, documentValueLabel,
 } from '../lib/stockDocumentList'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -188,19 +188,24 @@ export default function StockDocumentsList({
                     <Badge variant="outline">
                       {t('products:documents.lineCount', { n: lines.length })}
                     </Badge>
-                    {/* ⚠️ What it cost. The entry screen shows a running total
-                        while somebody types and then it disappears forever, so
-                        the number that matters most on a supply was visible
-                        only while writing it. Nobody opens a list of documents
-                        looking for how many lines are in one.
-                        Null when nothing is priced — a transfer carries no
-                        cost, and "0 ₪" would be a claim about one. */}
+                    {/* ⚠️ What it was worth, and the WORD says worth of what.
+                        The entry screen shows a running total while somebody
+                        types and then it disappears forever, so the number
+                        that matters most on a supply was visible only while
+                        writing it — nobody opens a document list looking for a
+                        line count.
+                        "الإجمالي" was "الوحدة" one level up: it said "a sum"
+                        and never said a sum of what, so a transfer's 0 and a
+                        poisoned supply's 0 drew the same badge with opposite
+                        meanings. Naming it removes the collision without
+                        hiding anything — and the poisoned 0 must stay visible,
+                        it is the fault's own signature. */}
                     {(() => {
                       const value = documentValue(movements, doc.id, productsById)
                       if (value === null) return null
                       return (
                         <Badge variant="secondary">
-                          {t('products:documents.documentTotal', {
+                          {t(documentValueLabel(doc.doc_type), {
                             total: value.toLocaleString('ar', { maximumFractionDigits: 2 }),
                           })}
                         </Badge>

@@ -317,7 +317,6 @@
     "inEntered": "بال{{uom}}: {{n}}",
     "inBase": "بال{{unit}}: {{n}}",
     "unitCost": "تكلفة ال{{unit}}: {{price}} ₪",
-    "documentTotal": "الإجمالي: {{total}} ₪",
     "noLines": "المستند بلا سطور",
     "reversedBadge": "معكوس",
     "isReversalBadge": "مستند عكس",
@@ -329,6 +328,14 @@
     "direction_out": "خارج",
     "fromStorage": "من: {{name}}",
     "andMore": "وغيرها: {{n}}",
-    "contains": "فيه: {{names}}"
+    "contains": "فيه: {{names}}",
+    "valueSupply": "كلفة التوريد: {{total}} ₪",
+    "valueWriteOff": "قيمة المشطوب: {{total}} ₪",
+    "valueReturn": "قيمة المُرجَع: {{total}} ₪",
+    "valueTransfer": "قيمة المنقول: {{total}} ₪",
+    "valueReversal": "القيمة المعكوسة: {{total}} ₪",
+    "valueStocktake": "قيمة التسوية: {{total}} ₪",
+    "valueOpening": "قيمة الرصيد الافتتاحي: {{total}} ₪",
+    "valueGeneric": "القيمة: {{total}} ₪"
   }
 }
