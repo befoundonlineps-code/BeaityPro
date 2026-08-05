@@ -371,7 +371,10 @@
     "counterpart": "المقابل عند {{storage}}: {{n}}",
     "groupData": "مشاكل بالسجل — بتنصلح بتصحيح مستند",
     "groupOperational": "إشارات تشغيل — بتنصلح بأمر شراء",
-    "groupRest": "الباقي"
+    "groupStocked": "الباقي بالمستودع",
+    "groupNeverMoved": "منتجات ما تحرّكت بعد (العدد: {{n}})",
+    "groupShow": "أظهرها",
+    "groupHide": "إخفاؤها"
   },
   "breadcrumbBalances": "الأرصدة"
 }

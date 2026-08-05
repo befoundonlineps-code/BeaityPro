@@ -3,9 +3,9 @@ import { useTranslation } from 'next-i18next'
 import { AlertTriangle, TrendingDown } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import {
-  balanceRows, emptyReason, sortBalanceRows, storageValueSummary,
-  problemKind, counterpartBalances,
-  BALANCE_STATE, COST_STATE, EMPTY_REASON, PROBLEM_KIND,
+  balanceRows, emptyReason, balanceSections, storageValueSummary,
+  hasKnownValue, counterpartBalances,
+  BALANCE_STATE, COST_STATE, EMPTY_REASON, SECTION,
 } from '../lib/balanceView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -27,8 +27,15 @@ export default function StorageBalances({
   const liveStorages = (storages || []).filter((s) => s.is_active !== false)
   const [storageId, setStorageId] = useState(() => (liveStorages[0] ? liveStorages[0].id : ''))
 
-  const rows = sortBalanceRows(balanceRows({ balances, products, storageId }))
+  const rows = balanceRows({ balances, products, storageId })
+  const sections = balanceSections(rows)
   const reason = emptyReason({ loading, error, products, rows })
+
+  // ⚠️ Folded by default, and it is the ONLY section that folds. The first two
+  // are a work list; a work list is not given a stock appendix. The count is
+  // the information, so nothing is hidden — anybody who wants the lines opens
+  // them with one press.
+  const [showNeverMoved, setShowNeverMoved] = useState(false)
 
   const money = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 2 })
   const quantity = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 3 })
@@ -41,9 +48,9 @@ export default function StorageBalances({
   // person, different urgency — and one rank makes somebody read all three
   // with one eye.
   const GROUP_LABEL = {
-    [PROBLEM_KIND.DATA]: 'products:balances.groupData',
-    [PROBLEM_KIND.OPERATIONAL]: 'products:balances.groupOperational',
-    [PROBLEM_KIND.NONE]: 'products:balances.groupRest',
+    [SECTION.DATA]: 'products:balances.groupData',
+    [SECTION.OPERATIONAL]: 'products:balances.groupOperational',
+    [SECTION.STOCKED]: 'products:balances.groupStocked',
   }
 
   // ⚠️ The total holds out stock recorded at zero cost AND says how much it
@@ -148,21 +155,46 @@ export default function StorageBalances({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
-                <Fragment key={row.product.id}>
-                  {/* The kind changes here, so the page says so. */}
-                  {(index === 0 || problemKind(rows[index - 1]) !== problemKind(row)) && (
-                    <tr data-group={problemKind(row)}>
+              {sections.map((group) => (
+                <Fragment key={group.section}>
+                  {/* ⚠️ Only the last section folds, and it is named by its
+                      CONTENT rather than its position — "الباقي" described
+                      where it sat. The count is the information, so folding
+                      hides nothing. */}
+                  {group.section === SECTION.NEVER_MOVED ? (
+                    <tr data-group={group.section}>
+                      <td colSpan={4} className="pt-4 pb-1">
+                        <button
+                          type="button"
+                          data-toggle-never-moved
+                          className="flex items-center gap-2 text-xs text-muted-foreground underline-offset-4 hover:underline"
+                          onClick={() => setShowNeverMoved((open) => !open)}
+                        >
+                          <span>
+                            {t('products:balances.groupNeverMoved', { n: group.rows.length })}
+                          </span>
+                          <span>
+                            {showNeverMoved ? t('products:balances.groupHide') : t('products:balances.groupShow')}
+                          </span>
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr data-group={group.section}>
                       <td colSpan={4} className="pt-4 pb-1 text-xs text-muted-foreground">
-                        {t(GROUP_LABEL[problemKind(row)])}
+                        {t(GROUP_LABEL[group.section])}
                       </td>
                     </tr>
                   )}
+
+                  {(group.section !== SECTION.NEVER_MOVED || showNeverMoved)
+                    && group.rows.map((row) => (
                 <tr
+                  key={row.product.id}
                   data-product-id={row.product.id}
                   data-balance-state={row.balanceState}
                   data-cost-state={row.costState}
-                  data-problem-kind={problemKind(row)}
+                  data-section={group.section}
                   className="border-b border-border/40 last:border-0"
                 >
                   <td className="py-2">
@@ -252,11 +284,19 @@ export default function StorageBalances({
                   </td>
 
                   <td className="py-2 text-muted-foreground">
-                    {row.costState === COST_STATE.NONE || row.balanceState === BALANCE_STATE.NEVER_MOVED
-                      ? '—'
-                      : money(row.balanceBase * row.avgCost)}
+                    {/* ⚠️ The SAME predicate the total uses. They used to be two
+                        conditions and they disagreed: the total held this row
+                        out because it knew the value was unknown, while this
+                        cell printed "0" — so the screen owned a word for
+                        ignorance, used it on two rows, and dropped it on the
+                        one row the badge exists for.
+                        The cost column keeps its "0 ₪" because it TRANSPORTS
+                        what the ledger holds; this column would PRODUCE a new
+                        claim by multiplying. */}
+                    {hasKnownValue(row) ? money(row.balanceBase * row.avgCost) : '—'}
                   </td>
                 </tr>
+                    ))}
                 </Fragment>
               ))}
             </tbody>
