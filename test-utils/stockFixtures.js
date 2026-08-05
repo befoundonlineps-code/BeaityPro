@@ -352,6 +352,35 @@ export const COST_STATE = {
   KNOWN: 'known',
 }
 
+// ⚠️ AND THE FILTER IS BY BALANCE, NOT BY is_active.
+//
+// Measured: there is no trigger stopping a product with stock from being
+// archived (products carries only trg_freeze_consignment_after_use). But the
+// remedy is NOT the mirror of the storage guard, because the two cases are not
+// mirrors:
+//
+//   an archived STORAGE  → its balance is UNREACHABLE. Every screen in the
+//                          module is a storage first, so nothing can show it.
+//                          Only the database can save that, hence the trigger.
+//   an archived PRODUCT  → its balance is merely FILTERED. The storage is
+//                          alive, the row is there, and a screen that chooses
+//                          to show it, shows it.
+//
+// So a storage is an ACCESS problem and a product is a DISPLAY problem, and
+// forcing somebody to write off three remaining bottles of a discontinued line
+// is friction with nothing bought by it. "Archived" means "stop buying this",
+// not "the shelf is empty".
+//
+//   A product whose balance is not zero is shown even when archived, marked.
+//
+// Three things follow with no extra work: it HEALS ITSELF (the balance runs
+// out and the row disappears on its own — no cleanup, no trigger, no second
+// decision); it SAVES THE STOCKTAKE, because an archived product sitting on
+// the shelf must be countable, and a stocktake that hides it makes "I counted
+// this storage" false BY CONSTRUCTION with nothing to reveal it (item 44 from
+// its other side — there the ledger cannot record verification, here the
+// verification cannot happen at all); and it keeps "archived" meaning what it
+// says.
 export function balanceRowsForStorage({ storageId, products, movements }) {
   const balances = Object.fromEntries(
     productBalances(movements)
@@ -359,11 +388,15 @@ export function balanceRowsForStorage({ storageId, products, movements }) {
       .map((b) => [b.product_id, b])
   )
 
-  return products.map((product) => {
+  return products.flatMap((product) => {
     const row = balances[product.id]
+    const archived = product.is_active === false
+    // Archived AND nothing on the shelf: gone from the screen, and it got there
+    // by itself the moment the balance reached zero.
+    if (archived && (!row || row.balance_base === 0)) return []
     if (!row) {
       // The state the view cannot return, and the screen must still draw.
-      return { product_id: product.id, balanceState: BALANCE_STATE.NEVER_MOVED, costState: COST_STATE.NONE }
+      return [{ product_id: product.id, balanceState: BALANCE_STATE.NEVER_MOVED, costState: COST_STATE.NONE }]
     }
     const balanceState = row.balance_base > 0 ? BALANCE_STATE.IN_STOCK
       : row.balance_base < 0 ? BALANCE_STATE.NEGATIVE
@@ -371,16 +404,19 @@ export function balanceRowsForStorage({ storageId, products, movements }) {
     const costState = row.avg_cost === null ? COST_STATE.NONE
       : row.avg_cost === 0 ? COST_STATE.ZERO
         : COST_STATE.KNOWN
-    return {
+    return [{
       product_id: product.id,
       balance_base: row.balance_base,
       avg_cost: row.avg_cost,
       balanceState,
       costState,
+      // Shown BECAUSE it still has stock, and labelled so nobody reads its
+      // presence as "still on sale".
+      archived,
       // The one combination that should shout: goods on the shelf recorded as
       // worth nothing.
       needsAttention: balanceState === BALANCE_STATE.IN_STOCK && costState === COST_STATE.ZERO,
-    }
+    }]
   })
 }
 

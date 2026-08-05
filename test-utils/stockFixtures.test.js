@@ -427,3 +427,80 @@ describe('summing across storages erases the signal', () => {
     expect(result.perStorage).toHaveLength(2)
   })
 })
+
+describe('the balance screen filters by BALANCE, not by is_active', () => {
+  // Measured: no trigger stops a product with stock from being archived. And
+  // the remedy is not the storage guard's mirror — an archived STORAGE is
+  // unreachable (only the database can save it), an archived PRODUCT is merely
+  // filtered (the screen can). Access problem versus display problem.
+  const archived = (id) => OWNER_PRODUCTS.map((p) => (p.id === id ? { ...p, is_active: false } : p))
+
+  it('SHOWS an archived product that still has stock, and labels it', () => {
+    // "Archived" means "stop buying this", not "the shelf is empty". Forcing a
+    // write-off of three remaining bottles is friction that buys nothing.
+    const rows = balanceRowsForStorage({
+      storageId: 'stor-general',
+      products: archived('p-shampoo'),
+      movements: historyMovements('shampoo'),
+    })
+    expect(rows.find((r) => r.product_id === 'p-shampoo')).toMatchObject({
+      balance_base: 20, balanceState: BALANCE_STATE.IN_STOCK, archived: true,
+    })
+  })
+
+  it('drops it BY ITSELF once the balance reaches zero', () => {
+    // ⚠️ The self-healing property, and the reason no trigger and no cleanup
+    // step are needed: the row leaves the screen the moment the stock runs out.
+    const emptied = [
+      movement({ id: 'a', documentId: 'd', product: 'p-shampoo', enteredPackages: 4, unitCostPerBase: 25 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-shampoo', enteredPackages: 4, unitCostPerBase: 25, direction: -1 }),
+    ]
+    const rows = balanceRowsForStorage({
+      storageId: 'stor-general', products: archived('p-shampoo'), movements: emptied,
+    })
+    expect(rows.some((r) => r.product_id === 'p-shampoo')).toBe(false)
+  })
+
+  it('hides an archived product that never moved', () => {
+    const rows = balanceRowsForStorage({
+      storageId: 'stor-general', products: archived('p-cooler'), movements: historyMovements('shampoo'),
+    })
+    expect(rows.some((r) => r.product_id === 'p-cooler')).toBe(false)
+  })
+
+  it('SHOWS an archived product whose balance went NEGATIVE', () => {
+    // Not zero, so it stays — and a negative balance on a discontinued line is
+    // exactly the row somebody needs to see.
+    const rows = balanceRowsForStorage({
+      storageId: 'stor-general', products: archived('p-cooler'), movements: historyMovements('cooler'),
+    })
+    expect(rows.find((r) => r.product_id === 'p-cooler')).toMatchObject({
+      balance_base: -75, balanceState: BALANCE_STATE.NEGATIVE, archived: true,
+    })
+  })
+
+  it('keeps an ACTIVE product that never moved, which is a different question', () => {
+    // Never-moved and archived-and-empty both produce no view row, and they are
+    // not the same thing: one is "created, not supplied yet", the other is
+    // "discontinued and gone". Only the first belongs on screen.
+    const rows = balanceRowsForStorage({
+      storageId: 'stor-general', products: OWNER_PRODUCTS, movements: historyMovements('shampoo'),
+    })
+    expect(rows.find((r) => r.product_id === 'p-cooler')).toMatchObject({
+      balanceState: BALANCE_STATE.NEVER_MOVED,
+    })
+  })
+
+  it('means an archived product on the shelf is COUNTABLE by the stocktake', () => {
+    // ⚠️ The heaviest of the three consequences. A stocktake that filters by
+    // is_active cannot see it, so "I counted this storage" is false BY
+    // CONSTRUCTION and nothing reveals it — item 44 from its other side: there
+    // the ledger cannot record verification, here verification cannot happen.
+    const countable = balanceRowsForStorage({
+      storageId: 'stor-general',
+      products: archived('p-shampoo'),
+      movements: historyMovements('shampoo'),
+    }).map((r) => r.product_id)
+    expect(countable).toContain('p-shampoo')
+  })
+})
