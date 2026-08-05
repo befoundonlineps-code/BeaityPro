@@ -256,6 +256,76 @@ export function productBalances(movements) {
   }))
 }
 
+// What the BALANCE SCREEN must draw — which is not what the view returns.
+//
+// ⚠️ TWO INDEPENDENT TRIPLES meet here, and naming only one of them was the
+// gap. The cost triple we had: a number · 0 (free, or unknown — item 34) ·
+// NULL (no average). The balance triple we had registered as item 27 and never
+// connected to a display:
+//
+//   20        a computed balance
+//   0         goods came in and went out — a REAL balance of zero
+//   no row    never moved at all — the view never saw this product
+//
+// The view cannot express the third: `FROM stock_movements GROUP BY` means a
+// product with no movements produces no row. So a product created today and
+// not yet supplied is ABSENT from the screen — it looks like it does not
+// exist. And filling it in with coalesce(balance, 0) is worse than absence: it
+// says "you have zero of these", a sentence about a balance, when the truth is
+// there is no balance because nothing ever entered. One means "it ran out,
+// reorder"; the other means "it never arrived".
+//
+// ⚠️ AND THE CROSS-PRODUCT IS WHERE THE VALUE IS. A POSITIVE balance with a
+// ZERO cost is stock that exists whose recorded worth is nothing — which is
+// exactly what the owner's database held before the cleanup. So the balance
+// screen is not a passive display: it is the first place poisoning is found
+// without anybody looking for it, IF the states are distinguished, and the
+// place that hides it if they are not.
+export const BALANCE_STATE = {
+  NEVER_MOVED: 'neverMoved',   // no row in the view at all
+  EMPTY: 'empty',              // balance exactly 0 — moved in and out
+  NEGATIVE: 'negative',        // issued before the receipt was recorded
+  IN_STOCK: 'inStock',
+}
+
+export const COST_STATE = {
+  NONE: 'noAverage',           // avg_cost NULL — balance <= 0, or never priced
+  ZERO: 'zeroCost',            // a real 0 — free, or unknown (item 34)
+  KNOWN: 'known',
+}
+
+export function balanceRowsForStorage({ storageId, products, movements }) {
+  const balances = Object.fromEntries(
+    productBalances(movements)
+      .filter((b) => b.storage_id === storageId)
+      .map((b) => [b.product_id, b])
+  )
+
+  return products.map((product) => {
+    const row = balances[product.id]
+    if (!row) {
+      // The state the view cannot return, and the screen must still draw.
+      return { product_id: product.id, balanceState: BALANCE_STATE.NEVER_MOVED, costState: COST_STATE.NONE }
+    }
+    const balanceState = row.balance_base > 0 ? BALANCE_STATE.IN_STOCK
+      : row.balance_base < 0 ? BALANCE_STATE.NEGATIVE
+        : BALANCE_STATE.EMPTY
+    const costState = row.avg_cost === null ? COST_STATE.NONE
+      : row.avg_cost === 0 ? COST_STATE.ZERO
+        : COST_STATE.KNOWN
+    return {
+      product_id: product.id,
+      balance_base: row.balance_base,
+      avg_cost: row.avg_cost,
+      balanceState,
+      costState,
+      // The one combination that should shout: goods on the shelf recorded as
+      // worth nothing.
+      needsAttention: balanceState === BALANCE_STATE.IN_STOCK && costState === COST_STATE.ZERO,
+    }
+  })
+}
+
 // Runs one OWNER_HISTORY entry into movements, so a screen can be drawn from
 // the real sequence rather than from its summary.
 export function historyMovements(key, documentId = 'doc-history') {

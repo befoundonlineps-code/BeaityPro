@@ -1,5 +1,6 @@
 import {
   movement, fixtureIsConsistent, historyMovements, productBalances, stocktakeAdjustment,
+  balanceRowsForStorage, BALANCE_STATE, COST_STATE,
   OWNER_PRODUCTS, HYPOTHETICAL_PRODUCTS, OWNER_HISTORY,
 } from './stockFixtures'
 
@@ -284,5 +285,84 @@ describe('the stocktake adjustment, decided before the screen exists', () => {
       id: 's1', documentId: 'd', product: 'p-laser',
       countedPackages: 2.5, recordedBase: 0, unitCostPerBase: 1,
     })).toThrow(/pieces do not divide/)
+  })
+})
+
+describe('the balance screen has TWO triples, not one', () => {
+  const products = OWNER_PRODUCTS
+
+  it('draws a product that NEVER MOVED — which the view cannot return at all', () => {
+    // ⚠️ FROM stock_movements GROUP BY: no movements, no row. A product created
+    // today and not yet supplied is absent from the view entirely, so a screen
+    // that renders only the view's rows makes it look non-existent.
+    const rows = balanceRowsForStorage({
+      storageId: 'stor-general', products, movements: historyMovements('shampoo'),
+    })
+    const cooler = rows.find((r) => r.product_id === 'p-cooler')
+    expect(cooler).toEqual({
+      product_id: 'p-cooler', balanceState: BALANCE_STATE.NEVER_MOVED, costState: COST_STATE.NONE,
+    })
+    // and specifically NOT a zero balance
+    expect(cooler.balance_base).toBeUndefined()
+  })
+
+  it('keeps "never moved" apart from a REAL zero', () => {
+    // One means "it ran out, reorder"; the other means "it never arrived".
+    // coalesce(balance, 0) collapses them into the first sentence.
+    const emptied = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 4, unitCostPerBase: 25 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 4, unitCostPerBase: 25, direction: -1 }),
+    ]
+    const rows = balanceRowsForStorage({ storageId: 'stor-general', products, movements: emptied })
+    expect(rows.find((r) => r.product_id === 'p-laser')).toMatchObject({
+      balance_base: 0, balanceState: BALANCE_STATE.EMPTY, costState: COST_STATE.NONE,
+    })
+    expect(rows.find((r) => r.product_id === 'p-shampoo').balanceState).toBe(BALANCE_STATE.NEVER_MOVED)
+  })
+
+  it('SHOUTS on stock that exists and is recorded as worth nothing', () => {
+    // ⚠️ The cross-product, and the reason this screen is not passive: a
+    // positive balance at zero cost is exactly what the owner's database held
+    // before the cleanup. Distinguishing the states is what makes the screen
+    // find poisoning without anybody looking for it.
+    const poisoned = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: 0 }),
+    ]
+    const row = balanceRowsForStorage({ storageId: 'stor-general', products, movements: poisoned })
+      .find((r) => r.product_id === 'p-laser')
+    expect(row).toMatchObject({
+      balanceState: BALANCE_STATE.IN_STOCK, costState: COST_STATE.ZERO, needsAttention: true,
+    })
+  })
+
+  it('does not shout at a healthy row, or at a negative one', () => {
+    // A guard that flags everything flags nothing.
+    const healthy = balanceRowsForStorage({
+      storageId: 'stor-general', products, movements: historyMovements('shampoo'),
+    }).find((r) => r.product_id === 'p-shampoo')
+    expect(healthy).toMatchObject({ costState: COST_STATE.KNOWN, needsAttention: false })
+
+    const negative = balanceRowsForStorage({
+      storageId: 'stor-general', products, movements: historyMovements('cooler'),
+    }).find((r) => r.product_id === 'p-cooler')
+    expect(negative).toMatchObject({
+      balanceState: BALANCE_STATE.NEGATIVE, costState: COST_STATE.NONE, needsAttention: false,
+    })
+  })
+
+  it('separates the four combinations that can actually occur', () => {
+    // negative+noAverage · empty+noAverage · inStock+zeroCost · inStock+known
+    const rows = balanceRowsForStorage({
+      storageId: 'stor-general',
+      products,
+      movements: [
+        ...historyMovements('cooler'),
+        movement({ id: 'z', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: 0 }),
+        ...historyMovements('shampoo'),
+      ],
+    })
+    expect(rows.map((r) => `${r.balanceState}/${r.costState}`)).toEqual([
+      'negative/noAverage', 'inStock/zeroCost', 'inStock/known',
+    ])
   })
 })
