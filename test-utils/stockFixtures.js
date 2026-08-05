@@ -52,6 +52,7 @@ const byId = (products) => Object.fromEntries(products.map((p) => [p.id, p]))
 export function movement({
   id, documentId, product, enteredPackages, unitCostPerBase,
   direction = 1, storageId = 'stor-general', products = OWNER_PRODUCTS,
+  counterfactualNullCost = false,
 }) {
   const found = typeof product === 'string' ? byId([...products, ...HYPOTHETICAL_PRODUCTS])[product] : product
   if (!found) throw new Error(`stockFixtures: unknown product ${product}`)
@@ -62,6 +63,21 @@ export function movement({
   }
   if (direction !== 1 && direction !== -1) {
     throw new Error('stockFixtures: direction must be 1 (receipt) or -1 (issue)')
+  }
+  // ⚠️ stock_movements.unit_cost is NOT NULL — measured in the schema. So a
+  // fixture with no cost depicts a row the database cannot hold, which is the
+  // exact fault this builder exists to prevent, just pointed at a constraint
+  // instead of an arithmetic relation.
+  //
+  // The one legitimate use is the counterfactual that shows WHY the constraint
+  // must stay: with a nullable column, sum() would skip the numerator term and
+  // keep the denominator, dropping the average silently. That case must be
+  // asked for by name.
+  if ((unitCostPerBase === null || unitCostPerBase === undefined) && !counterfactualNullCost) {
+    throw new Error(
+      'stockFixtures: unit_cost is NOT NULL in the schema — pass counterfactualNullCost: true '
+      + 'only to demonstrate why it must stay so'
+    )
   }
 
   const base = enteredPackages * factor

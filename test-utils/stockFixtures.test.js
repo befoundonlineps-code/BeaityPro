@@ -49,9 +49,19 @@ describe('the builder refuses what the writer would refuse', () => {
     }).unit_cost).toBe('6.6667')
   })
 
-  it('keeps a null cost null, because "no price" is not "priced at zero"', () => {
-    expect(movement({
+  it('refuses a null cost, because unit_cost is NOT NULL in the schema', () => {
+    // ⚠️ Measured in the schema, not assumed. A fixture with no cost depicts a
+    // row the database cannot hold — the same fault as an impossible quantity,
+    // pointed at a constraint instead of an arithmetic relation.
+    expect(() => movement({
       id: 'm1', documentId: 'd1', product: 'p-laser', enteredPackages: 1, unitCostPerBase: null,
+    })).toThrow(/NOT NULL in the schema/)
+  })
+
+  it('allows it only when asked for by name, as a counterfactual', () => {
+    expect(movement({
+      id: 'm1', documentId: 'd1', product: 'p-laser', enteredPackages: 1,
+      unitCostPerBase: null, counterfactualNullCost: true,
     }).unit_cost).toBeNull()
   })
 })
@@ -160,14 +170,22 @@ describe('productBalances reproduces the view, including what a paraphrase loses
     expect(productBalances(rows)[0]).toMatchObject({ balance_base: 0, avg_cost: null })
   })
 
-  it('lets a NULL cost drag the average down, because sum() skips NULLs', () => {
-    // ⚠️ quantity_base * NULL is NULL and sum() ignores it, so a movement with
-    // no unit_cost counts in the DENOMINATOR and not the numerator. 10 pieces
-    // at 100 plus 10 with no cost averages 50, not 100 — and nothing on screen
-    // says half the pile was never priced.
+  it('COUNTERFACTUAL: why unit_cost must stay NOT NULL', () => {
+    // ⚠️ This state cannot exist in the database, and that is the finding.
+    // quantity_base * NULL is NULL and sum() ignores it, so a nullable column
+    // would let a movement leave the NUMERATOR and stay in the DENOMINATOR:
+    // 10 pieces at 100 plus 10 unpriced averages 50, not 100.
+    //
+    // That is poisoning in its cleanest form — a figure smaller than the truth,
+    // consistent with itself, with no error and no row — and HARDER to see than
+    // a zero, because a zero shows up on the line and a depressed average shows
+    // up nowhere. So "make it nullable" is worse than the problem it solves.
     const rows = [
       movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: 100 }),
-      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
+      movement({
+        id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10,
+        unitCostPerBase: null, counterfactualNullCost: true,
+      }),
     ]
     expect(productBalances(rows)[0]).toMatchObject({ balance_base: 20, avg_cost: 50 })
   })
@@ -202,7 +220,7 @@ describe('productBalances reproduces the view, including what a paraphrase loses
   })
 })
 
-describe('the case a mutation could not find', () => {
+describe('the case a mutation could not find — all COUNTERFACTUAL, see above', () => {
   it('gives NULL when EVERY movement has no cost — not zero', () => {
     // ⚠️ sum() over nothing is NULL, not 0, so the view says "no average" for
     // a pile nobody ever priced. My first reproduction accumulated into 0 and
@@ -213,8 +231,8 @@ describe('the case a mutation could not find', () => {
     // identical for a sum. It came from asking what the SQL does with nothing
     // to add, which is a question no test was posing.
     const rows = [
-      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
-      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null, counterfactualNullCost: true }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null, counterfactualNullCost: true }),
     ]
     expect(productBalances(rows)[0]).toEqual({
       storage_id: 'stor-general', product_id: 'p-laser', balance_base: 20, avg_cost: null,
@@ -226,7 +244,7 @@ describe('the case a mutation could not find', () => {
     // still counts in the denominator — so the average is dragged, not absent.
     const rows = [
       movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: 100 }),
-      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null, counterfactualNullCost: true }),
     ]
     expect(productBalances(rows)[0].avg_cost).toBe(50)
   })
