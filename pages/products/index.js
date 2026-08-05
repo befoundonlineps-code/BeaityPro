@@ -106,6 +106,8 @@ export default function ProductsPage() {
                 salonId={salonId}
                 suppliers={directories.suppliers}
                 catalogue={catalogue}
+                balances={balances.balances}
+                storages={directories.storages}
               />
             )}
             {view === 'storages' && (

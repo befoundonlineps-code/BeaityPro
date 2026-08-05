@@ -376,5 +376,11 @@
     "groupShow": "أظهرها",
     "groupHide": "إخفاؤها"
   },
-  "breadcrumbBalances": "الأرصدة"
+  "breadcrumbBalances": "الأرصدة",
+  "archiveNotice": {
+    "title": "أُرشِف «{{name}}» وله رصيد",
+    "explain": "الأرشفة بتوقف الشراء منه، والرصيد بيضلّ ظاهر بشاشة الأرصدة وقابلًا للعدّ بالجرد لحدّ ما ينفد.",
+    "atStorage": "{{storage}} — بال{{unit}}: {{n}}",
+    "dismiss": "تمام"
+  }
 }

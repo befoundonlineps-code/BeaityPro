@@ -9,6 +9,7 @@ import { treeContains } from '../lib/categoryTree'
 import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
+import { stockedStorages } from '../lib/balanceView'
 import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -30,9 +31,13 @@ import { Button } from '@/components/ui/button'
 // so a product created here never appeared on the document screens until the
 // page was reloaded, and the most ordinary path in the module (new item arrives
 // → create the product → go and receive it) ended with it missing.
-export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
+export default function ProductsBrowser({ salonId, suppliers, catalogue, balances, storages }) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = catalogue
+
+  // Shown after archiving a product that still has stock. Not a confirmation —
+  // see toggleProductArchived for why it asks nothing.
+  const [archiveNotice, setArchiveNotice] = useState(null)
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedProductId, setSelectedProductId] = useState(null)
@@ -100,11 +105,10 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
 
   async function toggleProductArchived() {
     if (!selectedProduct) return
+    const archiving = selectedProduct.is_active !== false
     setBusy(true)
     setActionError('')
-    const { ok, error: writeError } = await setProductArchived(
-      selectedProduct.id, selectedProduct.is_active !== false
-    )
+    const { ok, error: writeError } = await setProductArchived(selectedProduct.id, archiving)
     setBusy(false)
     if (!ok) {
       setActionError(writeError
@@ -112,6 +116,26 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
         : t('products:archiveDialog.failedMessage'))
       return
     }
+
+    // ⚠️ Explains, does not block, and asks nothing.
+    //
+    // Nothing stops a product with stock from being archived (measured: only
+    // trg_freeze_consignment_after_use exists on products), and nothing should
+    // — an archived STORAGE is unreachable so only the database can save it,
+    // while an archived PRODUCT is merely filtered and the screen can. Making
+    // somebody write off three remaining bottles of a discontinued line is
+    // friction that buys nothing, because "archived" means "stop buying this",
+    // not "the shelf is empty".
+    //
+    // What was missing was knowledge, not a guard. So this appears AFTER the
+    // act, with no question and no second button: the action is not
+    // destructive and is undone by the button that is still under the cursor.
+    // Only ignorance of what happens next was worth fixing.
+    const stillStocked = archiving ? stockedStorages({ balances, productId: selectedProduct.id }) : []
+    setArchiveNotice(stillStocked.length > 0
+      ? { product: selectedProduct, storages: stillStocked }
+      : null)
+
     reload()
   }
 
@@ -304,6 +328,37 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue }) {
       </TwoPaneBrowser>
 
       {actionError && <div className="text-sm text-destructive">{actionError}</div>}
+
+      {/* ⚠️ An explanation, not a question. No second button, because the act
+          is not destructive and the button that undoes it is still where the
+          cursor left it. What was missing was never a guard — it was knowing
+          that the goods stay on the shelf, stay countable by the stocktake,
+          and stay on the balance screen until they run out. */}
+      {archiveNotice && (
+        <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
+          <span className="font-medium">
+            {t('products:archiveNotice.title', { name: archiveNotice.product.name })}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {archiveNotice.storages.map((row) => (
+              <Badge key={row.storage_id} variant="outline">
+                {t('products:archiveNotice.atStorage', {
+                  storage: (storages || []).find((s) => s.id === row.storage_id)?.name || '—',
+                  unit: t(`products:units.${archiveNotice.product.base_unit || 'pcs'}`),
+                  n: Number(row.balance_base).toLocaleString('ar', { maximumFractionDigits: 3 }),
+                })}
+              </Badge>
+            ))}
+          </div>
+          <span className="text-muted-foreground">{t('products:archiveNotice.explain')}</span>
+          <Button
+            type="button" variant="outline" size="sm" className="self-start"
+            onClick={() => setArchiveNotice(null)}
+          >
+            {t('products:archiveNotice.dismiss')}
+          </Button>
+        </div>
+      )}
 
       <ProductFormDialog
         open={!!dialog}
