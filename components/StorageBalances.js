@@ -3,9 +3,9 @@ import { useTranslation } from 'next-i18next'
 import { AlertTriangle, TrendingDown } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import {
-  balanceRows, emptyReason, balanceSections, storageValueSummary,
+  balanceRows, emptyReason, balanceScreenSections, storageValueSummary,
   hasKnownValue, counterpartBalances,
-  BALANCE_STATE, COST_STATE, EMPTY_REASON, SECTION,
+  BALANCE_STATE, COST_STATE, EMPTY_REASON, BALANCE_SCREEN_SECTION,
 } from '../lib/balanceView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,7 +28,7 @@ export default function StorageBalances({
   const [storageId, setStorageId] = useState(() => (liveStorages[0] ? liveStorages[0].id : ''))
 
   const rows = balanceRows({ balances, products, storageId })
-  const sections = balanceSections(rows)
+  const sections = balanceScreenSections(rows)
   const reason = emptyReason({ loading, error, products, rows })
 
   // ⚠️ Folded by default, and it is the ONLY section that folds. The first two
@@ -48,9 +48,9 @@ export default function StorageBalances({
   // person, different urgency — and one rank makes somebody read all three
   // with one eye.
   const GROUP_LABEL = {
-    [SECTION.DATA]: 'products:balances.groupData',
-    [SECTION.OPERATIONAL]: 'products:balances.groupOperational',
-    [SECTION.STOCKED]: 'products:balances.groupStocked',
+    [BALANCE_SCREEN_SECTION.DATA]: 'products:balances.groupData',
+    [BALANCE_SCREEN_SECTION.OPERATIONAL]: 'products:balances.groupOperational',
+    [BALANCE_SCREEN_SECTION.STOCKED]: 'products:balances.groupStocked',
   }
 
   // ⚠️ The total holds out stock recorded at zero cost AND says how much it
@@ -161,7 +161,7 @@ export default function StorageBalances({
                       CONTENT rather than its position — "الباقي" described
                       where it sat. The count is the information, so folding
                       hides nothing. */}
-                  {group.section === SECTION.NEVER_MOVED ? (
+                  {group.section === BALANCE_SCREEN_SECTION.NEVER_MOVED ? (
                     <tr data-group={group.section}>
                       <td colSpan={4} className="pt-4 pb-1">
                         <button
@@ -187,7 +187,7 @@ export default function StorageBalances({
                     </tr>
                   )}
 
-                  {(group.section !== SECTION.NEVER_MOVED || showNeverMoved)
+                  {(group.section !== BALANCE_SCREEN_SECTION.NEVER_MOVED || showNeverMoved)
                     && group.rows.map((row) => (
                 <tr
                   key={row.product.id}
