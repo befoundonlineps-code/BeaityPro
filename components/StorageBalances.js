@@ -37,6 +37,9 @@ export default function StorageBalances({
   // them with one press.
   const [showNeverMoved, setShowNeverMoved] = useState(false)
 
+  // Which row's "why estimated?" panel is open. Asked for, never printed.
+  const [estimatedOpen, setEstimatedOpen] = useState(null)
+
   const money = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 2 })
   const quantity = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 3 })
   const unitOf = (product) => t(`products:units.${product.base_unit || 'pcs'}`)
@@ -140,6 +143,26 @@ export default function StorageBalances({
         <div className="flex flex-col gap-1 py-10 text-center text-sm text-muted-foreground">
           <span>{t('products:balances.emptyNoStockTitle')}</span>
           <span className="text-xs">{t('products:balances.emptyNoStockHint')}</span>
+        </div>
+      )}
+
+      {/* ⚠️ Three parts, and the THIRD is what makes it useful: what it means,
+          an example in the reader's own world, and how it goes away. An
+          explanation that describes without offering an act leaves somebody
+          informed and powerless, which is worse than not explaining — it tells
+          them about a problem and gives them no door. */}
+      {estimatedOpen && (
+        <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
+          <span className="font-medium">{t('products:balances.estimatedWhy')}</span>
+          <span className="text-muted-foreground">{t('products:balances.estimatedMeaning')}</span>
+          <span className="text-muted-foreground">{t('products:balances.estimatedExample')}</span>
+          <span className="text-muted-foreground">{t('products:balances.estimatedHowGone')}</span>
+          <Button
+            type="button" variant="outline" size="sm" className="self-start"
+            onClick={() => setEstimatedOpen(null)}
+          >
+            {t('products:balances.estimatedClose')}
+          </Button>
         </div>
       )}
 
@@ -278,6 +301,23 @@ export default function StorageBalances({
                             <AlertTriangle className="size-3" />
                             {t('products:balances.zeroCostBadge')}
                           </Badge>
+                        )}
+                        {/* ⚠️ A concept the system invented and nobody asked
+                            for, so it explains itself — and the explanation is
+                            REQUESTED, not printed. A badge with no explanation
+                            reads as a fault or gets ignored, and both lose the
+                            information it was added to carry.
+                            Dark until the column exists: the script is
+                            prepared and not run, so nothing here invents a
+                            value for a column that is not there yet. */}
+                        {row.costEstimated && (
+                          <button
+                            type="button"
+                            data-estimated={row.product.id}
+                            onClick={() => setEstimatedOpen(row.product.id)}
+                          >
+                            <Badge variant="outline">{t('products:balances.estimatedBadge')}</Badge>
+                          </button>
                         )}
                       </div>
                     )}
