@@ -4,6 +4,9 @@
 # next.js
 /.next/
 /out/
+# the separate build dir NEXT_BUILD_DIR points at, so a verification build
+# cannot overwrite the .next a running dev server is serving from
+/.next-check/
 
 # production
 /build

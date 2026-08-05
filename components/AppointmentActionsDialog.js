@@ -168,7 +168,15 @@ export default function AppointmentActionsDialog({
     [t('appointments:actionsDialog.employeeLabel'), employee?.name],
     // A node rather than a string: the row renderer below has no idea which
     // of its values is a range, and the range knows what it needs.
+    //
+    // ⚠️ react/jsx-key is wrong here and the disable is deliberate. The rule
+    // sees JSX inside an array literal and assumes an array of children. This
+    // is an array of [label, value] TUPLES; the element is a value rendered
+    // into <dd>{value}</dd>, and the sibling that actually needs a key is the
+    // mapped <div key={label}> below. Adding a key to satisfy the rule would
+    // be a prop that means nothing.
     [t('appointments:actionsDialog.timeLabel'),
+      // eslint-disable-next-line react/jsx-key
       <TimeRange start={appointment.start_time} end={appointment.end_time} />],
   ]
 
