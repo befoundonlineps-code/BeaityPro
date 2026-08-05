@@ -119,7 +119,17 @@ export default function StockDocumentsList({
             const isOpen = expanded.has(doc.id)
 
             return (
-              <div key={doc.id} className="rounded-xl border border-border">
+              // ⚠️ Identity on the row, not position. Every false check this
+              // session came from the browser drive, and the last one named the
+              // cause exactly: it pressed "the first enabled reverse button",
+              // which describes where a thing is rather than which thing it is —
+              // so it targeted the wrong document and reported a defect in
+              // working code. Worse in the other direction: the same selection
+              // can find what it expected on a document it did not mean and
+              // announce a success that never happened.
+              //
+              // This is "write the condition, not the count" applied to the DOM.
+              <div key={doc.id} data-doc-id={doc.id} data-doc-type={doc.doc_type} className="rounded-xl border border-border">
                 <div className="flex flex-wrap items-center gap-3 p-3">
                   <button
                     type="button"
@@ -173,6 +183,7 @@ export default function StockDocumentsList({
                       already undone would swing the balance the other way. */}
                   <Button
                     type="button" variant="outline" size="sm"
+                    data-reverse-for={doc.id}
                     disabled={!state.canReverse || busy}
                     onClick={() => { setConfirming(doc); setActionError('') }}
                   >
@@ -244,7 +255,10 @@ export default function StockDocumentsList({
       )}
 
       <Dialog open={!!confirming} onOpenChange={(o) => { if (!o) { setConfirming(null); setActionError('') } }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
+        {/* The box says which document it is about, in machine-readable form
+            as well as in words. Without it a check can only ask "did a box
+            open", which is true of the wrong box too. */}
+        <DialogContent data-confirming-doc-id={confirming?.id || ''} className="max-w-[calc(100%-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t('products:documents.reverseTitle')}</DialogTitle>
           </DialogHeader>
