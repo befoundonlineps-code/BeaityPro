@@ -9,10 +9,12 @@ import StoragesManager from '../../components/StoragesManager'
 import SuppliersManager from '../../components/SuppliersManager'
 import StockDocumentScreen from '../../components/StockDocumentScreen'
 import StockDocumentsList from '../../components/StockDocumentsList'
+import StorageBalances from '../../components/StorageBalances'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
 import { useStockDocuments } from '../../hooks/useStockDocuments'
+import { useProductBalances } from '../../hooks/useProductBalances'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
 
 export async function getServerSideProps({ locale }) {
@@ -32,6 +34,7 @@ const BREADCRUMB = {
   return_to_supplier: 'products:breadcrumbReturn',
   transfer: 'products:breadcrumbTransfer',
   documents: 'products:breadcrumbDocuments',
+  balances: 'products:breadcrumbBalances',
 }
 
 export default function ProductsPage() {
@@ -81,6 +84,7 @@ export default function ProductsPage() {
   // they just made will look for a reason, and may make it again.
   const catalogue = useProductCatalog()
   const stockDocuments = useStockDocuments()
+  const balances = useProductBalances()
 
   return (
     <AuthGate>
@@ -140,6 +144,20 @@ export default function ProductsPage() {
                 loading={stockDocuments.loading || catalogue.loading}
                 error={stockDocuments.error}
                 reload={stockDocuments.reload}
+              />
+            )}
+            {view === 'balances' && (
+              <StorageBalances
+                balances={balances.balances}
+                products={catalogue.products}
+                storages={directories.storages}
+                loading={balances.loading || catalogue.loading || directories.loading}
+                // ⚠️ Either read failing fails the screen. A balance list is
+                // legitimately empty on a fresh salon, so half a read drawn as
+                // "no stock recorded" would reassure rather than fail — item 26,
+                // which this hook had to earn again because it is new.
+                error={balances.error || catalogue.error || directories.error}
+                reload={() => { balances.reload(); catalogue.reload() }}
               />
             )}
             {view === 'suppliers' && (

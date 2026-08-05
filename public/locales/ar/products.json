@@ -146,7 +146,8 @@
     "writeOff": "شطب",
     "returnToSupplier": "إرجاع للمورّد",
     "transfer": "تحويل",
-    "documents": "المستندات"
+    "documents": "المستندات",
+    "balances": "الأرصدة"
   },
   "storages": {
     "hint": "المستودعات اللي بينحفظ فيها المخزون. مستودع عام للصالون، ومستودع أخصائي بيخصّ موظفة وحدة.",
@@ -337,5 +338,34 @@
     "valueStocktake": "قيمة التسوية: {{total}} ₪",
     "valueOpening": "قيمة الرصيد الافتتاحي: {{total}} ₪",
     "valueGeneric": "القيمة: {{total}} ₪"
-  }
+  },
+  "balances": {
+    "hint": "الرصيد لكل مستودع على حدة. اللي فيه مشكلة بيطلع أول.",
+    "storageLabel": "المستودع",
+    "columnProduct": "المنتج",
+    "columnBalance": "الرصيد",
+    "columnCost": "متوسّط التكلفة",
+    "columnValue": "القيمة",
+    "inBase": "بال{{unit}}: {{n}}",
+    "unitCost": "تكلفة ال{{unit}}: {{price}} ₪",
+    "totalValue": "قيمة المستودع: {{total}} ₪",
+    "neverMoved": "ما تحرّك بعد",
+    "neverMovedHint": "المنتج موجود بالكتالوج وما انسجّلت عليه ولا حركة — مش إنه صفر.",
+    "noAverage": "لا متوسّط",
+    "noAverageHint": "ما في متوسّط تكلفة لرصيد صفر أو سالب — مش إنها صفر.",
+    "zeroCostBadge": "قيمتها غير معروفة",
+    "zeroCostHint": "بضاعة موجودة وتكلفتها المسجّلة صفر — راجع مستند توريدها.",
+    "negativeBadge": "رصيد سالب",
+    "negativeHint": "انصرف أكتر مما انسجّل وارده. مسموح لأن التسجيل بيتأخّر عن الواقع.",
+    "lowSupplyBadge": "قارب على النفاد",
+    "archivedBadge": "مؤرشف",
+    "archivedHint": "موقوف الشراء، وباقي منه رصيد — بيختفي من هون لمّا ينفد.",
+    "emptyNoProductsTitle": "ما في منتجات بالكتالوج",
+    "emptyNoProductsHint": "الرصيد بينحسب من حركات على منتجات — ابدأ بإضافة منتج من الكتالوج.",
+    "emptyNoStockTitle": "ما في مخزون مسجَّل بعد",
+    "emptyNoStockHint": "المنتجات موجودة وما انسجّلت عليها حركات — ابدأ بمستند توريد.",
+    "loadFailedTitle": "تعذّر تحميل الأرصدة",
+    "loadFailedHint": "ما بينعرض إشي هون لحدّ ما تنجح القراءة — الفراغ مش جواب."
+  },
+  "breadcrumbBalances": "الأرصدة"
 }
