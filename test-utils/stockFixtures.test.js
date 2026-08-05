@@ -1,5 +1,5 @@
 import {
-  movement, fixtureIsConsistent, historyMovements, productBalances,
+  movement, fixtureIsConsistent, historyMovements, productBalances, stocktakeAdjustment,
   OWNER_PRODUCTS, HYPOTHETICAL_PRODUCTS, OWNER_HISTORY,
 } from './stockFixtures'
 
@@ -228,5 +228,61 @@ describe('the case a mutation could not find', () => {
       movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
     ]
     expect(productBalances(rows)[0].avg_cost).toBe(50)
+  })
+})
+
+describe('the stocktake adjustment, decided before the screen exists', () => {
+  const { movementFrames } = require('../lib/stockDocumentList')
+
+  it('computes the difference the way post_stocktake computes it', () => {
+    // v_diff := v_counted - v_balance. Counted 10 packages of a factor-15
+    // product against a recorded 200 pieces → 150 - 200 = -50.
+    expect(stocktakeAdjustment({
+      id: 's1', documentId: 'd', product: 'p-cooler',
+      countedPackages: 10, recordedBase: 200, unitCostPerBase: 6.6667,
+    })).toMatchObject({ quantity_base: '-50' })
+  })
+
+  it('claims NO entry frame, because nobody typed a movement', () => {
+    // ⚠️ The decision. Passing the COUNT would draw "بالعبوة: 10 · بالقطعة: -5"
+    // on every stocktake line — the shape caught as a fixture defect two rounds
+    // ago, except produced by the function each time. Passing the DIFF would
+    // keep the invariant and silently discard the counted number, which is the
+    // only figure a human can check.
+    const row = stocktakeAdjustment({
+      id: 's1', documentId: 'd', product: 'p-laser',
+      countedPackages: 10, recordedBase: 15, unitCostPerBase: 100,
+    })
+    expect(row.entered_quantity).toBeNull()
+    expect(row.entered_uom).toBeNull()
+  })
+
+  it('draws as one honest frame through the real display function', () => {
+    // Not asserted about the fixture — run through movementFrames itself, so
+    // the decision is checked against the code that will draw it.
+    const row = stocktakeAdjustment({
+      id: 's1', documentId: 'd', product: 'p-laser',
+      countedPackages: 10, recordedBase: 15, unitCostPerBase: 100,
+    })
+    expect(movementFrames(row, OWNER_PRODUCTS[1])).toEqual({
+      direction: 'out', entered: null, uom: null, base: 5, baseUnit: 'pcs', sameFrame: false,
+    })
+  })
+
+  it('writes nothing when the count matches, which is what the function does', () => {
+    // `if v_diff = 0 then continue` — so the most successful stocktake leaves
+    // no movement at all. Item 44: the ledger records change, and a stocktake's
+    // main value is often that nothing changed.
+    expect(stocktakeAdjustment({
+      id: 's1', documentId: 'd', product: 'p-laser',
+      countedPackages: 15, recordedBase: 15, unitCostPerBase: 100,
+    }).quantity_base).toBe('0')
+  })
+
+  it('refuses a count that is not a whole number of pieces', () => {
+    expect(() => stocktakeAdjustment({
+      id: 's1', documentId: 'd', product: 'p-laser',
+      countedPackages: 2.5, recordedBase: 0, unitCostPerBase: 1,
+    })).toThrow(/pieces do not divide/)
   })
 })

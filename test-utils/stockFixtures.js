@@ -142,6 +142,61 @@ export const OWNER_HISTORY = {
   },
 }
 
+// A stocktake adjustment, which is the ONE movement type where the two columns
+// are not two views of one number.
+//
+// ⚠️ Everywhere else `entered × factor === base`. post_stocktake writes
+// `v_diff := v_counted - v_balance` into quantity_base, and puts whatever the
+// caller passed into entered_quantity — and it accepts either answer in
+// silence. So the screen decides, and the decision is made here, before the
+// screen exists:
+//
+//   pass the DIFF   → the invariant holds and the drawing is right, but the
+//                     COUNTED NUMBER is stored nowhere. That is the one figure
+//                     a human can check: "we counted and found 10" is a fact;
+//                     "the adjustment was -5" is derived from it and from
+//                     another number.
+//   pass the COUNT  → the count survives, and every stocktake line draws
+//                     "بالعبوة: 10 · بالقطعة: -5" — exactly the shape caught as
+//                     a fixture defect two rounds ago, except produced by the
+//                     function on every single stocktake.
+//   pass NEITHER    → nothing is claimed that is not true. ← this one.
+//
+// The third is not a compromise, it is what the display already assumes:
+// movementFrames returns entered: null for a movement nobody typed, and
+// lib/stockDocumentList.test.js has pinned that since before the question was
+// asked. The count is still not stored — that is a missing COLUMN, sibling to
+// item 35's entered_unit_cost, and refusing to lie about it is not the same as
+// solving it.
+//
+// ⚠️ One thing I cannot verify: whether stock_movements.entered_uom is
+// nullable. If it is NOT, this shape is rejected by the database and the
+// decision needs a schema change rather than a caller change.
+export function stocktakeAdjustment({
+  id, documentId, product, countedPackages, recordedBase, unitCostPerBase,
+  storageId = 'stor-general', products = OWNER_PRODUCTS,
+}) {
+  const found = typeof product === 'string' ? byId([...products, ...HYPOTHETICAL_PRODUCTS])[product] : product
+  if (!found) throw new Error(`stockFixtures: unknown product ${product}`)
+  const factor = Number(found.units_per_package)
+  const countedBase = countedPackages * factor
+  if (found.base_unit === 'pcs' && countedBase !== Math.round(countedBase)) {
+    throw new Error(`stockFixtures: ${countedPackages} × ${factor} = ${countedBase}, and pieces do not divide`)
+  }
+  return {
+    id,
+    document_id: documentId,
+    product_id: found.id,
+    storage_id: storageId,
+    // v_diff := v_counted - v_balance
+    quantity_base: String(countedBase - recordedBase),
+    // Nobody typed a movement here; a count was typed and a difference derived.
+    entered_quantity: null,
+    entered_uom: null,
+    unit_cost: unitCostPerBase === null ? null : Number(unitCostPerBase).toFixed(4),
+  }
+}
+
 // product_balances, reproduced from the view's own text rather than from a
 // description of it.
 //
