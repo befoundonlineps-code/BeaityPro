@@ -381,6 +381,21 @@ export const COST_STATE = {
 // its other side — there the ledger cannot record verification, here the
 // verification cannot happen at all); and it keeps "archived" meaning what it
 // says.
+// The reorder threshold, or null when there is none.
+//
+// ⚠️ The unit is settled and needs no decision — unlike item 31. The product
+// dialog's label interpolates the base unit explicitly
+// (`lowSupplyLabel` with `units.${baseUnit}`), so the threshold is in base
+// units and so is the balance, and the comparison is direct with no factor and
+// no ambiguity. Said here because the resemblance to item 31 invites the
+// assumption that it is the same problem, and it is not.
+function lowSupplyThreshold(product) {
+  const raw = product.low_supply_units
+  if (raw === null || raw === undefined || String(raw).trim() === '') return null
+  const threshold = Number(raw)
+  return Number.isFinite(threshold) ? threshold : null
+}
+
 export function balanceRowsForStorage({ storageId, products, movements }) {
   const balances = Object.fromEntries(
     productBalances(movements)
@@ -396,7 +411,14 @@ export function balanceRowsForStorage({ storageId, products, movements }) {
     if (archived && (!row || row.balance_base === 0)) return []
     if (!row) {
       // The state the view cannot return, and the screen must still draw.
-      return [{ product_id: product.id, balanceState: BALANCE_STATE.NEVER_MOVED, costState: COST_STATE.NONE }]
+      return [{
+        product_id: product.id,
+        balanceState: BALANCE_STATE.NEVER_MOVED,
+        costState: COST_STATE.NONE,
+        archived,
+        lowSupply: false,
+        needsAttention: false,
+      }]
     }
     const balanceState = row.balance_base > 0 ? BALANCE_STATE.IN_STOCK
       : row.balance_base < 0 ? BALANCE_STATE.NEGATIVE
@@ -410,6 +432,31 @@ export function balanceRowsForStorage({ storageId, products, movements }) {
       avg_cost: row.avg_cost,
       balanceState,
       costState,
+      // ⚠️ A SECOND, INDEPENDENT alarm — never merged with needsAttention.
+      //
+      // low_supply_units is written by the product dialog and read by NOTHING
+      // (measured: every occurrence in the repo is the form writing it, its
+      // validation, the schema doc, or a test of the form). Its only possible
+      // home is this screen, because nowhere else knows a balance to compare a
+      // threshold against — and "what do I have?" is asked once while "what is
+      // about to run out?" is asked daily.
+      //
+      // The two alarms say different things and must not share a glyph:
+      //   needsAttention → its VALUE is unknown (stock at zero cost)
+      //   lowSupply      → its QUANTITY is small
+      // Collapsing them would rebuild exactly what this module spent itself
+      // taking apart.
+      //
+      // ⚠️ An empty threshold is NOT zero. numberOrNull already stores it as
+      // null (measured), so the data is right and only a screen could break it:
+      // a product with no threshold is never alerted about, and is not treated
+      // as though its threshold were 0.
+      //
+      // A NEVER_MOVED product is not flagged either, whatever its threshold —
+      // "about to run out" is a restocking signal about something you stock,
+      // and never-moved is already its own state.
+      lowSupply: lowSupplyThreshold(product) !== null
+        && row.balance_base <= lowSupplyThreshold(product),
       // Shown BECAUSE it still has stock, and labelled so nobody reads its
       // presence as "still on sale".
       archived,

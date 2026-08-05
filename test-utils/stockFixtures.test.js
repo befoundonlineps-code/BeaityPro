@@ -318,7 +318,14 @@ describe('the balance screen has TWO triples, not one', () => {
     })
     const cooler = rows.find((r) => r.product_id === 'p-cooler')
     expect(cooler).toEqual({
-      product_id: 'p-cooler', balanceState: BALANCE_STATE.NEVER_MOVED, costState: COST_STATE.NONE,
+      product_id: 'p-cooler',
+      balanceState: BALANCE_STATE.NEVER_MOVED,
+      costState: COST_STATE.NONE,
+      archived: false,
+      // Not "about to run out" — restocking is a signal about something you
+      // stock, and never-moved is already its own state.
+      lowSupply: false,
+      needsAttention: false,
     })
     // and specifically NOT a zero balance
     expect(cooler.balance_base).toBeUndefined()
@@ -502,5 +509,75 @@ describe('the balance screen filters by BALANCE, not by is_active', () => {
       movements: historyMovements('shampoo'),
     }).map((r) => r.product_id)
     expect(countable).toContain('p-shampoo')
+  })
+})
+
+describe('low_supply_units — collected by the form, read by nothing', () => {
+  // Measured: every occurrence in the repo is the product dialog writing it,
+  // its validation, the schema doc, or a test of the form. Its only possible
+  // home is this screen, since nowhere else knows a balance to compare against.
+  const withThreshold = (id, threshold) =>
+    OWNER_PRODUCTS.map((p) => (p.id === id ? { ...p, low_supply_units: threshold } : p))
+
+  const rowsFor = (products, movements) =>
+    balanceRowsForStorage({ storageId: 'stor-general', products, movements })
+
+  it('flags a balance at or below the threshold', () => {
+    const rows = rowsFor(withThreshold('p-shampoo', 20), historyMovements('shampoo'))
+    expect(rows.find((r) => r.product_id === 'p-shampoo')).toMatchObject({
+      balance_base: 20, lowSupply: true,
+    })
+  })
+
+  it('does not flag one comfortably above it', () => {
+    const rows = rowsFor(withThreshold('p-shampoo', 5), historyMovements('shampoo'))
+    expect(rows.find((r) => r.product_id === 'p-shampoo').lowSupply).toBe(false)
+  })
+
+  it('NEVER flags a product with no threshold, and does not read it as zero', () => {
+    // ⚠️ numberOrNull already stores an empty field as null (measured), so the
+    // data is right and only a screen could break it. Treating null as 0 would
+    // mean "alert when the balance drops to or below zero" — an alarm that
+    // fires exactly when it is far too late.
+    const rows = rowsFor(withThreshold('p-shampoo', null), historyMovements('shampoo'))
+    expect(rows.find((r) => r.product_id === 'p-shampoo').lowSupply).toBe(false)
+
+    const emptied = [
+      movement({ id: 'a', documentId: 'd', product: 'p-shampoo', enteredPackages: 4, unitCostPerBase: 25 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-shampoo', enteredPackages: 4, unitCostPerBase: 25, direction: -1 }),
+    ]
+    expect(rowsFor(withThreshold('p-shampoo', null), emptied)
+      .find((r) => r.product_id === 'p-shampoo').lowSupply).toBe(false)
+  })
+
+  it('keeps the two alarms INDEPENDENT — value unknown vs quantity low', () => {
+    // ⚠️ needsAttention says its VALUE is unknown; lowSupply says its QUANTITY
+    // is small. Two different facts, and one glyph for both would rebuild
+    // exactly what this module spent itself taking apart.
+    const poisonedAndPlentiful = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 500, unitCostPerBase: 0 }),
+    ]
+    expect(rowsFor(withThreshold('p-laser', 10), poisonedAndPlentiful)
+      .find((r) => r.product_id === 'p-laser')).toMatchObject({
+      needsAttention: true, lowSupply: false,
+    })
+
+    const pricedAndScarce = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 2, unitCostPerBase: 30 }),
+    ]
+    expect(rowsFor(withThreshold('p-laser', 10), pricedAndScarce)
+      .find((r) => r.product_id === 'p-laser')).toMatchObject({
+      needsAttention: false, lowSupply: true,
+    })
+  })
+
+  it('flags a negative balance as low too, because it truthfully is', () => {
+    // It is already flagged NEGATIVE for a different reason; being below the
+    // threshold is a separate true statement, and the screen decides how to
+    // show two true things at once.
+    const rows = rowsFor(withThreshold('p-cooler', 10), historyMovements('cooler'))
+    expect(rows.find((r) => r.product_id === 'p-cooler')).toMatchObject({
+      balanceState: BALANCE_STATE.NEGATIVE, lowSupply: true,
+    })
   })
 })
