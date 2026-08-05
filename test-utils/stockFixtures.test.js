@@ -1,5 +1,5 @@
 import {
-  movement, fixtureIsConsistent, historyMovements,
+  movement, fixtureIsConsistent, historyMovements, productBalances,
   OWNER_PRODUCTS, HYPOTHETICAL_PRODUCTS, OWNER_HISTORY,
 } from './stockFixtures'
 
@@ -115,11 +115,118 @@ describe('the states his database actually reached', () => {
   })
 
   it('reproduces the NEGATIVE balance the stocktake will meet on its first run', () => {
+    // (kept below; the balance-view cases follow)
     // -75 in the general storage: transferred out, never received in. The
     // first "recorded" figure that screen shows will be below zero, and
     // counting an empty shelf produces a +75 adjustment. Undecided, not wrong.
     const rows = historyMovements('cooler')
     expect(balanceOf(rows)).toBe(-75)
     expect(fixtureIsConsistent(rows)).toEqual([])
+  })
+})
+
+describe('productBalances reproduces the view, including what a paraphrase loses', () => {
+  // The balance screen (item 33) is not built yet, and these are the states it
+  // will meet on its first run. Written before the screen deliberately: saying
+  // this afterwards does not help.
+
+  it('gives a number when the balance is positive', () => {
+    const rows = historyMovements('shampoo')
+    expect(productBalances(rows)).toEqual([
+      { storage_id: 'stor-general', product_id: 'p-shampoo', balance_base: 20, avg_cost: 50 },
+    ])
+  })
+
+  it('gives NULL — not zero — when the balance is NEGATIVE', () => {
+    // ⚠️ THE THIRD STATE. avg_cost is NULL whenever the balance is <= 0, so a
+    // screen has to distinguish "a number", "zero" (which may mean free or may
+    // mean unknown — item 34) and "does not apply". Drawing NULL as 0 puts
+    // three different meanings on one glyph.
+    //
+    // And this row is real: مبرد ومهدئ ليزر in the general storage, today.
+    expect(productBalances(historyMovements('cooler'))).toEqual([
+      { storage_id: 'stor-general', product_id: 'p-cooler', balance_base: -75, avg_cost: null },
+    ])
+  })
+
+  it('gives NULL when the balance is exactly zero', () => {
+    // A shelf emptied to zero has no average either — the CASE is `> 0`, not
+    // `<> 0`. Easy to get wrong from memory.
+    const rows = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 4, unitCostPerBase: 25 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 4, unitCostPerBase: 25, direction: -1 }),
+    ]
+    expect(productBalances(rows)[0]).toMatchObject({ balance_base: 0, avg_cost: null })
+  })
+
+  it('lets a NULL cost drag the average down, because sum() skips NULLs', () => {
+    // ⚠️ quantity_base * NULL is NULL and sum() ignores it, so a movement with
+    // no unit_cost counts in the DENOMINATOR and not the numerator. 10 pieces
+    // at 100 plus 10 with no cost averages 50, not 100 — and nothing on screen
+    // says half the pile was never priced.
+    const rows = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: 100 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
+    ]
+    expect(productBalances(rows)[0]).toMatchObject({ balance_base: 20, avg_cost: 50 })
+  })
+
+  it('has NO ROW for a product that never moved — item 27', () => {
+    // "Never moved" is not "zero", and the view cannot tell you the difference
+    // because it never saw the product. A screen that renders only these rows
+    // shows nothing at all for a newly created product.
+    const rows = historyMovements('laser')
+    expect(productBalances(rows).map((r) => r.product_id)).toEqual(['p-laser'])
+    expect(productBalances(rows).some((r) => r.product_id === 'p-cooler')).toBe(false)
+  })
+
+  it('separates the same product in two storages', () => {
+    const rows = [
+      movement({ id: 'a', documentId: 'd', product: 'p-cooler', enteredPackages: 5, unitCostPerBase: 6.6667, direction: -1 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-cooler', enteredPackages: 5, unitCostPerBase: 6.6667, storageId: 'stor-test' }),
+    ]
+    const balances = productBalances(rows)
+    expect(balances).toHaveLength(2)
+    expect(balances.find((b) => b.storage_id === 'stor-general')).toMatchObject({ balance_base: -75, avg_cost: null })
+    expect(balances.find((b) => b.storage_id === 'stor-test')).toMatchObject({ balance_base: 75 })
+  })
+
+  it('is the exact formula ADR-051 was verified with, not a lookalike', () => {
+    // sum(qty × cost) / sum(qty) — the same expression the view runs, so the
+    // healed averages are checked against the algebra that produces them.
+    for (const key of ['shampoo', 'laser']) {
+      const { average } = OWNER_HISTORY[key].expected
+      expect(productBalances(historyMovements(key))[0].avg_cost).toBeCloseTo(average, 4)
+    }
+  })
+})
+
+describe('the case a mutation could not find', () => {
+  it('gives NULL when EVERY movement has no cost — not zero', () => {
+    // ⚠️ sum() over nothing is NULL, not 0, so the view says "no average" for
+    // a pile nobody ever priced. My first reproduction accumulated into 0 and
+    // returned 0, which reads as FREE — the exact unknown-versus-free collapse
+    // (item 34) inside the function written to preserve it.
+    //
+    // No mutation could reach it: skipping a term and adding zero are
+    // identical for a sum. It came from asking what the SQL does with nothing
+    // to add, which is a question no test was posing.
+    const rows = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
+    ]
+    expect(productBalances(rows)[0]).toEqual({
+      storage_id: 'stor-general', product_id: 'p-laser', balance_base: 20, avg_cost: null,
+    })
+  })
+
+  it('still gives a number when only SOME movements were priced', () => {
+    // One priced row is enough for sum() to be non-NULL, and the unpriced one
+    // still counts in the denominator — so the average is dragged, not absent.
+    const rows = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: 100 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null }),
+    ]
+    expect(productBalances(rows)[0].avg_cost).toBe(50)
   })
 })

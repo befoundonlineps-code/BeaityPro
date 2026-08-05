@@ -142,6 +142,65 @@ export const OWNER_HISTORY = {
   },
 }
 
+// product_balances, reproduced from the view's own text rather than from a
+// description of it.
+//
+//   SELECT salon_id, storage_id, product_id,
+//     sum(quantity_base) AS balance_base,
+//     CASE WHEN sum(quantity_base) > 0
+//          THEN sum(quantity_base * unit_cost) / sum(quantity_base)
+//          ELSE NULL END AS avg_cost
+//   FROM stock_movements GROUP BY salon_id, storage_id, product_id;
+//
+// ⚠️ Three things in that text that a paraphrase loses, and the balance screen
+// depends on all three:
+//
+// 1. avg_cost is NULL whenever the balance is zero or negative. That is a
+//    THIRD state beside a number and a zero — "does not apply", which is not
+//    "free" (item 34) and not "unknown". Drawing it as 0 would collapse three
+//    meanings onto one glyph.
+// 2. FROM stock_movements GROUP BY means a product with NO movements has NO
+//    ROW — item 27. "Never moved" is not "zero", and the view cannot tell you
+//    the difference because it never saw the product.
+// 3. SQL sum() SKIPS NULLs, and quantity_base * NULL is NULL. So a movement
+//    with no unit_cost counts in the DENOMINATOR and not the numerator, which
+//    silently drags the average down.
+//
+//    ⚠️ AND THE CASE THAT NEARLY GOT PAST ME: when EVERY movement has a NULL
+//    cost, sum() over nothing is NULL — not 0 — so `NULL / 20` is NULL and the
+//    view says "no average". My first version accumulated into 0 and returned
+//    0, which is "free". That is the unknown-versus-free collapse (item 34),
+//    written into the very function whose job is to preserve it.
+//
+//    A mutation did not find it: skipping a term and adding zero are the same
+//    for a sum, so the mutation was unobservable. It surfaced only from asking
+//    what the SQL does when there is nothing to sum — the case no test covered.
+export function productBalances(movements) {
+  const groups = new Map()
+  for (const m of movements) {
+    const key = `${m.storage_id}|${m.product_id}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        storage_id: m.storage_id, product_id: m.product_id, qty: 0, valued: 0, anyCost: false,
+      })
+    }
+    const group = groups.get(key)
+    const quantity = Number(m.quantity_base)
+    group.qty += quantity
+    if (m.unit_cost !== null && m.unit_cost !== undefined) {
+      group.anyCost = true
+      group.valued += quantity * Number(m.unit_cost)
+    }
+  }
+  return [...groups.values()].map(({ storage_id, product_id, qty, valued, anyCost }) => ({
+    storage_id,
+    product_id,
+    balance_base: qty,
+    // sum(...) is NULL when every term was NULL, and NULL / anything is NULL.
+    avg_cost: qty > 0 && anyCost ? valued / qty : null,
+  }))
+}
+
 // Runs one OWNER_HISTORY entry into movements, so a screen can be drawn from
 // the real sequence rather than from its summary.
 export function historyMovements(key, documentId = 'doc-history') {
