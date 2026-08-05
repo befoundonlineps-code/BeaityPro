@@ -5,7 +5,7 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { reverseStockDocument } from '../lib/stockIO'
 import {
   sortDocuments, movementsOf, movementFrames, reversalState,
-  documentProductNames, documentDate,
+  documentProductNames, documentDate, costFrames, documentValue,
 } from '../lib/stockDocumentList'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -81,6 +81,23 @@ export default function StockDocumentsList({
     return `${t('products:documents.inEntered', {
       uom: t(`products:docs.uom_${f.uom}`), n: f.entered,
     })} · ${baseText}`
+  }
+
+  // ⚠️ The same rule as quantityText, on the other half of the line — the rule
+  // is about every NUMBER, not every quantity. "تكلفة الوحدة: 100 ₪" named no
+  // unit while the quantity two centimetres away named both, and unit_cost is
+  // per BASE unit, so on a product of 15 per package the figure is 6.6667 and
+  // not the 100 somebody typed.
+  //
+  // The unit is named and nothing is derived — see costFrames for why the
+  // typed price is not reconstructed here.
+  function costText(movement) {
+    const c = costFrames(movement, productsById[movement.product_id])
+    if (!c) return null
+    return t('products:documents.unitCost', {
+      unit: t(`products:units.${c.baseUnit || 'pcs'}`),
+      price: c.base.toLocaleString('ar', { maximumFractionDigits: 4 }),
+    })
   }
 
   if (loading) {
@@ -171,6 +188,24 @@ export default function StockDocumentsList({
                     <Badge variant="outline">
                       {t('products:documents.lineCount', { n: lines.length })}
                     </Badge>
+                    {/* ⚠️ What it cost. The entry screen shows a running total
+                        while somebody types and then it disappears forever, so
+                        the number that matters most on a supply was visible
+                        only while writing it. Nobody opens a list of documents
+                        looking for how many lines are in one.
+                        Null when nothing is priced — a transfer carries no
+                        cost, and "0 ₪" would be a claim about one. */}
+                    {(() => {
+                      const value = documentValue(movements, doc.id, productsById)
+                      if (value === null) return null
+                      return (
+                        <Badge variant="secondary">
+                          {t('products:documents.documentTotal', {
+                            total: value.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                          })}
+                        </Badge>
+                      )
+                    })()}
                     {state.reason === 'alreadyReversed' && (
                       <Badge variant="outline">{t('products:documents.reversedBadge')}</Badge>
                     )}
@@ -228,12 +263,8 @@ export default function StockDocumentsList({
                             <td className="py-1.5 text-muted-foreground">
                               {/* A stamped cost of zero is a real number here,
                                   not a blank — and it is exactly what the two
-                                  bad documents carry. */}
-                              {m.unit_cost === null || m.unit_cost === undefined
-                                ? '—'
-                                : t('products:documents.unitCost', {
-                                    price: Number(m.unit_cost).toLocaleString('ar', { maximumFractionDigits: 4 }),
-                                  })}
+                                  bad documents carried. */}
+                              {costText(m) || '—'}
                             </td>
                           </tr>
                         ))}
