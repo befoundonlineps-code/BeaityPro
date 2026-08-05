@@ -1,6 +1,6 @@
 import {
   movement, fixtureIsConsistent, historyMovements, productBalances, stocktakeAdjustment,
-  balanceRowsForStorage, BALANCE_STATE, COST_STATE,
+  balanceRowsForStorage, BALANCE_STATE, COST_STATE, productTotalAcrossStorages,
   OWNER_PRODUCTS, HYPOTHETICAL_PRODUCTS, OWNER_HISTORY,
 } from './stockFixtures'
 
@@ -126,12 +126,13 @@ describe('the states his database actually reached', () => {
   })
 
   it('reproduces the NEGATIVE balance the stocktake will meet on its first run', () => {
-    // (kept below; the balance-view cases follow)
-    // -75 in the general storage: transferred out, never received in. The
-    // first "recorded" figure that screen shows will be below zero, and
-    // counting an empty shelf produces a +75 adjustment. Undecided, not wrong.
+    // -75 in the GENERAL storage, +75 in the test one — both sides of an
+    // ordinary transfer. The first "recorded" figure the stocktake shows for
+    // the general storage is below zero, and counting an empty shelf there
+    // produces a +75 adjustment. Undecided, not wrong.
     const rows = historyMovements('cooler')
-    expect(balanceOf(rows)).toBe(-75)
+    expect(balanceOf(rows.filter((m) => m.storage_id === 'stor-general'))).toBe(-75)
+    expect(balanceOf(rows.filter((m) => m.storage_id === 'stor-test'))).toBe(75)
     expect(fixtureIsConsistent(rows)).toEqual([])
   })
 })
@@ -155,9 +156,8 @@ describe('productBalances reproduces the view, including what a paraphrase loses
     // three different meanings on one glyph.
     //
     // And this row is real: مبرد ومهدئ ليزر in the general storage, today.
-    expect(productBalances(historyMovements('cooler'))).toEqual([
-      { storage_id: 'stor-general', product_id: 'p-cooler', balance_base: -75, avg_cost: null },
-    ])
+    expect(productBalances(historyMovements('cooler')))
+      .toContainEqual({ storage_id: 'stor-general', product_id: 'p-cooler', balance_base: -75, avg_cost: null })
   })
 
   it('gives NULL when the balance is exactly zero', () => {
@@ -382,5 +382,48 @@ describe('the balance screen has TWO triples, not one', () => {
     expect(rows.map((r) => `${r.balanceState}/${r.costState}`)).toEqual([
       'negative/noAverage', 'inStock/zeroCost', 'inStock/known',
     ])
+  })
+})
+
+describe('summing across storages erases the signal', () => {
+  it('shows the owner’s two wrong storages summing to a clean zero', () => {
+    // ⚠️ Not constructed — this is his database now, reached by an ordinary
+    // transfer nobody got wrong. General -75, test +75, sum 0.
+    //
+    // A zero in a SUM is worse than a zero on a line: a line's zero says "free"
+    // or "unknown", a sum's zero says "no problem" — the one meaning that must
+    // never be said here.
+    const result = productTotalAcrossStorages({
+      productId: 'p-cooler', movements: historyMovements('cooler'),
+    })
+    expect(result.total).toBe(0)
+    expect(result.hidesOpposingBalances).toBe(true)
+    expect(result.perStorage.map((r) => r.balance_base).sort((a, b) => a - b)).toEqual([-75, 75])
+  })
+
+  it('loses the average too, so the screen would say "no data" about two faults', () => {
+    // sum(qty × cost) / sum(qty) over a zero denominator is no average at all.
+    const result = productTotalAcrossStorages({
+      productId: 'p-cooler', movements: historyMovements('cooler'),
+    })
+    expect(result.perStorage.find((r) => r.balance_base < 0).avg_cost).toBeNull()
+  })
+
+  it('does not cry wolf when the storages agree in direction', () => {
+    const rows = [
+      movement({ id: 'a', documentId: 'd', product: 'p-laser', enteredPackages: 4, unitCostPerBase: 25 }),
+      movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 6, unitCostPerBase: 25, storageId: 'stor-test' }),
+    ]
+    const result = productTotalAcrossStorages({ productId: 'p-laser', movements: rows })
+    expect(result).toMatchObject({ total: 10, hidesOpposingBalances: false })
+  })
+
+  it('never returns a bare total — the composition always travels with it', () => {
+    // The API cannot be used to show a sum without what it is made of.
+    const result = productTotalAcrossStorages({
+      productId: 'p-cooler', movements: historyMovements('cooler'),
+    })
+    expect(Object.keys(result).sort()).toEqual(['hidesOpposingBalances', 'perStorage', 'total'])
+    expect(result.perStorage).toHaveLength(2)
   })
 })

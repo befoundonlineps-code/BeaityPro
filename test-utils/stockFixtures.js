@@ -149,13 +149,55 @@ export const OWNER_HISTORY = {
   // مبرد ومهدئ ليزر: transferred out of the general storage and never
   // received into it, so its balance there is NEGATIVE. This is the row the
   // stocktake screen will show as "recorded" on its first run.
+  // مبرد ومهدئ ليزر: transferred out of the general storage into the test one.
+  // BOTH sides, because the pair is the point — the general storage is at -75
+  // and the test storage at +75, and summing them says zero.
   cooler: {
     productId: 'p-cooler',
     movements: [
-      { enteredPackages: 5, unitCostPerBase: 6.6667, direction: -1 },
+      { enteredPackages: 5, unitCostPerBase: 6.6667, direction: -1, storageId: 'stor-general' },
+      { enteredPackages: 5, unitCostPerBase: 6.6667, direction: 1, storageId: 'stor-test' },
     ],
-    expected: { balance: -75, value: -500.0025, average: 6.6667 },
+    expected: { perStorage: { 'stor-general': -75, 'stor-test': 75 }, summed: 0 },
   },
+}
+
+// A product's total across every storage — which is never returned as a bare
+// number.
+//
+// ⚠️ THE OWNER'S ROWS ARE THE COUNTEREXAMPLE. مبرد ومهدئ ليزر is -75 in the
+// general storage and +75 in the test one, reached by an ordinary transfer
+// nobody got wrong. Two storages, both wrong, and the sum is a clean zero:
+//
+//   general  -75    a negative balance
+//   test     +75    goods whose cost is unknown
+//   ───────────
+//   summed     0    "nothing to see"
+//
+// And the average vanishes with it: sum(qty × cost) / sum(qty) over a zero
+// denominator is no average at all, so the screen would say "no data" about a
+// product with two opposite faults.
+//
+// A zero in a SUM is worse than a zero on a line, because a line's zero says
+// "free" or "unknown" while a sum's zero says "no problem" — the one meaning
+// that must never be said here.
+//
+// So the total always travels with its composition, and the caller cannot
+// accidentally show one without the other.
+export function productTotalAcrossStorages({ productId, movements }) {
+  const perStorage = productBalances(movements)
+    .filter((b) => b.product_id === productId)
+    .map(({ storage_id, balance_base, avg_cost }) => ({ storage_id, balance_base, avg_cost }))
+
+  const total = perStorage.reduce((sum, row) => sum + row.balance_base, 0)
+  const signs = new Set(perStorage.map((r) => Math.sign(r.balance_base)))
+  return {
+    total,
+    perStorage,
+    // True when the storages disagree in direction — the shape where a total
+    // is actively misleading rather than merely incomplete.
+    hidesOpposingBalances: signs.has(1) && signs.has(-1),
+  }
 }
 
 // A stocktake adjustment, which is the ONE movement type where the two columns
