@@ -29,6 +29,10 @@ const UOMS = ['package', 'portion', 'unit']
 const emptyRow = () => ({
   productId: '', enteredQuantity: '', enteredUom: 'package',
   enteredUnitPrice: '', lineDiscountKind: 'percent', lineDiscountValue: '',
+  // ⚠️ Blank, never 0. The whole module treats an untouched box as a statement
+  // nobody made, and a stored zero here would say "a bonus of nothing" — which
+  // is a different row from "no bonus" for anybody counting free goods.
+  bonusQuantity: '',
 })
 
 function Field({ label, hint, children }) {
@@ -148,6 +152,20 @@ export default function StockDocumentScreen({
     return t('products:docs.nominalHint', {
       price: Number(product.nominal_purchase_price).toLocaleString('ar'),
     })
+  }
+
+  // ⚠️ THE SENTENCE THAT STOPS "300" BEING READ AS THE PRICE OF SEVEN. The
+  // quantity box says 7, the price box says 50, and the line net says 300 —
+  // three numbers that do not multiply together, which is exactly right and looks
+  // exactly wrong. So the row says which of the seven were charged for.
+  //
+  // Only when a bonus was actually typed: an explanation of an absent thing is
+  // noise on every ordinary line.
+  function bonusHint(row) {
+    const received = Number(row.enteredQuantity)
+    const bonus = Number(row.bonusQuantity)
+    if (!(bonus > 0) || !(received > 0) || bonus > received) return undefined
+    return t('products:docs.bonusHint', { paid: received - bonus, received })
   }
 
   // Which units this product can be entered in. A portion needs
@@ -334,9 +352,12 @@ export default function StockDocumentScreen({
           // anywhere; it is only ever visible to a reader.
           <div key={index}
             className={`grid grid-cols-1 items-end gap-2 ${
-              form.money
-                ? 'sm:grid-cols-[1.6fr_0.7fr_0.9fr_0.9fr_1.3fr_1.1fr_auto]'
-                : 'sm:grid-cols-[2fr_1fr_1fr_auto]'
+              form.stampsCost
+                // Eight: the bonus column only exists where goods arrive.
+                ? 'sm:grid-cols-[1.5fr_0.7fr_0.7fr_0.8fr_0.9fr_1.2fr_1.1fr_auto]'
+                : form.money
+                  ? 'sm:grid-cols-[1.6fr_0.7fr_0.9fr_0.9fr_1.3fr_1.1fr_auto]'
+                  : 'sm:grid-cols-[2fr_1fr_1fr_auto]'
             }`}>
             <Field label={index === 0 ? t('products:docs.productLabel') : undefined}>
               <select className={FIELD} value={row.productId}
@@ -354,6 +375,24 @@ export default function StockDocumentScreen({
               <Input type="number" min="0" step="0.001" value={row.enteredQuantity}
                 onChange={(e) => setRowAt(index, { enteredQuantity: e.target.value })} />
             </Field>
+
+            {/* ⚠️ NEXT TO THE QUANTITY, because it is a PART of it and not an
+                addition to it. Adjacency says "of which"; a box further along
+                the row would read as "and also". The label carries the same
+                word — «منها مجّاني» — so the two readings cannot diverge.
+
+                Only where goods arrive: free goods come in, they do not go
+                out. A return crediting less than was sent is a document
+                discount, which the ladder below already has. */}
+            {form.stampsCost && (
+              <Field
+                label={index === 0 ? t('products:docs.bonusLabel') : undefined}
+                hint={bonusHint(row)}
+              >
+                <Input type="number" min="0" step="0.001" value={row.bonusQuantity}
+                  onChange={(e) => setRowAt(index, { bonusQuantity: e.target.value })} />
+              </Field>
+            )}
 
             <Field label={index === 0 ? t('products:docs.uomLabel') : undefined}>
               <select className={FIELD} value={row.enteredUom}

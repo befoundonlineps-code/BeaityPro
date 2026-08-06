@@ -101,15 +101,37 @@ describe('the row template matches the row', () => {
   // content, so it draws, and only a reader ever notices. This round shipped
   // exactly that — five slots for seven cells — on the screen that "looked
   // right".
-  it('declares one column per cell on a priced row', () => {
-    const html = render('supply')
-    const template = html.match(/sm:grid-cols-\[([^\]]+)\]/)
+  // ⚠️ THE ARITHMETIC, not two numbers. It was written as "7 here, 4 there" and
+  // stage 4b made it 8 on a supply — so a correct change failed a test that had
+  // to be edited by hand, which is the moment somebody edits it to whatever the
+  // code now emits and the guard stops guarding. Stated as a sum of the flags,
+  // it re-derives itself and only fails when a cell really has no column.
+  it.each(DOC_TYPES)('%s declares one grid column per cell it renders', (docType) => {
+    const form = docForm(docType)
+    const expected = 4                          // product, quantity, uom, remove
+      + (form.money ? 3 : 0)                    // price, discount, net
+      + (form.stampsCost ? 1 : 0)               // of which free
+    const template = render(docType).match(/sm:grid-cols-\[([^\]]+)\]/)
     expect(template).not.toBeNull()
-    expect(template[1].split('_')).toHaveLength(7)
+    expect(template[1].split('_')).toHaveLength(expected)
+  })
+})
+
+describe('the bonus column belongs to arriving goods only', () => {
+  it.each(DOC_TYPES)('%s offers a bonus box exactly when it stamps a cost', (docType) => {
+    // Same rule the payload enforces and the function refuses, asserted here so
+    // the three cannot drift: a screen offering a box that post_stock_document
+    // rejects is a refusal nobody could have predicted from the form.
+    expect(render(docType).includes('products:docs.bonusLabel'))
+      .toBe(docForm(docType).stampsCost)
   })
 
-  it('declares one column per cell on an unpriced row', () => {
-    const template = render('write_off').match(/sm:grid-cols-\[([^\]]+)\]/)
-    expect(template[1].split('_')).toHaveLength(4)
+  it('sits beside the quantity, not at the end of the row', () => {
+    // It is a PART of the quantity. Adjacency says "of which"; a box further
+    // along says "and also", and that reading inflates both stock and bill.
+    const html = render('supply')
+    const at = (key) => html.indexOf(key)
+    expect(at('products:docs.quantityLabel')).toBeLessThan(at('products:docs.bonusLabel'))
+    expect(at('products:docs.bonusLabel')).toBeLessThan(at('products:docs.uomLabel'))
   })
 })
