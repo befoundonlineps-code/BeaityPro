@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
-import { BALANCE_STATE, COST_STATE, emptyReason, EMPTY_REASON } from '../lib/balanceView'
+import { BALANCE_STATE, emptyReason, EMPTY_REASON } from '../lib/balanceView'
 import {
   sheetRows, lineReading, stocktakeSummary, countedRowsToSend,
   COUNT_STATE, countState,
@@ -47,10 +47,17 @@ export default function StocktakeScreen({
     [balances, products, storageId, categoryId, categories]
   )
 
-  const factorOf = (product) => Number(product.units_per_package) || 1
-
-  // Counts are typed in BASE units on this screen, so the reading needs no
-  // conversion — the unit is named beside every field instead.
+  // ⚠️ COUNTS ARE TYPED IN BASE UNITS HERE, and the unit is named beside every
+  // field rather than assumed. That satisfies "no number without its unit in
+  // front of a person" — nobody is misled — but it does NOT satisfy item 35:
+  // counting three 250ml tubes means typing 750, which is the multiplication
+  // the system is supposed to do.
+  //
+  // A `factorOf` helper sat here unused, which is what an unfinished intention
+  // looks like once the round that started it ends. Removed rather than left as
+  // a hint: stocktakeLine already takes enteredUom and owns the factor and the
+  // whole-pieces refusal, so a per-row frame is a screen change and needs no
+  // second copy of that arithmetic.
   const readings = useMemo(() => {
     const map = {}
     for (const row of rows) {
