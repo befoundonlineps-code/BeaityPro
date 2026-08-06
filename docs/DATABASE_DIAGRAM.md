@@ -564,7 +564,17 @@ erDiagram
 
 **⚠️ كيف عُرفت أعمدة `suppliers` و`supplier_contacts` أعلاه:** بفحص PostgREST عمودًا عمودًا، لا بقراءة سكربت الخطوة ١. RLS ترجّع `[]` بلا جلسة فما في صف يُقرأ، **لكن العمود غير الموجود يُرفض من المخطِّط قبل ما توصل RLS** (`42703` باسمه)، والموجود يرجع `200 []` — فالفرق بين موجود وغائب مقيس. **وما لا يراه هذا الفحص إطلاقًا: النوع، ولا `NOT NULL`، ولا الافتراضي، ولا أي قيد.** فأي ادّعاء عن هذه لازمه المالك يشغّل SQL. وأول قائمة مرشَّحات جرّبتها (`name`, `full_name`, `contact_name`) رجعت كلها غائبة، فبدا الجدول بلا اسم — والحقيقة إن العمودين `last_name`/`first_name` وما كانوا بالقائمة. الفحص كان سليمًا والمرشَّحات كانت ناقصة.
 
-**ما ليس هنا بعد:** `stock_documents` و`stock_movements` وview الأرصدة — الخطوة ٥، ومشروطة بإقرار اقتراح الذرّية/RPC. وحتى تصل، **لا يوجد رصيد**: شاشة المنتجات لا تعرض عمودَي "Remaining" لأن صفرًا معناه "لا شيء متبقٍّ" بينما الحقيقة "غير معروف".
+**⚠️ ~~ما ليس هنا بعد: `stock_documents` و`stock_movements` وview الأرصدة~~ — السطر تقادم: الثلاثة مبنيّة وشغّالة، والرصيد يُعرض بشاشة الأرصدة.** وهذا القسم لم يُحدَّث معها، فهو يقرأ اليوم كنفي لواقع قائم.
+
+**وما يُعرف عنها يقينًا مصدرُه نصوص الدوالّ الأربع** (`post_stock_document` · `post_stocktake` · `transfer_stock` · `reverse_stock_document`، مقروءة بـ`pg_get_functiondef` ومحفوظة بـ[docs/sql/043-cost-estimated.sql](sql/043-cost-estimated.sql)):
+
+- `stock_documents` — `salon_id` · `doc_type` · `storage_id` · `to_storage_id` · `supplier_id` · `employee_id` · `appointment_id` · **`reverses_document_id`** · `doc_date` · `note`
+- `stock_movements` — `salon_id` · `document_id` · `storage_id` · `product_id` · `employee_id` · `quantity_base` · `unit_cost` · `entered_quantity` · `entered_uom` · `created_at` · `id`
+- `product_balances` (view) — `salon_id` · `storage_id` · `product_id` · `balance_base` · `avg_cost`
+
+⚠️ **وحدّ هذه المعرفة يُقال بدل أن يُترك يُخمَّن:** نصّ دالّة يكشف الأعمدة **التي تمسّها**، لا قائمة أعمدة الجدول. **ولا يقول شيئًا عن النوع ولا `NOT NULL` ولا الافتراضي ولا أي قيد** — تمامًا كحدّ فحص PostgREST بالفقرة فوق. فأي ادّعاء عن هذه لازمه المالك يشغّل SQL.
+
+⚠️ **و`reverses_document_id` مذكور مشدَّدًا لسبب:** سُجِّل مرّةً أنه غير موجود، لأن البحث جرى على `reversed_document_id` — بحرفين. **وهي علّة الفقرة فوق حرفيًّا** (`name`/`full_name`/`contact_name` رجعوا كلهم غائبين والحقيقة `first_name`/`last_name`): **الفحص سليم والمرشَّحات ناقصة، والبحث بالاسم يفشل مفتوحًا.**
 
 ---
 
