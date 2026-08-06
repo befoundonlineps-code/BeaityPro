@@ -5,7 +5,7 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { BALANCE_STATE, emptyReason, EMPTY_REASON } from '../lib/balanceView'
 import {
   sheetRows, lineReading, stocktakeSummary, countedRowsToSend,
-  COUNT_STATE, countState, countUoms, defaultCountUom,
+  COUNT_STATE, countState, countUoms, defaultCountUom, droppedCounts,
 } from '../lib/stocktakeSheet'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { stocktakePayload } from '../lib/stockDocumentForm'
@@ -48,9 +48,30 @@ export default function StocktakeScreen({
   const [actionError, setActionError] = useState('')
   const [posted, setPosted] = useState(null)
 
+  // What is drawn: narrowed by the folder, because people count a shelf.
   const rows = useMemo(
     () => sheetRows({ balances, products, storageId, categoryId: categoryId || null, categories }),
     [balances, products, storageId, categoryId, categories]
+  )
+
+  // ⚠️ WHAT IS SENT: SCOPED BY WHAT WAS COUNTED, NEVER BY WHAT IS ON SCREEN.
+  //
+  // The folder is a way of walking the storage, not a boundary of the document.
+  // Somebody counts the hair shelf, switches the filter to nails, counts that
+  // too, and saves — and with the sending set narrowed to the visible rows, the
+  // hair counts are discarded without a word. The confirmation says "1 line"
+  // where they counted eight, and post_stocktake stores no counts (item 44), so
+  // the work is gone with nothing to recover it from.
+  //
+  // Measured before it was fixed: two counts in, one sent, summary 1 not 2.
+  //
+  // ⚠️ And it is safe in the other reading too. Somebody who really is counting
+  // only the nail shelf has only counted nail products, so "everything counted"
+  // and "everything in this folder" are the same set for them. Sending what was
+  // COUNTED is right whichever way the folder was being used.
+  const countedScope = useMemo(
+    () => sheetRows({ balances, products, storageId, categoryId: null, categories }),
+    [balances, products, storageId, categories]
   )
 
   // ⚠️ THE FRAME IS THE COUNTER'S, PER ROW — it used to be base units for every
@@ -74,7 +95,7 @@ export default function StocktakeScreen({
   // one of those.
   const readings = useMemo(() => {
     const map = {}
-    for (const row of rows) {
+    for (const row of countedScope) {
       const raw = counts[row.product.id]
       const state = countState(raw)
       // ⚠️ Reads `uoms` directly rather than calling uomOf, and the repetition
@@ -88,9 +109,13 @@ export default function StocktakeScreen({
       )
     }
     return map
-  }, [rows, counts, uoms])
+  }, [countedScope, counts, uoms])
 
-  const summary = useMemo(() => stocktakeSummary(rows, readings), [rows, readings])
+  // ⚠️ The summary describes the DOCUMENT, so it counts what will be sent and
+  // not what is visible. That is also what makes the folder harmless: standing
+  // in the nail folder, the total still says two lines counted, so nothing the
+  // person did has quietly stopped existing.
+  const summary = useMemo(() => stocktakeSummary(countedScope, readings), [countedScope, readings])
 
   const reason = emptyReason({ loading, error, products, rows })
 
@@ -118,11 +143,22 @@ export default function StocktakeScreen({
     setSaving(true)
     setActionError('')
 
+    // ⚠️ The second layer, and it fails closed. If the sending set and the
+    // counts ever disagree again — a product archived out of the sheet mid
+    // count, a filter that narrows something nobody expected — this stops
+    // rather than shrinking the document in silence.
+    const dropped = droppedCounts(countedScope, counts)
+    if (dropped.length > 0) {
+      setSaving(false)
+      setActionError(t('products:stocktake.countsWouldBeLost', { count: dropped.length }))
+      return
+    }
+
     const { payload, error: buildError } = stocktakePayload({
       storageId,
       docDate,
       note,
-      rows: countedRowsToSend(rows, counts, uoms),
+      rows: countedRowsToSend(countedScope, counts, uoms),
     }, Object.fromEntries((products || []).map((p) => [p.id, p])))
 
     if (buildError) {
