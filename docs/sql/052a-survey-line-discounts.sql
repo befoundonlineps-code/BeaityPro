@@ -60,13 +60,22 @@ select m.id,
          as line_gross
 from stock_movements m
 left join stock_documents d on d.id = m.document_id
+-- ⚠️ `m.line_discount_kind is not null` GUARDS BOTH BRANCHES, and the survey
+-- needs it for the same reason the constraint does. Without it a row with a
+-- value and no kind makes every branch UNKNOWN, `not UNKNOWN` is UNKNOWN, and
+-- WHERE keeps only rows that are TRUE — so the one shape most worth finding
+-- would have been the one shape this survey could not see, and it would have
+-- reported "zero rows" with confidence.
 where m.line_discount_value is not null
   and not (
-    (m.line_discount_kind = 'percent' and m.line_discount_value <= 100)
-    or (m.line_discount_kind = 'amount'
-        and m.entered_unit_price is not null
-        and m.entered_quantity is not null
-        and m.line_discount_value
-            <= (abs(m.entered_quantity) - coalesce(m.bonus_quantity, 0)) * m.entered_unit_price)
+    m.line_discount_kind is not null
+    and (
+      (m.line_discount_kind = 'percent' and m.line_discount_value <= 100)
+      or (m.line_discount_kind = 'amount'
+          and m.entered_unit_price is not null
+          and m.entered_quantity is not null
+          and m.line_discount_value
+              <= (abs(m.entered_quantity) - coalesce(m.bonus_quantity, 0)) * m.entered_unit_price)
+    )
   )
 order by d.doc_date desc nulls last, m.id;

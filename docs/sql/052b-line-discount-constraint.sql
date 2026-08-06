@@ -29,12 +29,26 @@
 --
 --  1. percent above 100 — a net below zero.
 --  2. amount above the line's gross — the same, by the other road.
---  3. ⚠️ a discount VALUE with no KIND. Neither branch can match it, so it is
---     refused. 050b allows the kind to be null (an undiscounted line has
---     neither), and the pair is what has to be complete: a value read
---     "according to line_discount_kind" with no kind is a number nobody can
---     interpret, and 10 read as an amount instead of a percent on a line of
---     500 is 490 instead of 450.
+--  3. ⚠️ a discount VALUE with no KIND. 050b allows the kind to be null (an
+--     undiscounted line has neither), and the PAIR is what has to be complete:
+--     a value read "according to line_discount_kind" with no kind is a number
+--     nobody can interpret, and 10 read as an amount instead of a percent on a
+--     line of 500 is 490 instead of 450.
+--
+--     ⚠️ AND THE FIRST DRAFT OF THIS FILE DID NOT ENFORCE IT, though it read as
+--     though it did — caught in review. `line_discount_kind = 'percent'` on a
+--     NULL kind is UNKNOWN, not false; both branches went UNKNOWN, the whole
+--     expression went UNKNOWN, and a CHECK rejects only on FALSE.
+--
+--     ⚠️ And the failure was worst exactly where it mattered, measured over the
+--     full case set:
+--
+--       value 300, kind NULL  ->  REJECTED   (both branches reach FALSE anyway)
+--       value  10, kind NULL  ->  ACCEPTED   (the ambiguous one, and the point)
+--
+--     The absurd value was caught by accident and the plausible one let
+--     through — so the constraint caught the case nobody would write and
+--     missed the case it was written for.
 --
 -- The gross is (received - bonus) * price: the SAME expression the screen and
 -- lib/documentMoney.js use, because the free goods are not charged for. Written
@@ -56,10 +70,23 @@ alter table public.stock_movements
   add constraint stock_movements_line_discount_within_line_check
   check (
     line_discount_value is null
-    or (line_discount_kind = 'percent' and line_discount_value <= 100)
-    or (line_discount_kind = 'amount'
-        and entered_unit_price is not null
-        and entered_quantity is not null
-        and line_discount_value
-            <= (abs(entered_quantity) - coalesce(bonus_quantity, 0)) * entered_unit_price)
+    -- ⚠️ THE PAIRING IS ITS OWN CONJUNCT, AND IT HAS TO BE. Written as two
+    -- branches alone, a value with a NULL kind made every branch UNKNOWN rather
+    -- than false, and a CHECK rejects only on FALSE — so the row was accepted.
+    -- `line_discount_kind is not null` returns false definitively, which is
+    -- what turns the whole expression false.
+    --
+    -- It governs both branches from one place, so a third kind added later
+    -- cannot arrive unguarded. Guarding each comparison instead — coalesce on
+    -- every one of them — is equally correct today and one forgotten wrapper
+    -- away from this exact hole tomorrow.
+    or (line_discount_kind is not null
+        and (
+          (line_discount_kind = 'percent' and line_discount_value <= 100)
+          or (line_discount_kind = 'amount'
+              and entered_unit_price is not null
+              and entered_quantity is not null
+              and line_discount_value
+                  <= (abs(entered_quantity) - coalesce(bonus_quantity, 0)) * entered_unit_price)
+        ))
   );

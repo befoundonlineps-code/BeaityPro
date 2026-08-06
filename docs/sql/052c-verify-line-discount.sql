@@ -13,6 +13,7 @@
 --   constraint_definition        CHECK (((line_discount_value IS NULL) OR ...))
 --   is_validated_expect_t        t      (existing rows were checked, not skipped)
 --   violating_rows_expect_0      0
+--   doc_type_nullable_expect_NO  NO     (if YES, 044 carries the same hole)
 --   discount_kind_check_kept     the 050b constraint, still there
 --   line_money_nonneg_kept       the 050b constraint, still there
 --   bonus_checks_kept_expect_2   2      (the two from 051a)
@@ -37,16 +38,34 @@ select
   -- is doing what it says, this cannot be anything but zero — which makes it a
   -- check that CAN fail only if the constraint was added in a form that does
   -- not mean what it reads like.
+  -- ⚠️ Carries the same `kind is not null` guard as 052a and 052b. Without it
+  -- this column returned zero whether or not such a row existed — a check that
+  -- cannot fail, which is not a check.
   (select count(*) from stock_movements m
     where m.line_discount_value is not null
       and not (
-        (m.line_discount_kind = 'percent' and m.line_discount_value <= 100)
-        or (m.line_discount_kind = 'amount'
-            and m.entered_unit_price is not null
-            and m.entered_quantity is not null
-            and m.line_discount_value
-                <= (abs(m.entered_quantity) - coalesce(m.bonus_quantity, 0)) * m.entered_unit_price)
+        m.line_discount_kind is not null
+        and (
+          (m.line_discount_kind = 'percent' and m.line_discount_value <= 100)
+          or (m.line_discount_kind = 'amount'
+              and m.entered_unit_price is not null
+              and m.entered_quantity is not null
+              and m.line_discount_value
+                  <= (abs(m.entered_quantity) - coalesce(m.bonus_quantity, 0)) * m.entered_unit_price)
+        )
       ))                                                  as violating_rows_expect_0,
+
+  -- ⚠️ MEASURING AN ASSUMPTION MADE ABOUT A DIFFERENT SCRIPT. 044's constraint
+  -- reads `doc_type = 'reversal' or (doc_type = 'transfer') = (to_storage_id is
+  -- not null)` — the same equality-on-a-column shape that just failed here. It
+  -- is only safe if doc_type can never be null, and the repository cannot say:
+  -- the diagram lists the column without its nullability.
+  --
+  -- Expected NO. If it comes back YES, 044 has this same hole and needs the
+  -- same treatment — and that is a finding, not a failure of this script.
+  (select is_nullable from information_schema.columns
+    where table_schema = 'public' and table_name = 'stock_documents'
+      and column_name = 'doc_type')                       as doc_type_nullable_expect_NO,
 
   -- ⚠️ The neighbours are re-read because ALTER TABLE is not the only thing
   -- that has ever removed something nobody meant to remove. Naming them here
