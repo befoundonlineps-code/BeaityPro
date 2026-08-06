@@ -5,8 +5,9 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { BALANCE_STATE, emptyReason, EMPTY_REASON } from '../lib/balanceView'
 import {
   sheetRows, lineReading, stocktakeSummary, countedRowsToSend,
-  COUNT_STATE, countState,
+  COUNT_STATE, countState, countUoms, defaultCountUom,
 } from '../lib/stocktakeSheet'
+import { baseUnitsFor } from '../lib/stockDocument'
 import { stocktakePayload } from '../lib/stockDocumentForm'
 import { postStocktake } from '../lib/stockIO'
 import { today, maxDocumentDate } from '../lib/documentDate'
@@ -37,6 +38,11 @@ export default function StocktakeScreen({
   // destroys it.
   const [counts, setCounts] = useState({})
 
+  // The frame each row is being counted in, keyed the same way. Empty means
+  // "whatever this product opens with" — held rather than pre-filled, so a
+  // product arriving from a reload is framed by the rule and not by a stale map.
+  const [uoms, setUoms] = useState({})
+
   const [confirming, setConfirming] = useState(false)
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -47,28 +53,42 @@ export default function StocktakeScreen({
     [balances, products, storageId, categoryId, categories]
   )
 
-  // ⚠️ COUNTS ARE TYPED IN BASE UNITS HERE, and the unit is named beside every
-  // field rather than assumed. That satisfies "no number without its unit in
-  // front of a person" — nobody is misled — but it does NOT satisfy item 35:
-  // counting three 250ml tubes means typing 750, which is the multiplication
-  // the system is supposed to do.
+  // ⚠️ THE FRAME IS THE COUNTER'S, PER ROW — it used to be base units for every
+  // product on the sheet. The unit was named beside the box, so nobody was
+  // misled, and that is exactly why it survived: it broke no rule about
+  // labelling while breaking item 35, which says the multiplication belongs to
+  // the system. Counting three 250ml tubes meant typing 750, worked out in
+  // somebody's head while standing at a shelf.
   //
-  // A `factorOf` helper sat here unused, which is what an unfinished intention
-  // looks like once the round that started it ends. Removed rather than left as
-  // a hint: stocktakeLine already takes enteredUom and owns the factor and the
-  // whole-pieces refusal, so a per-row frame is a screen change and needs no
-  // second copy of that arithmetic.
+  // Packages by default where a package holds more than one, and the other
+  // frames stay per row for the open tube — the case that makes ONE fixed frame
+  // wrong rather than merely awkward, because no number of packages says
+  // "100ml left".
+  const uomOf = (product) => uoms[product.id] || defaultCountUom(product)
+
+  // ⚠️ THE CONVERSION HAPPENS ONCE, HERE, and by the same function the line
+  // builder uses. The count is typed in the counter's frame and everything
+  // downstream — recorded, difference, value — is in base units, so exactly one
+  // multiplication stands between them. A second copy of it is a second answer
+  // to "how many base units is a package", and this module has already paid for
+  // one of those.
   const readings = useMemo(() => {
     const map = {}
     for (const row of rows) {
       const raw = counts[row.product.id]
       const state = countState(raw)
+      // ⚠️ Reads `uoms` directly rather than calling uomOf, and the repetition
+      // is the point. uomOf is defined in the component body, so a memo calling
+      // it depends on a function rebuilt every render — exhaustive-deps says so
+      // and the ratchet caught it the moment this was "tidied" into a helper
+      // call. The rule itself is not duplicated; it lives in defaultCountUom.
+      const factor = baseUnitsFor(row.product, uoms[row.product.id] || defaultCountUom(row.product))
       map[row.product.id] = lineReading(
-        row, raw, state === COUNT_STATE.UNTOUCHED ? null : Number(raw)
+        row, raw, state === COUNT_STATE.UNTOUCHED ? null : Number(raw) * (factor || 1)
       )
     }
     return map
-  }, [rows, counts])
+  }, [rows, counts, uoms])
 
   const summary = useMemo(() => stocktakeSummary(rows, readings), [rows, readings])
 
@@ -84,6 +104,16 @@ export default function StocktakeScreen({
     setPosted(null)
   }
 
+  // ⚠️ The number is NOT converted when the frame changes. "3" typed as
+  // packages becoming "750" the moment somebody picks base units would be the
+  // system editing what a person wrote down — and if they were switching frames
+  // BECAUSE they mistyped, it destroys the correction they were about to make.
+  // The reading underneath re-reads, which is where the change belongs.
+  function setUom(productId, uom) {
+    setUoms((current) => ({ ...current, [productId]: uom }))
+    setPosted(null)
+  }
+
   async function save() {
     setSaving(true)
     setActionError('')
@@ -92,7 +122,7 @@ export default function StocktakeScreen({
       storageId,
       docDate,
       note,
-      rows: countedRowsToSend(rows, counts),
+      rows: countedRowsToSend(rows, counts, uoms),
     }, Object.fromEntries((products || []).map((p) => [p.id, p])))
 
     if (buildError) {
@@ -118,6 +148,8 @@ export default function StocktakeScreen({
     // without saying so would make the numbers vanish silently.
     setPosted({ countedLines: summary.countedLines, changed: summary.changing.length })
     setCounts({})
+    // The frames go with the counts: they described a sheet that has been sent.
+    setUoms({})
     if (onPosted) onPosted()
   }
 
@@ -148,7 +180,7 @@ export default function StocktakeScreen({
           <select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             value={storageId}
-            onChange={(e) => { setStorageId(e.target.value); setCounts({}); setPosted(null) }}
+            onChange={(e) => { setStorageId(e.target.value); setCounts({}); setUoms({}); setPosted(null) }}
           >
             {liveStorages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -235,15 +267,47 @@ export default function StocktakeScreen({
                       </td>
 
                       <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">{unitOf(row.product)}</span>
-                          <Input
-                            className="w-24"
-                            inputMode="decimal"
-                            value={counts[row.product.id] ?? ''}
-                            onChange={(e) => setCount(row.product.id, e.target.value)}
-                            placeholder={t('products:stocktake.notCounted')}
-                          />
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              className="w-24"
+                              inputMode="decimal"
+                              value={counts[row.product.id] ?? ''}
+                              onChange={(e) => setCount(row.product.id, e.target.value)}
+                              placeholder={t('products:stocktake.notCounted')}
+                            />
+                            {/* One frame is not a choice. A product whose
+                                package holds one unit has nothing to pick
+                                between, and a select with a single option is a
+                                control that teaches people to ignore selects. */}
+                            {countUoms(row.product).length > 1 ? (
+                              <select
+                                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                                value={uomOf(row.product)}
+                                onChange={(e) => setUom(row.product.id, e.target.value)}
+                              >
+                                {countUoms(row.product).map((uom) => (
+                                  <option key={uom} value={uom}>{t(`products:docs.uom_${uom}`)}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">{unitOf(row.product)}</span>
+                            )}
+                          </div>
+
+                          {/* ⚠️ BOTH FRAMES, once they are two numbers. The
+                              recorded column and the difference are in base
+                              units and this box is not, so a sheet showing only
+                              what was typed would put 3 beside a difference of
+                              −250 with nothing connecting them. This is the
+                              rule the owner's own «أدخل ٥ والصفّ بيقول ٧٥»
+                              produced, applied to the count. */}
+                          {reading.countedBase !== null
+                            && reading.countedBase !== Number(counts[row.product.id]) && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {`${unitOf(row.product)}: ${quantity(reading.countedBase)}`}
+                            </span>
+                          )}
                         </div>
                       </td>
 
