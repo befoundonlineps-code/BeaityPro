@@ -5,6 +5,7 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { reverseStockDocument } from '../lib/stockIO'
 import {
   EMPTY_FILTERS, filterDocuments, supplierFilterApplies, filterEmptyReason, FILTER_EMPTY,
+  storageInForce,
 } from '../lib/documentFilters'
 import {
   sortDocuments, movementsOf, movementFrames, reversalState,
@@ -44,14 +45,28 @@ export default function StockDocumentsList({
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
 
-  // The list opens ON the lens and can widen past it — the one screen where
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
+
+  // ⚠️ A WIDENING, NOT A SECOND STORAGE PICKER — and the first attempt was the
+  // second storage picker, which is the fault this whole stage exists to remove.
+  //
+  // Seeding the filter from the lens once left TWO storage controls on this tab:
+  // the lens in the header and a picker in the toolbar. Worse, the seeded copy
+  // did not follow the lens, so changing storage in the header while reading
+  // documents changed nothing at all — a control that looks like it worked while
+  // the content does not follow, which is the class closed in the stocktake one
+  // round ago wearing a different screen.
+  //
+  // So the storage is not this screen's state at all. It follows the lens, and
+  // the only thing kept here is whether to look PAST it — the one screen where
   // "all storages" is a real question rather than an implicit choice. The lens
   // says where somebody is working; this asks what happened in the salon.
   //
-  // ⚠️ Seeded once, not bound. Re-seeding whenever the lens moved would undo a
-  // widening the person had just made, and doing that silently while they read
-  // a list is how a screen teaches somebody not to trust its filters.
-  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS, storageId: storageId || '' }))
+  // ⚠️ And the widening is deliberately lost on leaving the tab. The page
+  // unmounts each view, which destroyed work in the stocktake and is right here:
+  // the difference is whether the state is WORK SOMEBODY DID or A VIEW THEY
+  // CHOSE. A count is the first; "show me everywhere for a moment" is the second.
+  const [allStorages, setAllStorages] = useState(false)
   const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
 
   // ⚠️ NARROWED HERE, IN MEMORY — never in the query, and this is a safety
@@ -61,8 +76,12 @@ export default function StockDocumentsList({
   // would drop it from both, the button would light up on an already-reversed
   // document, and the database would refuse with a sentence this screen never
   // expected. Measured in lib/documentFilters.test.js.
-  const rows = sortDocuments(filterDocuments(documents, filters))
-  const emptyKind = filterEmptyReason({ documents, filtered: rows, filters })
+  // One object, so the table, the empty-state reason and the toolbar cannot
+  // disagree about which storage is in force.
+  const inForce = { ...filters, storageId: storageInForce(storageId, allStorages) }
+
+  const rows = sortDocuments(filterDocuments(documents, inForce))
+  const emptyKind = filterEmptyReason({ documents, filtered: rows, filters: inForce })
   const supplierUsable = supplierFilterApplies(filters.docType)
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const nameOf = (list, id) => (list || []).find((x) => x.id === id)?.name || '—'
@@ -201,16 +220,19 @@ export default function StockDocumentsList({
             {(suppliers || []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          {t('products:documents.filterStorage')}
-          <select className={'h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50'}
-            value={filters.storageId} onChange={(e) => setFilter('storageId', e.target.value)}>
-            <option value="">{t('products:documents.filterAll')}</option>
-            {(storages || []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </select>
+        {/* The lens already names the storage above; this only says whether to
+            look past it. Two controls answering "which storage" on one screen is
+            what this replaced. */}
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={allStorages}
+            onChange={(e) => setAllStorages(e.target.checked)}
+          />
+          {t('products:documents.filterAllStorages')}
         </label>
         <Button type="button" variant="outline" size="sm"
-          onClick={() => setFilters({ ...EMPTY_FILTERS, storageId: storageId || '' })}>
+          onClick={() => { setFilters(EMPTY_FILTERS); setAllStorages(false) }}>
           {t('products:documents.filterClear')}
         </Button>
       </div>
