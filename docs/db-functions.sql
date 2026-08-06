@@ -24,6 +24,17 @@
 -- ولا إشي عن SECURITY DEFINER ولا search_path ولا اللغة. و CREATE OR REPLACE
 -- بتصفّر كل خاصية ما بتعطيها إياها صراحةً — يعني إعادة بناء دالة من جسمها
 -- لحاله بتسقط تحصيناتها بصمت. صار فعلًا مع seed_cancellation_reasons_for_salon.
+--
+-- ⚠️⚠️ **هاي اللقطة متأخرة، ومقيس قدّ إيش: 19 دالة، ولا وحدة منهن من موديول
+-- المخزون.** ناقص منها على الأقل `post_stock_document` و`post_stocktake` و
+-- `transfer_stock` و`reverse_stock_document` — يعني كل الدوال اللي انبنى
+-- عليها الموديول. انكتبن بمحرّر SQL مباشرة، فما مرقوا بأي commit يحدّث هون.
+--
+-- **والضرر مش النقص، الضرر إن الملف بيدّعي إنه صورة طبق الأصل.** صرفنا جولات
+-- منقود المتصفّح ومنطلب نصوصًا وحدة وحدة، والاستعلام اللي بيرجّعهن كلهن
+-- مكتوب بهذا الرأس من قبل. **السؤال إجا أول والبحث بعده — وهاي رابع مرّة.**
+--
+-- فأول تشغيل جاي بيصلحها. ولحينها: **الغائب من هون ما بيثبت إشي عن القاعدة.**
 
 CREATE OR REPLACE FUNCTION public.adjust_appointment_duration(p_appointment_id uuid, p_new_end timestamp with time zone, p_adjustment_reason_id uuid)
  RETURNS uuid
