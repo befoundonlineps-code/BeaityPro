@@ -56,7 +56,16 @@ export default function StockDocumentsList({
     setBusy(false)
     if (!ok) {
       setActionError(rpcError
-        ? dbErrorSentence(rpcError, t, 'StockDocumentsList.reverse')
+        // ⚠️ 23505 here has one meaning and it is not "that already exists".
+        // reverse_stock_document checks already_reversed BEFORE it takes its
+        // lock, so two attempts at once both read "not reversed" — and the
+        // unique index on reverses_document_id is what stops the second from
+        // doubling the correction (item 51). Whoever sees this did nothing
+        // wrong and has no data to review: the document was reversed a moment
+        // ago somewhere else, and reloading shows it.
+        ? dbErrorSentence(rpcError, t, 'StockDocumentsList.reverse', {
+          23505: 'products:stock.reversedElsewhere',
+        })
         : t('products:stock.noRowsError'))
       return
     }

@@ -739,3 +739,53 @@ describe('OWNER_HISTORY carries the costs the owner actually has', () => {
       .toEqual([['stor-general', true], ['stor-test', true]])
   })
 })
+
+// ── the fixture predicts a number about the real database, and is checked ───
+//
+// ⚠️ This exists because I predicted two flagged balance rows and the measured
+// answer was zero. Nothing computed wrongly: OWNER_HISTORY.cooler holds the
+// 2026-08-05 state (two movements) and his database now holds four. Reading a
+// dated snapshot as current is the fault, and asserting BOTH states beside each
+// other is what makes it hard to repeat.
+describe('before and after the reversal, and which one is his database', () => {
+  const flagsByStorage = (key) =>
+    productBalances(historyMovements(key))
+      .map((r) => [r.storage_id, r.balance_base, r.cost_has_estimate])
+      .sort()
+
+  it('before: a negative balance in one storage and a guess in each', () => {
+    // Two movements, one per storage, and neither storage holds a counterpart
+    // — so nothing cancels and the badge is on in both. This is the state we
+    // KEEP, because a negative balance must still be handled correctly.
+    expect(flagsByStorage('cooler')).toEqual([
+      ['stor-general', -75, true],
+      ['stor-test', 75, true],
+    ])
+  })
+
+  it('after: both storages at zero and both badges off — the measured answer', () => {
+    // ⚠️ reverse_stock_document writes each counterpart at the SAME storage as
+    // the movement it undoes, so the pair cancels INSIDE each storage rather
+    // than across the two. Q_est and S_est are both zero per group, so the
+    // badge clears in each — matching the 0 the owner's script reported.
+    expect(flagsByStorage('coolerReversed')).toEqual([
+      ['stor-general', 0, false],
+      ['stor-test', 0, false],
+    ])
+  })
+
+  it('and the flags are still on the rows — the badge cleared, the facts did not', () => {
+    // The distinction the whole expression exists for: four movements remain
+    // marked as guessed, and the badge is off because their guess no longer
+    // moves the average. Not because nothing was ever guessed.
+    expect(historyMovements('coolerReversed').every((m) => m.cost_is_estimated)).toBe(true)
+  })
+
+  it('the -75 the stocktake kept deferring is gone', () => {
+    // A consequence that outlives this file: the first real stocktake meets
+    // two storages at zero, not a negative one. The undecided case was
+    // decided by an ordinary reversal.
+    const balances = productBalances(historyMovements('coolerReversed'))
+    expect(balances.every((r) => r.balance_base === 0)).toBe(true)
+  })
+})

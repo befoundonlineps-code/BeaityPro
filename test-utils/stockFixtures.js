@@ -174,6 +174,22 @@ export const OWNER_HISTORY = {
   // source balance was zero. The eight rows that predate the column carry
   // `false` by DEFAULT, and these two are among the four that default lies
   // about — item 43's Part 4 is the correction.
+  //
+  // ⚠️⚠️ THIS IS THE 2026-08-05 STATE AND IT IS NO LONGER HIS DATABASE. The
+  // transfer was reversed on 2026-08-06, so the -75 is gone and both storages
+  // sit at zero. It is kept because a negative balance is a state the code must
+  // still handle correctly — reachable again any day — but it is a state we
+  // CHOSE to keep, not a photograph of today.
+  //
+  // I predicted a number about his live database from this entry and got it
+  // wrong: I said two balance rows would be flagged, and the measured answer
+  // was zero. Nothing here computes incorrectly — this depicts two movements
+  // and his database now holds four. The fault was reading a dated snapshot as
+  // if it were current, which is the rule CLAUDE.md states about the docs
+  // ("they point, the database decides") arriving through a fixture instead.
+  //
+  // coolerReversed below is the current state, and asserting both is what
+  // makes the difference impossible to miss again.
   cooler: {
     productId: 'p-cooler',
     movements: [
@@ -181,6 +197,28 @@ export const OWNER_HISTORY = {
       { enteredPackages: 5, unitCostPerBase: 0, direction: 1, storageId: 'stor-test', costIsEstimated: true },
     ],
     expected: { perStorage: { 'stor-general': -75, 'stor-test': 75 }, summed: 0 },
+  },
+  // مبرد ومهدئ ليزر AFTER the reversal — what his database holds today.
+  //
+  // ⚠️ The reversal writes its counterpart at the SAME storage_id as each
+  // original movement (`-m.quantity_base` at `m.storage_id`), so the pair
+  // cancels INSIDE each storage rather than across the two. That is why the
+  // badge clears in both: Q_est and S_est are each zero per group. I had this
+  // backwards and said the two flagged rows sat in different storages, which
+  // is true of `cooler` above and false of the database.
+  //
+  // ⚠️ And a consequence that outlives this entry: the -75 the stocktake work
+  // kept deferring no longer exists. The first real stocktake meets two
+  // storages at zero, not a negative one.
+  coolerReversed: {
+    productId: 'p-cooler',
+    movements: [
+      { enteredPackages: 5, unitCostPerBase: 0, direction: -1, storageId: 'stor-general', costIsEstimated: true },
+      { enteredPackages: 5, unitCostPerBase: 0, direction: 1, storageId: 'stor-test', costIsEstimated: true },
+      { enteredPackages: 5, unitCostPerBase: 0, direction: 1, storageId: 'stor-general', costIsEstimated: true },
+      { enteredPackages: 5, unitCostPerBase: 0, direction: -1, storageId: 'stor-test', costIsEstimated: true },
+    ],
+    expected: { perStorage: { 'stor-general': 0, 'stor-test': 0 }, summed: 0 },
   },
 }
 
