@@ -124,6 +124,17 @@ export default function StocktakeScreen({
   const unitOf = (product) => t(`products:units.${product.base_unit || 'pcs'}`)
   const nameOfCategory = (id) => (categories || []).find((c) => c.id === id)?.name || ''
 
+  // ⚠️ WHICH ROWS ARE ON SCREEN, so the confirmation can say which of its lines
+  // are NOT. Now that the folder
+  // narrows the sheet and not the document, a counted row can be part of what
+  // will be saved while being nowhere the person can look at it — and the box
+  // that would clear it is in another folder. The confirmation is the one place
+  // the whole document is visible, so it is where a line has to be removable.
+  const onScreen = useMemo(
+    () => new Set(rows.map((row) => row.product.id)),
+    [rows]
+  )
+
   function setCount(productId, raw) {
     setCounts((current) => ({ ...current, [productId]: raw }))
     setPosted(null)
@@ -422,6 +433,12 @@ export default function StocktakeScreen({
                 {summary.changing.map(({ row, reading, value }) => (
                   <li key={row.product.id} className="flex flex-wrap items-center gap-2">
                     <span>{row.product.name}</span>
+                    {/* Named only when it is somewhere else. A folder label on
+                        every line is noise; on the lines you cannot see, it is
+                        the address of the box that made them. */}
+                    {!onScreen.has(row.product.id) && (
+                      <Badge variant="outline">{nameOfCategory(row.product.category_id)}</Badge>
+                    )}
                     <span className="text-muted-foreground">
                       {t('products:stocktake.confirmLine', {
                         recorded: quantity(reading.recorded),
@@ -433,6 +450,17 @@ export default function StocktakeScreen({
                     {value === null
                       ? <Badge variant="outline">{t('products:stocktake.valueUnknown')}</Badge>
                       : <span className="text-muted-foreground">{money(value)} ₪</span>}
+                    {/* ⚠️ Emptying the box is what excludes a row — countState
+                        reads '' as untouched, and untouched never becomes a
+                        line. That worked already; what did not was REACHING the
+                        box for a row in another folder. This is the same act,
+                        from the one screen that shows the whole document. */}
+                    <Button
+                      type="button" variant="ghost" size="sm"
+                      onClick={() => setCount(row.product.id, '')}
+                    >
+                      {t('products:stocktake.dropLine')}
+                    </Button>
                   </li>
                 ))}
               </ul>
