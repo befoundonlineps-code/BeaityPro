@@ -20,6 +20,21 @@ const nextConfig = {
   //
   // Unset it is the ordinary .next, so a real deployment build is unchanged.
   distDir: process.env.NEXT_BUILD_DIR || '.next',
+
+  // ⚠️ THE GATE WAS BLIND TO A WHOLE DIRECTORY. Item 32 installed ESLint so
+  // that `next build` would fail on a conditional hook instead of compiling it
+  // happily — and `next lint` only ever read Next's defaults (app, pages,
+  // components, lib, src). `hooks/` is not among them, so every file in the one
+  // directory named after hooks was outside the guard that exists for hooks.
+  //
+  // Measured, not reasoned: `next lint` reported 13 warnings while
+  // lib/hookDepsRatchet.test.js counted 14 over the same tree. The missing one
+  // is hooks/useAppointments.js, and it had been invisible to the build since
+  // the gate was installed.
+  //
+  // Same shape as translationKeys being limited by folder and the guard that
+  // matched variable names: the rule was right and its reach was not.
+  eslint: { dirs: ['app', 'pages', 'components', 'lib', 'hooks'] },
 }
 
 module.exports = nextConfig
