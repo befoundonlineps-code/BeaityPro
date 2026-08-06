@@ -10,6 +10,7 @@ import SuppliersManager from '../../components/SuppliersManager'
 import StockDocumentScreen from '../../components/StockDocumentScreen'
 import StockDocumentsList from '../../components/StockDocumentsList'
 import StorageBalances from '../../components/StorageBalances'
+import StocktakeScreen from '../../components/StocktakeScreen'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
@@ -33,6 +34,7 @@ const BREADCRUMB = {
   write_off: 'products:breadcrumbWriteOff',
   return_to_supplier: 'products:breadcrumbReturn',
   transfer: 'products:breadcrumbTransfer',
+  stocktake: 'products:breadcrumbStocktake',
   documents: 'products:breadcrumbDocuments',
   balances: 'products:breadcrumbBalances',
 }
@@ -134,6 +136,22 @@ export default function ProductsPage() {
                 products={catalogue.products}
                 loading={directories.loading || catalogue.loading}
                 onPosted={() => { catalogue.reload(); stockDocuments.reload() }}
+              />
+            )}
+            {view === 'stocktake' && (
+              <StocktakeScreen
+                balances={balances.balances}
+                products={catalogue.products}
+                categories={catalogue.categories}
+                storages={directories.storages}
+                loading={balances.loading || catalogue.loading || directories.loading}
+                // ⚠️ Either read failing fails the screen, and it matters more
+                // here than anywhere: a counting sheet drawn from half a read
+                // shows fewer products than exist, somebody counts what is in
+                // front of them, and the products that never appeared are
+                // untouched rather than wrong — so nothing looks amiss at all.
+                error={balances.error || catalogue.error || directories.error}
+                onPosted={() => { balances.reload(); stockDocuments.reload() }}
               />
             )}
             {view === 'documents' && (

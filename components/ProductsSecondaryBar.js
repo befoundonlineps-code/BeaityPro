@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next'
-import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ScrollText, Boxes } from 'lucide-react'
+import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ScrollText, Boxes } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
@@ -35,6 +35,11 @@ const ITEMS = [
   { view: 'write_off', icon: PackageMinus, key: 'writeOff' },
   { view: 'return_to_supplier', icon: Undo2, key: 'returnToSupplier' },
   { view: 'transfer', icon: ArrowLeftRight, key: 'transfer' },
+  // ⚠️ Beside the documents rather than among them: a stocktake writes
+  // movements like they do, but nobody types a movement — they type a count
+  // and the difference is derived. Its own screen for the same reason it has
+  // its own function.
+  { view: 'stocktake', icon: ClipboardCheck, key: 'stocktake' },
   // Last two, because they are where you go after posting rather than to post.
   { view: 'documents', icon: ScrollText, key: 'documents' },
   // ⚠️ "What do I have?" is asked once; "what is about to run out?" is asked
