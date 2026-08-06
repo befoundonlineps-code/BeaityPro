@@ -52,7 +52,7 @@ const byId = (products) => Object.fromEntries(products.map((p) => [p.id, p]))
 export function movement({
   id, documentId, product, enteredPackages, unitCostPerBase,
   direction = 1, storageId = 'stor-general', products = OWNER_PRODUCTS,
-  counterfactualNullCost = false,
+  counterfactualNullCost = false, costIsEstimated = false,
 }) {
   const found = typeof product === 'string' ? byId([...products, ...HYPOTHETICAL_PRODUCTS])[product] : product
   if (!found) throw new Error(`stockFixtures: unknown product ${product}`)
@@ -99,6 +99,11 @@ export function movement({
     // 0.0000). Rounding here rather than at read time is what produced
     // 100.0005 on screen — item 35.
     unit_cost: unitCostPerBase === null ? null : Number(unitCostPerBase).toFixed(4),
+    // NOT NULL DEFAULT false in the schema, so every row carries it. false
+    // means "a person dictated this price, or a real average produced it" —
+    // which is a claim, not an absence, and item 43's script is where the
+    // truth of that claim for existing rows is being settled.
+    cost_is_estimated: costIsEstimated,
   }
 }
 
@@ -288,29 +293,67 @@ export function stocktakeAdjustment({
 //    A mutation did not find it: skipping a term and adding zero are the same
 //    for a sum, so the mutation was unobservable. It surfaced only from asking
 //    what the SQL does when there is nothing to sum — the case no test covered.
+// 4. cost_has_estimate asks whether the average SHOWN still depends on a
+//    guessed price — and that is a question about the fraction, not about
+//    whether a flagged row exists.
+//
+//    ⚠️ bool_or(cost_is_estimated) was the obvious expression and it is wrong,
+//    caught in review before it ran. reverse_stock_document copies the flag
+//    along with the number, so the cure the screen tells the owner to perform
+//    — reverse it, post it again at the real price — leaves TWO flagged rows
+//    in the group and bool_or stays true forever. The number becomes correct
+//    and the badge says "do not trust it". A badge that never clears is a
+//    badge on everything, which is the thing the supply branch of
+//    post_stock_document was written to avoid.
+//
+//    avg = (S_real + S_est) / (Q_real + Q_est). The estimated rows change
+//    nothing exactly when S_est = 0 AND Q_est = 0 — so the badge is
+//    Q_est <> 0 OR S_est <> 0.
+//
+//    ⚠️ The quantity test alone is not enough, and this is the correction on
+//    top of the reviewed proposal. A reversal pair cancels on both sums
+//    (±q at the same cost), so quantity alone gets that case right. But an
+//    estimated ISSUE at a non-positive balance and an estimated RECEIPT of the
+//    same size (item 54's transfer out of an empty storage) also cancel on
+//    quantity while their differing costs leave a residue in the numerator —
+//    measured in the test named "quantities that cancel while the value does
+//    not". Asking both sums has no such hole and needs no assumption about
+//    which paths can produce a flagged row.
 export function productBalances(movements) {
   const groups = new Map()
   for (const m of movements) {
     const key = `${m.storage_id}|${m.product_id}`
     if (!groups.has(key)) {
       groups.set(key, {
-        storage_id: m.storage_id, product_id: m.product_id, qty: 0, valued: 0, anyCost: false,
+        storage_id: m.storage_id,
+        product_id: m.product_id,
+        qty: 0,
+        valued: 0,
+        anyCost: false,
+        estQty: 0,
+        estValued: 0,
       })
     }
     const group = groups.get(key)
     const quantity = Number(m.quantity_base)
+    const estimated = m.cost_is_estimated === true
     group.qty += quantity
+    // sum(quantity_base) FILTER (WHERE cost_is_estimated) does not skip a row
+    // whose cost is NULL — only the product term does.
+    if (estimated) group.estQty += quantity
     if (m.unit_cost !== null && m.unit_cost !== undefined) {
       group.anyCost = true
       group.valued += quantity * Number(m.unit_cost)
+      if (estimated) group.estValued += quantity * Number(m.unit_cost)
     }
   }
-  return [...groups.values()].map(({ storage_id, product_id, qty, valued, anyCost }) => ({
+  return [...groups.values()].map(({ storage_id, product_id, qty, valued, anyCost, estQty, estValued }) => ({
     storage_id,
     product_id,
     balance_base: qty,
     // sum(...) is NULL when every term was NULL, and NULL / anything is NULL.
     avg_cost: qty > 0 && anyCost ? valued / qty : null,
+    cost_has_estimate: estQty !== 0 || estValued !== 0,
   }))
 }
 

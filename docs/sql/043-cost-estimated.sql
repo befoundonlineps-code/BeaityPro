@@ -19,6 +19,21 @@
 --    `cost_is_estimated` **تُنشَأ بنجاح** والعمود غير موجود، ثم **تفشل أول
 --    استدعاء حقيقي** — بعد أن يكون كل شيء قد أُودع.
 --
+-- ✅ **أخفق بالمنتصف؟ شغّله كاملًا مرّةً أخرى — لا شيء فيه ذو اتّجاهٍ واحد.**
+--    قُرئت جملُه واحدةً واحدة: `add column if not exists` · `comment on` ·
+--    `create or replace view` · أربع `create or replace function` · وعشر
+--    `select`. كلّها معادة التنفيذ بلا أثر، ولا واحدة تفشل بالتشغيل الثاني.
+--    **والحالة النصفية التي تستحقّ التسمية:** العمود والـview و`post_stocktake`
+--    وصلت و`post_stock_document` لا ⇒ **الشطب والإرجاع يكتبان `false`
+--    افتراضيًّا حيث يجب `true`** — بلا خطأ وبلا سطرٍ يشتكي.
+--
+-- ⚠️ **ولا `do` بهذا الملف ولا جدول مؤقّت.** كان فيه مسبارٌ يقيس سلوك
+--    `select … into`، ونُقل إلى سكربتٍ مستقلّ **يُشغَّل قبله**: هو الجملة
+--    الوحيدة التي كانت تستطيع إسقاط المعاملة لسببٍ لا علاقة له بالتغيير،
+--    **وهو أيضًا الوحيد الذي لا يحتاج من هذا السكربت شيئًا** — يقرأ
+--    `stock_movements` كما هي. **والفحص الذي يملك حقّ النقض لا يقع بعد
+--    التنفيذ.**
+--
 -- الحالة: ✅ **كامل — أربع دوالّ ونصوصها، ولا شيء ينتظر.**
 --          الجزء ١ العمود والـview · ٢ `post_stocktake` · ٣أ
 --          `post_stock_document` · ٣ب `transfer_stock` · ٣ج
@@ -39,8 +54,27 @@
 -- فيه، فحركة بتكلفة NULL تخرج من البسط وتبقى بالمقام والمتوسّط ينخفض بصمت —
 -- تسميم بأنظف صوره، وأخفى من الصفر لأن الصفر يُرى بالسطر والانخفاض لا يُرى.
 --
--- `not null default false`: الحركات القائمة كلها غير مقدَّرة بحكم التعريف —
--- أسعارها كُتبت بيد إنسان أو حُسبت من متوسّط حقيقي.
+-- ⚠️⚠️ **و`default false` يكتب على التاريخ جملةً لم يقرأها أحد.**
+--
+-- كان مكتوبًا هنا: «الحركات القائمة كلها غير مقدَّرة **بحكم التعريف** —
+-- أسعارها كُتبت بيد إنسان أو حُسبت من متوسّط حقيقي». **وهذا ليس تعريفًا، هو
+-- ادّعاءٌ عن ثمانية صفوف** — والقاعدة لا تعرف كيف نشأ أيٌّ منها، لأن العمود
+-- الذي كان سيعرف يُضاف بهذه الجملة نفسها.
+--
+-- **وبجدول المالك اليوم ما قد ينقضه:** التحويل بـ`unit_cost = 0` (نصف
+-- الـ`+75`). إن كان مصدره وقتها برصيدٍ غير موجب فالدرجة ٢ أعطته الصفر — أي
+-- أنه **مقدَّرٌ بالتعريف الجديد**، وسيُختم «غير مقدَّر» إلى الأبد. **فأوّل ما
+-- تعرضه الشاشة الجديدة: «٧٥ قطعة، قيمتها صفر، ونحن واثقون»** — وهي بعينها
+-- الثقة الكاذبة التي بُني العمود لمنعها.
+--
+-- ⚠️ **والفحص ٤ عاجزٌ عن كشفها بنيويًّا** — انظر تعليقه بالتحقّق أدناه.
+--
+-- ✅ **فالترتيب: تُقرأ الصفوف الثمانية أوّلًا** (سكربت ١٥، سرد لا عدّاد)، ثم:
+--    • صادقةٌ كلها  ⇒ `default false` يبقى، **وهذا التعليق يُستبدل بجملةٍ
+--      تقول «قُرِئت الثمانية بتاريخ كذا وكانت كلها كذلك»** — لا «بحكم التعريف».
+--    • فيها ما يكذّبها ⇒ `update` واحد بعد هذه الجملة يضع `true` على
+--      المعلومات **بالاسم**. ثمانية صفوف وبيانات تجربة: الكلفة صفرٌ اليوم،
+--      وغير قابلة للاستدراك بعد شهر.
 alter table stock_movements
   add column if not exists cost_is_estimated boolean not null default false;
 
@@ -61,17 +95,44 @@ comment on column stock_movements.cost_is_estimated is
 -- ⚠️ والفشل صامتٌ تمامًا عند صالونٍ واحد بقاعدة — لن يظهر مهما جُرّب. يظهر
 -- يوم يوجد صالون ثانٍ، ولا شيء حينها يشير إلى هذا السطر.
 --
--- والجديد سطرٌ واحد: `bool_or(cost_is_estimated)`.
+-- والجديد عمودٌ واحد بالذيل.
 --
 -- ⚠️ **وموضعه آخر القائمة إلزامًا لا ترتيبًا.** `CREATE OR REPLACE VIEW` لا
 -- يقبل إلا **إضافةً بالذيل**: تغييرُ اسم عمود قائم أو نوعه أو حذفُه أو
 -- إقحامُ الجديد بينها يُرفَض بـ`cannot change name of view column`. فمن
 -- «يرتّب» القائمة يومًا يكسر الجملة — وهذا أرحم احتمالَيه.
 --
--- ⚠️ ومعناه أن صفّ الرصيد يبقى موسومًا ما دامت بتاريخه حركةٌ مقدَّرة **ولو
--- وردت بعدها عشر شحنات بأسعار حقيقية** — لأن المتوسّط يُشتقّ من كل الحركات،
--- فهو مقدَّرٌ جزئيًّا إلى الأبد. لزجة وصادقة: العكس هو المخرج الوحيد فعلًا،
--- وهو ما يقوله الشرح على الشاشة.
+-- ⚠️⚠️ **وكان `bool_or(cost_is_estimated)` — وهو خطأ، أُوقف بالمراجعة قبل أن
+-- يُشغَّل.** والعلّة أن `reverse_stock_document` **تنسخ العلامة مع الرقم**،
+-- فبعد العلاج الذي تنصح به الشاشة نفسها — «اعكسه ثم سجّله بالسعر الحقيقي» —
+-- تبقى بالمجموعة حركتان موسومتان و`bool_or` تظلّ `true` **إلى الأبد**:
+--
+--     +75 @ 0     مقدَّرة      ← وارد تحويل نزلت سلسلته
+--     −75 @ 0     مقدَّرة      ← العكس، ينسخ الوصف كما ينسخ الرقم
+--     +75 @ 6.6667 غير مقدَّرة ← إعادة التسجيل بالسعر الحقيقي
+--     ⇒ الرصيد ٧٥ والمتوسّط ٦٫٦٦٦٧ صحيحان، والشارة باقية.
+--
+-- **فيصير الرقم صحيحًا والشاشة تقول «لا تثق به»** — فيتعلّم المالك تجاهل
+-- الشارة. **وشارةٌ على كل شيء شارةٌ على لا شيء**، وهي الحجّة نفسها المكتوبة
+-- بفقرة ② من `post_stock_document` أدناه. **كتبناها هناك ثم بنينا نقيضها هنا.**
+--
+-- ✅ **والسؤال الصحيح عن الكسر لا عن وجود صفّ موسوم:**
+--    `avg = (S_real + S_est) / (Q_real + Q_est)` — والحركات المقدَّرة لا تغيّر
+--    شيئًا **حين يكون `Q_est = 0` و`S_est = 0` معًا**. فالشارة نفيُ ذلك.
+--
+-- ⚠️ **وسؤال الكمّية وحدها لا يكفي، وهذا تصحيحٌ فوق المقترَح المُراجَع:** زوج
+-- العكس يُلغي نفسه بالطرفين (نفس الكمّية بنفس التكلفة)، **لكن صرفًا مقدَّرًا
+-- برصيدٍ غير موجب مع واردٍ مقدَّرٍ بنفس المقدار** (تحويل البند ٥٤) **يُلغي
+-- الكمّية وحدها**، وتبقى تكلفتاهما المختلفتان أثرًا بالبسط:
+--
+--     −15 @ 10 مقدَّرة · +15 @ 30 مقدَّرة · +15 @ 50 حقيقية
+--     Q_est = 0   ⇒ اختبار الكمّية وحدها يمسح الشارة
+--     S_est = 300 ⇒ والمتوسّط المعروض ٧٠ والصادق ٥٠
+--
+-- **ومقيسٌ لا محتجًّا به:** الثلاثة جنبًا إلى جنب بـ
+-- [test-utils/stockFixtures.test.js](../../test-utils/stockFixtures.test.js)،
+-- باختبار اسمه «quantities that cancel while the value does not».
+-- **وسؤال المجموعين لا يحتاج أي افتراض عن الطرق التي تُنتج صفًّا موسومًا.**
 create or replace view public.product_balances
   with (security_invoker = true)
 as
@@ -83,7 +144,9 @@ select
   case when sum(quantity_base) > 0
        then sum(quantity_base * unit_cost) / sum(quantity_base)
        else null end as avg_cost,
-  bool_or(cost_is_estimated) as cost_has_estimate
+  coalesce(sum(quantity_base) filter (where cost_is_estimated), 0) <> 0
+  or coalesce(sum(quantity_base * unit_cost) filter (where cost_is_estimated), 0) <> 0
+    as cost_has_estimate
 from stock_movements
 group by salon_id, storage_id, product_id;
 
@@ -163,10 +226,23 @@ begin
        where storage_id = p_storage_id and product_id = v_pid and quantity_base > 0
        order by created_at desc, id desc limit 1;
 
-      -- ③ الدرجة ٣ (جديدة): آخر وارد لنفس المنتج بأي مستودع بالصالون.
-      --    فوق السعر الاسميّ لا تحته، والفرق فرق نوع لا درجة: هذه ثمنٌ دُفع
-      --    فعلًا وانسجّل، والاسميّ رقمٌ كتبه أحدهم بالكتالوج ولا يعرف أحد
+      -- ③ الدرجة ٣ (جديدة): **آخر وارد مسجَّل** لنفس المنتج بأي مستودع
+      --    بالصالون. فوق السعر الاسميّ لا تحته: هذا رقمٌ دخل الدفتر بحركةٍ
+      --    لها تاريخ ومستند، والاسميّ رقمٌ كتبه أحدهم بالكتالوج ولا يعرف أحد
       --    وحدته (البند ٣١). الفرق الوحيد عن الدرجة فوقها: بلا شرط المستودع.
+      --
+      --    ⚠️ **«مسجَّل» لا «ثمنٌ دُفع فعلًا» — والفرق ليس تحسينَ صياغة.**
+      --    الاستعلام لا يشترط شيئًا عن مصدر الرقم: يأخذ آخر وارد أيًّا كان،
+      --    **وقد يكون هو نفسه مقدَّرًا** (وارد تحويلٍ نزل سلسلته، أو تسوية
+      --    جرد). وبيانات المالك تُظهرها اليوم — الـ`+75 @ 0` وارد، فالدرجة ٣
+      --    ستجده وتأخذ صفرًا **ولا تصل الدرجتين ٤ و٥ إطلاقًا**، فينتشر الصفر
+      --    عبر المستودعات بدل أن يبقى بمستودعه.
+      --
+      --    والمرشِّح الطبيعي `and not m.cost_is_estimated` بالدرجتين ٢ و٣،
+      --    والعمود الذي يجعله ممكنًا يضيفه هذا السكربت. ⚠️ **ولا يُضاف اليوم**
+      --    لأن التاريخ موسومٌ `false` افتراضًا، فالمرشِّح يقرأ الصفر القديم
+      --    ثمنًا مؤكَّدًا **ويثبّته بدل أن يستبعده — أسوأ من غيابه**. فالترتيب
+      --    إلزاميّ: يُحسم صدق التاريخ أوّلًا (الجزء ١)، ثم البند ٥٣.
       if v_cost is null then
         select m.unit_cost into v_cost
           from stock_movements m
@@ -313,6 +389,9 @@ begin
         --    الاسميّ لا تحته. ⚠️ **وإضافتها لواحدة دون الأخرى هي الخطأ**:
         --    يصير المنتج الواحد يُقوَّم برقمين حسب الباب الذي دخل منه، وهو
         --    بعينه صنف التباعد الذي نطارده.
+        --    ⚠️ **«مسجَّل» لا «ثمنٌ دُفع»** — والقيد `and not
+        --    m.cost_is_estimated` مؤجَّلٌ بترتيبٍ إلزاميّ (البند ٥٣). الحجّة
+        --    كاملةً عند نظيرتها بـ`post_stocktake` أعلاه.
         if v_cost is null then
           select m.unit_cost into v_cost
             from stock_movements m
@@ -434,8 +513,13 @@ begin
        where storage_id = p_from_storage_id and product_id = v_pid and quantity_base > 0
        order by created_at desc, id desc limit 1;
 
-      -- ② الدرجة ٣ (جديدة): آخر وارد لنفس المنتج بأي مستودع بالصالون.
-      --    الثالثة من ثلاث — والدرجة نفسها بالمواضع الثلاثة أو لا تُضاف.
+      -- ② الدرجة ٣ (جديدة): **آخر وارد مسجَّل** لنفس المنتج بأي مستودع
+      --    بالصالون. الثالثة من ثلاث — والدرجة نفسها بالمواضع الثلاثة أو لا
+      --    تُضاف. ⚠️ و«مسجَّل» لا «ثمنٌ دُفع»: القيد `and not
+      --    m.cost_is_estimated` مؤجَّلٌ بترتيبٍ إلزاميّ (البند ٥٣)، والحجّة
+      --    كاملةً عند نظيرتها بـ`post_stocktake`.
+      --    ⚠️ **وهذه الدالّة بالذات هي التي تُنتج الصفّ الذي تلتقطه الدرجة ٣**
+      --    حين يكون المصدر فارغًا (البند ٥٤) — فهي طرفا الحلقة معًا.
       if v_cost is null then
         select m.unit_cost into v_cost
           from stock_movements m
@@ -574,13 +658,24 @@ from information_schema.columns
 where table_name = 'product_balances'
 order by ordinal_position;
 
--- ٤. وكل الحركات القائمة غير مقدَّرة — أسعارها كُتبت أو حُسبت فعلًا،
---    والافتراضي false. **المتوقَّع: العدد صفر.**
---    ⚠️ (كان مكتوبًا «لو رجع أي صفّ هون…» — و`count(*)` يرجّع صفًّا دائمًا
---    فكان القارئ سيرى صفًّا ويستنتج فشلًا. **العبرة بالرقم لا بوجود الصفّ.**)
-select count(*) as estimated_rows_before_any_new_document
-from stock_movements
-where cost_is_estimated;
+-- ٤. 🔴 **سردٌ يُقرأ بالعين، لا عدّادٌ يُقارَن — والفرق هو البند كلّه.**
+--
+--    كان هنا `select count(*) … where cost_is_estimated` والمتوقَّع صفر.
+--    **وهو فحصٌ لا يمكن أن يفشل:** الجواب صفرٌ بحكم `default false` نفسه لا
+--    بحكم الحقيقة، فهو يتحقّق أن بوستجرس نفّذ `default` — وهذا مضمون — لا أن
+--    الادّعاء عن الصفوف صحيح. **وفحصٌ لا يمكن أن يفشل ليس فحصًا.**
+--
+--    وهو أخو «لم يُقَس ليس غير موجود» معكوسًا: **`false` مكتوبةٌ افتراضًا
+--    ليست `false` مقيسة.**
+--
+--    فالصواب هنا حكمُ إنسانٍ لا رقمٌ متوقَّع: تُقرأ الصفوف صفًّا صفًّا، ويُسأل
+--    عن كلٍّ منها «من أين جاء سعره؟». **والوارد بتكلفة صفر هو المشتبَه به
+--    الأول** (البند ٢ بمراجعة السكربت).
+select m.id, d.doc_type, m.storage_id, m.product_id,
+       m.quantity_base, m.unit_cost, m.cost_is_estimated, m.created_at
+from stock_movements m
+left join stock_documents d on d.id = m.document_id
+order by m.created_at, m.id;
 
 -- ٥. ولا صفّ رصيد موسوم بعد — خطّ الأساس الذي يُقارَن به أول جرد يمرّ
 --    بالدرجة الجديدة.
@@ -617,34 +712,18 @@ where n.nspname = 'public'
   and p.proname in ('post_stocktake', 'post_stock_document',
                     'transfer_stock', 'reverse_stock_document');
 
--- ٨. ⚠️ سؤالٌ يحكم صحّة الدرجات ٢→٣→٤ **بالدالّتين معًا**، ولم يُقَس بعد:
---    ماذا يفعل `select … into` حين لا يرجع صفًّا؟ التوثيق يقول «يُسنَد
---    العدم»، **وعليه بُنيت السلسلة كلّها** — فـ`if v_cost is null` هو ما
---    ينقلها للدرجة التالية.
+-- ٨. ✅ **انتقل إلى سكربتٍ مستقلّ يُشغَّل قبل هذا** — مسبار سلوك
+--    `select … into` عند صفر صفوف. لسببين:
 --
---    ولو كان الجواب «يبقى على قيمته»، فخيبةُ البحث تترك **تكلفة المنتج
---    السابق من الحلقة** مختومةً على هذا المنتج — رقمٌ خاطئ، مقنع، ودائم،
---    ولا سطر يشتكي. فيُقاس مرّة، هنا، بدل أن يُفترض.
+--    ① **لا يحتاج من هذا السكربت شيئًا** (لا العمود ولا الـview ولا الدوالّ)
+--      ويملك حقّ نقضها جميعًا. وفحصٌ يملك النقض لا يقع بعد التنفيذ — وإلا
+--      كانت «⛔ أوقف كل شيء» جملةً غير قابلة للتنفيذ حين تُقرأ.
+--    ② **`do $$` كان الجملة الوحيدة هنا القادرة على إسقاط المعاملة لسببٍ لا
+--      علاقة له بالتغيير** — ولو أخفق وهو آخر شيء، ارتدّ معه كل ما فوقه وقد
+--      بدا ناجحًا. **فالجملة الوحيدة القادرة على إلغاء التغيير كانت الوحيدة
+--      التي لا تخصّه.**
 --
---    بلا DDL وبلا استثناء، وعلى الجدول الحقيقي بشكل السلسلة نفسه.
---    **المتوقَّع: `null-assigned ✓`.**
-create temporary table if not exists probe_select_into (result text);
-delete from probe_select_into;   -- وإلا تراكمت سطور التشغيلات السابقة بالجلسة
-do $$
-declare v_probe numeric;
-begin
-  v_probe := 999;
-  select unit_cost into v_probe
-    from stock_movements
-   where product_id = '00000000-0000-0000-0000-000000000000'::uuid
-   order by created_at desc, id desc
-   limit 1;
-  insert into probe_select_into
-  values (case when v_probe is null
-               then 'null-assigned ✓ — السلسلة تنزل درجاتها كما هو مقصود'
-               else 'stale: ' || v_probe || ' ⛔ — أوقف كل شيء' end);
-end $$;
-select * from probe_select_into;
+--    فلا `do` بهذا الملف ولا جدول مؤقّت، ولا شيء فيه غير DDL و`select`.
 
 -- ٩. 🔴 **سؤالٌ مستقلّ عن هذا السكربت، وحسمُه سطر:** هل على
 --    `reverses_document_id` قيدُ تفرّد؟
@@ -690,3 +769,75 @@ left join pg_constraint fk on fk.conrelid = c.oid and a.attnum = any(fk.conkey)
 left join pg_class cf on cf.oid = fk.confrelid
 where c.relname = 'stock_documents' and a.attnum > 0 and not a.attisdropped
 order by a.attnum;
+
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- الملخّص — **آخر جملة بالملف عمدًا**
+--
+-- ⚠️ ما يعرضه محرّر Supabase حين تُرسَل جملٌ متعدّدة بدفعة واحدة — كلّ النتائج
+--    أم الأخيرة وحدها — **لم يُقَس، ولا يُبنى عليه**. ولو كانت الأخيرة وحدها
+--    لجرت تسعة فحوص لا يراها أحد، **وقُرئ العاشر فبدا أن كل شيء تمّ**.
+--
+-- ✅ والعلاج شكلٌ لا يعتمد على السلوك المجهول بدل قياسه: **نتيجةٌ واحدة، سطرٌ
+--    لكل فحص، وهي آخر ما يُنفَّذ**. وهي «اكتب الشكل لا القائمة» مطبَّقةً على
+--    الفحوص نفسها.
+--
+-- والتفصيل يبقى فوق: الفحوص ١ و٣ و٤ و٦ و٧ و٩ و١٠ ترجّع صفوفًا تُقرأ بالعين،
+-- **وهذا الملخّص يقول أيّها يحتاج نظرًا** لا يغني عنها.
+-- ───────────────────────────────────────────────────────────────────────────
+
+select 'view: security_invoker' as check_name,
+       coalesce((select reloptions::text from pg_class
+                  where relnamespace = 'public'::regnamespace
+                    and relname = 'product_balances'), '(بلا خيارات ⛔)') as result
+union all
+select 'view: cost_has_estimate exists',
+       coalesce((select 'yes' from information_schema.columns
+                  where table_name = 'product_balances'
+                    and column_name = 'cost_has_estimate'), 'MISSING ⛔')
+union all
+select 'column: cost_is_estimated',
+       coalesce((select data_type || ' / nullable=' || is_nullable || ' / default=' || coalesce(column_default, '∅')
+                   from information_schema.columns
+                  where table_name = 'stock_movements'
+                    and column_name = 'cost_is_estimated'), 'MISSING ⛔')
+union all
+select 'functions: copies (expect 4×1)',
+       (select string_agg(proname || '=' || c, ', ' order by proname)
+          from (select p.proname, count(*) as c
+                  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = 'public'
+                   and p.proname in ('post_stocktake', 'post_stock_document',
+                                     'transfer_stock', 'reverse_stock_document')
+                 group by p.proname) s)
+union all
+select 'functions: security_definer (expect all false)',
+       (select string_agg(p.proname || '=' || p.prosecdef, ', ' order by p.proname)
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'public'
+           and p.proname in ('post_stocktake', 'post_stock_document',
+                             'transfer_stock', 'reverse_stock_document'))
+union all
+select 'functions: insert carries the column (expect all 1)',
+       (select string_agg(p.proname || '='
+               || ((length(p.prosrc) - length(replace(p.prosrc, 'cost_is_estimated)', '')))
+                   / length('cost_is_estimated)'))::text, ', ' order by p.proname)
+          from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'public'
+           and p.proname in ('post_stocktake', 'post_stock_document',
+                             'transfer_stock', 'reverse_stock_document'))
+union all
+select 'movements flagged (read check 4, do not trust this number)',
+       (select count(*)::text from stock_movements where cost_is_estimated)
+union all
+select 'balance rows flagged',
+       (select count(*)::text from product_balances where cost_has_estimate)
+union all
+select 'reverses_document_id: unique index? (item 51)',
+       coalesce((select string_agg(pg_get_indexdef(i.oid), ' | ')
+                   from pg_index ix
+                   join pg_class i on i.oid = ix.indexrelid
+                   join pg_class t on t.oid = ix.indrelid
+                  where t.relname = 'stock_documents'
+                    and pg_get_indexdef(i.oid) like '%reverses_document_id%'),
+                'no index — البند ٥١ مفتوح');

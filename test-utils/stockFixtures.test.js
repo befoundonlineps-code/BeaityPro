@@ -145,7 +145,10 @@ describe('productBalances reproduces the view, including what a paraphrase loses
   it('gives a number when the balance is positive', () => {
     const rows = historyMovements('shampoo')
     expect(productBalances(rows)).toEqual([
-      { storage_id: 'stor-general', product_id: 'p-shampoo', balance_base: 20, avg_cost: 50 },
+      {
+        storage_id: 'stor-general', product_id: 'p-shampoo',
+        balance_base: 20, avg_cost: 50, cost_has_estimate: false,
+      },
     ])
   })
 
@@ -157,7 +160,10 @@ describe('productBalances reproduces the view, including what a paraphrase loses
     //
     // And this row is real: مبرد ومهدئ ليزر in the general storage, today.
     expect(productBalances(historyMovements('cooler')))
-      .toContainEqual({ storage_id: 'stor-general', product_id: 'p-cooler', balance_base: -75, avg_cost: null })
+      .toContainEqual({
+        storage_id: 'stor-general', product_id: 'p-cooler',
+        balance_base: -75, avg_cost: null, cost_has_estimate: false,
+      })
   })
 
   it('gives NULL when the balance is exactly zero', () => {
@@ -235,7 +241,8 @@ describe('the case a mutation could not find — all COUNTERFACTUAL, see above',
       movement({ id: 'b', documentId: 'd', product: 'p-laser', enteredPackages: 10, unitCostPerBase: null, counterfactualNullCost: true }),
     ]
     expect(productBalances(rows)[0]).toEqual({
-      storage_id: 'stor-general', product_id: 'p-laser', balance_base: 20, avg_cost: null,
+      storage_id: 'stor-general', product_id: 'p-laser',
+      balance_base: 20, avg_cost: null, cost_has_estimate: false,
     })
   })
 
@@ -579,5 +586,108 @@ describe('low_supply_units — collected by the form, read by nothing', () => {
     expect(rows.find((r) => r.product_id === 'p-cooler')).toMatchObject({
       balanceState: BALANCE_STATE.NEGATIVE, lowSupply: true,
     })
+  })
+})
+
+// ── cost_has_estimate: a question about the fraction, not about a flag ──────
+//
+// bool_or(cost_is_estimated) was the obvious expression for the view and it is
+// wrong. It was caught in review before it ran, and these are the cases that
+// decide the shape — measured here rather than argued, because the fixture
+// reproduces the view and the view is what the screen reads.
+describe('cost_has_estimate', () => {
+  // p-cooler is factor 15, so 5 packages is 75 base units — the owner's own
+  // transfer, which is where an estimated receipt actually comes from. A
+  // SUPPLY is never estimated (a person dictated the price), so the flagged
+  // receipts in this module arrive by transfer or by stocktake.
+  const cooler = (n) => ({ product: 'p-cooler', enteredPackages: n })
+  const rowOf = (movements) => productBalances(movements)[0]
+
+  it('clears once the cure the screen recommends has been carried out', () => {
+    // ⚠️ THE CASE bool_or GETS WRONG. reverse_stock_document copies the flag
+    // with the number, so after "reverse it and post it again at the real
+    // price" the group holds two flagged rows forever. The number is right and
+    // bool_or would still say "do not trust it" — teaching the owner to ignore
+    // the badge, which is the badge-on-everything fault the supply branch of
+    // post_stock_document exists to prevent.
+    const rows = [
+      movement({ id: 'm1', documentId: 'd1', ...cooler(5), unitCostPerBase: 0, direction: 1, costIsEstimated: true }),
+      movement({ id: 'm2', documentId: 'd2', ...cooler(5), unitCostPerBase: 0, direction: -1, costIsEstimated: true }),
+      movement({ id: 'm3', documentId: 'd3', ...cooler(5), unitCostPerBase: 6.6667, direction: 1 }),
+    ]
+    const row = rowOf(rows)
+    expect(row.balance_base).toBe(75)
+    expect(row.avg_cost).toBeCloseTo(6.6667, 4)
+    expect(row.cost_has_estimate).toBe(false)
+
+    // And the flagged rows are still there — this is not the badge being
+    // absent because nothing was ever flagged.
+    expect(rows.filter((m) => m.cost_is_estimated)).toHaveLength(2)
+  })
+
+  it('stays on while the guess is still sitting on the shelf', () => {
+    const row = rowOf([
+      movement({ id: 'm1', documentId: 'd1', ...cooler(5), unitCostPerBase: 0, direction: 1, costIsEstimated: true }),
+    ])
+    expect(row.cost_has_estimate).toBe(true)
+  })
+
+  it('stays on when some of the guessed stock has been issued', () => {
+    // The issue is not flagged: the balance was positive, so it took a real
+    // average. The guess is still in the numerator.
+    const row = rowOf([
+      movement({ id: 'm1', documentId: 'd1', ...cooler(5), unitCostPerBase: 0, direction: 1, costIsEstimated: true }),
+      movement({ id: 'm2', documentId: 'd2', ...cooler(1), unitCostPerBase: 0, direction: -1 }),
+    ])
+    expect(row.balance_base).toBe(60)
+    expect(row.cost_has_estimate).toBe(true)
+  })
+
+  it('stays on for a guessed issue against a negative balance', () => {
+    // ⚠️ This is why the test is `<> 0` and not `> 0`. An estimated issue only
+    // happens at a non-positive balance, so its quantity is negative — and a
+    // positivity test would clear the badge on exactly the row that has the
+    // least right to it.
+    const row = rowOf([
+      movement({ id: 'm1', documentId: 'd1', ...cooler(1), unitCostPerBase: 6.6667, direction: -1, costIsEstimated: true }),
+    ])
+    expect(row.balance_base).toBe(-15)
+    expect(row.cost_has_estimate).toBe(true)
+  })
+
+  it('stays on for quantities that cancel while the value does not', () => {
+    // ⚠️ THE HOLE IN THE QUANTITY-ONLY TEST, and the reason this asks both
+    // sums. A reversal pair cancels on quantity AND on value, because the
+    // reversal copies the cost. But an estimated issue at a non-positive
+    // balance and an estimated receipt of the same size — item 54's transfer
+    // out of an empty storage — cancel on quantity alone, and their differing
+    // costs leave a residue in the numerator.
+    //
+    // Measured: the average shown is 70 where the honest figure is 50.
+    const rows = [
+      movement({ id: 'm1', documentId: 'd1', ...cooler(1), unitCostPerBase: 10, direction: -1, costIsEstimated: true }),
+      movement({ id: 'm2', documentId: 'd2', ...cooler(1), unitCostPerBase: 30, direction: 1, costIsEstimated: true }),
+      movement({ id: 'm3', documentId: 'd3', ...cooler(1), unitCostPerBase: 50, direction: 1 }),
+    ]
+    const row = rowOf(rows)
+
+    const estimatedQty = rows
+      .filter((m) => m.cost_is_estimated)
+      .reduce((sum, m) => sum + Number(m.quantity_base), 0)
+    expect(estimatedQty).toBe(0)          // a quantity-only test would clear it
+
+    expect(row.balance_base).toBe(15)
+    expect(row.avg_cost).toBeCloseTo(70, 4)   // and 70 is not the honest 50
+    expect(row.cost_has_estimate).toBe(true)
+  })
+
+  it('is off when nothing in the group was ever guessed', () => {
+    // The counter-evidence: an expression that answered `true` everywhere
+    // would pass every case above and fail only here.
+    const row = rowOf([
+      movement({ id: 'm1', documentId: 'd1', ...cooler(5), unitCostPerBase: 6.6667, direction: 1 }),
+      movement({ id: 'm2', documentId: 'd2', ...cooler(1), unitCostPerBase: 6.6667, direction: -1 }),
+    ])
+    expect(row.cost_has_estimate).toBe(false)
   })
 })
