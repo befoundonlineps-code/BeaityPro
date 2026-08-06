@@ -212,12 +212,13 @@ export default function StockDocumentsList({
       {rows.length === 0 ? (
         <div className="flex flex-col gap-1 py-10 text-center text-sm text-muted-foreground">
           {/* ⚠️ Three empty states, not one. «none yet» sends somebody to post a
-              document and «nothing matched» sends them to widen the filter — and
-              the third is not merely empty but CONTRADICTORY: asking a supplier
-              of documents that have none returns nothing forever, and drawn as a
-              blank list it invites the conclusion that they are missing. */}
-          {emptyKind === FILTER_EMPTY.CONTRADICTORY ? (
-            <span>{t('products:documents.emptyContradictory')}</span>
+              document, «nothing matched» sends them to widen the filter — and
+              the third is the case where widening the SUPPLIER cannot help at
+              all, because nothing recorded is of a type that can carry one. It
+              is not the same as this supplier having no documents, which is an
+              ordinary no-match; see filterEmptyReason for the boundary. */}
+          {emptyKind === FILTER_EMPTY.NO_SUPPLIER_DOCS ? (
+            <span>{t('products:documents.emptyNoSupplierDocs')}</span>
           ) : emptyKind === FILTER_EMPTY.NO_MATCH ? (
             <>
               <span>{t('products:documents.emptyNoMatchTitle')}</span>
