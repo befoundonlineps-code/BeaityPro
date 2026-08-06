@@ -6,6 +6,7 @@ import { postStockDocument, transferStock } from '../lib/stockIO'
 import {
   validateStockDocument, documentTotals, stockDocumentPayload, storageChoices, docForm,
 } from '../lib/stockDocumentForm'
+import { today, maxDocumentDate } from '../lib/documentDate'
 import { supplierChoices } from '../lib/supplierForm'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { Label } from '@/components/ui/label'
@@ -52,7 +53,11 @@ export default function StockDocumentScreen({
   const [storageId, setStorageId] = useState('')
   const [toStorageId, setToStorageId] = useState('')
   const [supplierId, setSupplierId] = useState('')
-  const [docDate, setDocDate] = useState(() => new Date().toISOString().slice(0, 10))
+  // ⚠️ Was `new Date().toISOString().slice(0, 10)`, which is UTC. East of
+  // Greenwich that is yesterday for the first hours of every day — so a supply
+  // entered at 1am in Palestine was dated the day before, silently and looking
+  // entirely ordinary in the list. `today()` reads the local calendar.
+  const [docDate, setDocDate] = useState(() => today())
   const [note, setNote] = useState('')
   const [rows, setRows] = useState(() => [emptyRow()])
 
@@ -204,7 +209,12 @@ export default function StockDocumentScreen({
         )}
 
         <Field label={t('products:docs.dateLabel')}>
-          <Input type="date" value={docDate}
+          {/* ⚠️ `max` AND the validation, not either alone. The attribute makes
+              the picker refuse to walk past today, which is the kind way; but
+              it is a hint the browser may not honour and a typed or pasted
+              value can walk straight through it. The sentence beside the field
+              is the guard — see documentDateError. */}
+          <Input type="date" value={docDate} max={maxDocumentDate()}
             onChange={(e) => { setDocDate(e.target.value); setPosted(false) }} />
         </Field>
 
