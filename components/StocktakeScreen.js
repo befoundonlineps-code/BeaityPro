@@ -5,7 +5,7 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { BALANCE_STATE, emptyReason, EMPTY_REASON } from '../lib/balanceView'
 import {
   sheetRows, lineReading, stocktakeSummary, countedRowsToSend,
-  COUNT_STATE, countState, countUoms, defaultCountUom, droppedCounts,
+  COUNT_STATE, countState, countUoms, defaultCountUom, droppedCounts, unsavedCounts,
 } from '../lib/stocktakeSheet'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { stocktakePayload } from '../lib/stockDocumentForm'
@@ -23,12 +23,16 @@ import { Input } from '@/components/ui/input'
 // a wrong recorded figure looks exactly like an ordinary correction, and is the
 // one this module cannot detect afterwards.
 export default function StocktakeScreen({
-  balances, products, categories, storages, loading, error, onPosted,
+  balances, products, categories, storageId, loading, error, onPosted,
+  onPendingChange,
 }) {
   const { t } = useTranslation(['products', 'common'])
 
-  const liveStorages = (storages || []).filter((s) => s.is_active !== false)
-  const [storageId, setStorageId] = useState(() => (liveStorages[0] ? liveStorages[0].id : ''))
+  // ⚠️ THE STORAGE IS NOT THIS SCREEN'S ANY MORE — it comes from the module's
+  // lens, and the page remounts this component when it changes (key={storageId}).
+  // A remount is why there is no effect here clearing counts: an effect that
+  // wipes state after a render is a second place the wipe can happen, and this
+  // screen already had the wipe wired to its own select.
   const [categoryId, setCategoryId] = useState('')
   const [docDate, setDocDate] = useState(() => today())
   const [note, setNote] = useState('')
@@ -135,8 +139,18 @@ export default function StocktakeScreen({
     [rows]
   )
 
+  // ⚠️ The parent is told how much unsaved work exists, on the way through.
+  // Not from an effect watching the total: an effect would report after the
+  // render that already let the lens move, which is one render too late for a
+  // question about whether to move it.
+  function report(next) {
+    if (onPendingChange) onPendingChange(unsavedCounts(next))
+  }
+
   function setCount(productId, raw) {
-    setCounts((current) => ({ ...current, [productId]: raw }))
+    const next = { ...counts, [productId]: raw }
+    setCounts(next)
+    report(next)
     setPosted(null)
   }
 
@@ -195,6 +209,7 @@ export default function StocktakeScreen({
     // without saying so would make the numbers vanish silently.
     setPosted({ countedLines: summary.countedLines, changed: summary.changing.length })
     setCounts({})
+    report({})
     // The frames go with the counts: they described a sheet that has been sent.
     setUoms({})
     if (onPosted) onPosted()
@@ -222,16 +237,6 @@ export default function StocktakeScreen({
       <p className="text-sm text-muted-foreground">{t('products:stocktake.hint')}</p>
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted-foreground">{t('products:docs.storageLabel')}</span>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={storageId}
-            onChange={(e) => { setStorageId(e.target.value); setCounts({}); setUoms({}); setPosted(null) }}
-          >
-            {liveStorages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </label>
 
         {/* ⚠️ Size is solved here and not by hiding rows. People count a shelf,
             not a warehouse — a folder cuts the sheet along the real world,

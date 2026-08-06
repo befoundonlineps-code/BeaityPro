@@ -21,11 +21,13 @@ import { Badge } from '@/components/ui/badge'
 // to a clean zero that says "no problem", which is the one meaning that must
 // never be said here.
 export default function StorageBalances({
-  balances, products, storages, loading, error, reload,
+  balances, products, storages, storageId, loading, error, reload,
 }) {
   const { t } = useTranslation(['products', 'common'])
-  const liveStorages = (storages || []).filter((s) => s.is_active !== false)
-  const [storageId, setStorageId] = useState(() => (liveStorages[0] ? liveStorages[0].id : ''))
+  // ⚠️ The storage arrives from the module's lens rather than being chosen
+  // here. This screen used to open on the first live storage while the document
+  // screens opened on nothing chosen — the same question answered twice, two
+  // ways, in one module.
 
   const rows = balanceRows({ balances, products, storageId })
   const sections = balanceScreenSections(rows)
@@ -72,19 +74,6 @@ export default function StorageBalances({
       <p className="text-sm text-muted-foreground">{t('products:balances.hint')}</p>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-sm text-muted-foreground" htmlFor="balance-storage">
-          {t('products:balances.storageLabel')}
-        </label>
-        <select
-          id="balance-storage"
-          className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
-          value={storageId}
-          onChange={(e) => setStorageId(e.target.value)}
-        >
-          {liveStorages.map((storage) => (
-            <option key={storage.id} value={storage.id}>{storage.name}</option>
-          ))}
-        </select>
 
         {rows.length > 0 && (
           <div className="ms-auto flex flex-wrap items-center gap-1.5">

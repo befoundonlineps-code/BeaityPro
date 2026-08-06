@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
@@ -17,6 +18,7 @@ import { useEmployees } from '../../hooks/useEmployees'
 import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
+import { currentLens, lensChoices, lensChangeCosts } from '../../lib/storageLens'
 
 export async function getServerSideProps({ locale }) {
   return {
@@ -25,6 +27,12 @@ export async function getServerSideProps({ locale }) {
     },
   }
 }
+
+// Which views are asking "where am I working". The catalogue, the storages
+// manager and the suppliers list are not — they are about the salon, not about
+// a place inside it, and a lens above them would be a control that does nothing.
+const LENS_VIEWS = new Set(['stocktake', 'balances', 'documents'])
+const usesLens = (view) => LENS_VIEWS.has(view) || isDocumentView(view)
 
 const BREADCRUMB = {
   catalog: 'products:breadcrumbCatalog',
@@ -84,9 +92,39 @@ export default function ProductsPage() {
   // → create the product → go and receive it) ended with the product missing
   // from the list. Worse than an inconvenience: somebody who cannot find what
   // they just made will look for a reason, and may make it again.
+  // ⚠️ ONE ANSWER TO "WHICH STORAGE", for the whole module.
+  //
+  // Four screens each held their own, with three different defaults: the
+  // document screens opened on nothing chosen, the stocktake and the balances
+  // on the first live storage, and the document list on "all storages". Moving
+  // between tabs lost the choice every time.
+  const [chosenStorage, setChosenStorage] = useState('')
+
+  // ⚠️ How much unsaved counting exists, reported up by the stocktake — because
+  // this feature can recreate the fault it was built after. One lens means
+  // changing storage on the balances tab wipes an in-progress count on the
+  // stocktake tab: silent, plausible, permanent. A count is bound to its
+  // storage and cannot follow one, so the honest move is to ask.
+  const [pendingCounts, setPendingCounts] = useState(0)
+  const [pendingLens, setPendingLens] = useState(null)
+
   const catalogue = useProductCatalog()
   const stockDocuments = useStockDocuments()
   const balances = useProductBalances()
+
+  const lensId = currentLens(directories.storages, chosenStorage)
+
+  function askLens(next) {
+    if (next === lensId) return
+    if (lensChangeCosts(pendingCounts)) { setPendingLens(next); return }
+    setChosenStorage(next)
+  }
+
+  function confirmLens() {
+    setChosenStorage(pendingLens)
+    setPendingCounts(0)
+    setPendingLens(null)
+  }
 
   return (
     <AuthGate>
@@ -100,7 +138,59 @@ export default function ProductsPage() {
               {' / '}
               <span>{t(BREADCRUMB[view])}</span>
             </div>
+
+            {/* ⚠️ NO "ALL STORAGES" HERE. Only the document list can mean it: a
+                balance is per storage, post_stocktake takes one storage, and a
+                supply enters one storage. A lens holding "all" would force those
+                three to pick one silently — the implicit choice this module spends
+                its rounds removing. The list keeps an explicit widening of its own,
+                because its question is different: the lens says where I am working,
+                the list asks what happened. */}
+            {usesLens(view) && (
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">{t('products:lens.label')}</span>
+                <select
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
+                  value={lensId}
+                  onChange={(e) => askLens(e.target.value)}
+                >
+                  {lensChoices(directories.storages, lensId).length === 0 && (
+                    <option value="">{t('products:docs.storageNone')}</option>
+                  )}
+                  {lensChoices(directories.storages, lensId).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.is_active === false ? t('products:archivedOption', { name: s.name }) : s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
+
+          {/* The question, asked rather than answered for them: a count cannot
+              move to another storage, so the only two outcomes are losing it or
+              staying where it was made. */}
+          {pendingLens !== null && (
+            <div className="mx-5 mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+              <p>{t('products:lens.pendingCounts', { count: pendingCounts })}</p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
+                  onClick={confirmLens}
+                >
+                  {t('products:lens.discardAndSwitch')}
+                </button>
+                <button
+                  type="button"
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
+                  onClick={() => setPendingLens(null)}
+                >
+                  {t('products:lens.stay')}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-4 p-5">
             {view === 'catalog' && (
@@ -131,6 +221,7 @@ export default function ProductsPage() {
                 // sitting there on a write-off that has no supplier field.
                 key={view}
                 docType={view}
+                storageId={lensId}
                 storages={directories.storages}
                 suppliers={directories.suppliers}
                 products={catalogue.products}
@@ -143,10 +234,17 @@ export default function ProductsPage() {
             )}
             {view === 'stocktake' && (
               <StocktakeScreen
+                // ⚠️ Keyed on the lens, so changing storage starts a fresh sheet by
+                // REMOUNTING rather than by an effect clearing state after a render.
+                // The counts belong to the storage they were made in and cannot
+                // follow one; the question above has already been asked by the time
+                // this key changes.
+                key={lensId}
+                storageId={lensId}
+                onPendingChange={setPendingCounts}
                 balances={balances.balances}
                 products={catalogue.products}
                 categories={catalogue.categories}
-                storages={directories.storages}
                 loading={balances.loading || catalogue.loading || directories.loading}
                 // ⚠️ Either read failing fails the screen, and it matters more
                 // here than anywhere: a counting sheet drawn from half a read
@@ -159,6 +257,9 @@ export default function ProductsPage() {
             )}
             {view === 'documents' && (
               <StockDocumentsList
+                // The list starts from the lens and can widen past it, which is the
+                // one screen where "all storages" is a real question.
+                storageId={lensId}
                 documents={stockDocuments.documents}
                 movements={stockDocuments.movements}
                 products={catalogue.products}
@@ -171,6 +272,7 @@ export default function ProductsPage() {
             )}
             {view === 'balances' && (
               <StorageBalances
+                storageId={lensId}
                 balances={balances.balances}
                 products={catalogue.products}
                 storages={directories.storages}

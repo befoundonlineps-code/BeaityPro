@@ -36,7 +36,7 @@ const DOC_TYPE_OPTIONS = [...RECEIPT_TYPES, ...ISSUE_TYPES, ...OWN_FUNCTION]
 // number of documents asks for them. Reversal was needed with the first wrong
 // one.
 export default function StockDocumentsList({
-  documents, movements, products, storages, suppliers, loading, error, reload,
+  documents, movements, products, storages, suppliers, storageId, loading, error, reload,
 }) {
   const { t } = useTranslation(['products', 'common'])
   const [expanded, setExpanded] = useState(() => new Set())
@@ -44,7 +44,14 @@ export default function StockDocumentsList({
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
 
-  const [filters, setFilters] = useState(EMPTY_FILTERS)
+  // The list opens ON the lens and can widen past it — the one screen where
+  // "all storages" is a real question rather than an implicit choice. The lens
+  // says where somebody is working; this asks what happened in the salon.
+  //
+  // ⚠️ Seeded once, not bound. Re-seeding whenever the lens moved would undo a
+  // widening the person had just made, and doing that silently while they read
+  // a list is how a screen teaches somebody not to trust its filters.
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS, storageId: storageId || '' }))
   const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
 
   // ⚠️ NARROWED HERE, IN MEMORY — never in the query, and this is a safety
@@ -203,7 +210,7 @@ export default function StockDocumentsList({
           </select>
         </label>
         <Button type="button" variant="outline" size="sm"
-          onClick={() => setFilters(EMPTY_FILTERS)}>
+          onClick={() => setFilters({ ...EMPTY_FILTERS, storageId: storageId || '' })}>
           {t('products:documents.filterClear')}
         </Button>
       </div>

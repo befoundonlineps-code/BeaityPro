@@ -61,12 +61,19 @@ function Field({ label, hint, children }) {
 // invoices" as its own window needing paging, filters and a reversal action;
 // half of it bolted on here would be the half that looks finished.
 export default function StockDocumentScreen({
-  docType, storages, suppliers, products, documents, loading, onPosted,
+  docType, storages, suppliers, products, documents, storageId, loading, onPosted,
 }) {
   const { t } = useTranslation(['products', 'common'])
   const form = docForm(docType)
 
-  const [storageId, setStorageId] = useState('')
+  // ⚠️ The document's storage IS the module's lens now — it used to be this
+  // screen's own state, opening on nothing chosen while the stocktake and the
+  // balances opened on the first live storage. Three screens, three answers to
+  // "where am I".
+  //
+  // The DESTINATION of a transfer stays here, because it is not that question:
+  // "where am I working" has one answer and "where are these goods going" is a
+  // property of the document being written.
   const [toStorageId, setToStorageId] = useState('')
   const [supplierId, setSupplierId] = useState('')
   const [supplierDocNumber, setSupplierDocNumber] = useState('')
@@ -247,18 +254,6 @@ export default function StockDocumentScreen({
       <p className="text-sm text-muted-foreground">{t(`products:docs.${docType}.hint`)}</p>
 
       <div className="grid grid-cols-1 gap-3 rounded-xl border border-border p-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label={t(form.twoStorages ? 'products:docs.fromStorageLabel' : 'products:docs.storageLabel')}>
-          <select className={FIELD} value={storageId}
-            onChange={(e) => { setStorageId(e.target.value); setPosted(false) }}>
-            <option value="">{t('products:docs.storageNone')}</option>
-            {storageChoices(storages, storageId).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.is_active === false ? t('products:archivedOption', { name: s.name }) : s.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-
         {form.twoStorages && (
           <Field label={t('products:docs.toStorageLabel')}>
             <select className={FIELD} value={toStorageId}
