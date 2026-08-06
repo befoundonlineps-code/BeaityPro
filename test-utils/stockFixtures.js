@@ -99,10 +99,15 @@ export function movement({
     // 0.0000). Rounding here rather than at read time is what produced
     // 100.0005 on screen — item 35.
     unit_cost: unitCostPerBase === null ? null : Number(unitCostPerBase).toFixed(4),
-    // NOT NULL DEFAULT false in the schema, so every row carries it. false
-    // means "a person dictated this price, or a real average produced it" —
-    // which is a claim, not an absence, and item 43's script is where the
-    // truth of that claim for existing rows is being settled.
+    // NOT NULL DEFAULT false in the schema, so every row carries it.
+    //
+    // ⚠️ false does NOT mean "a person typed it". It means the fallback chain
+    // never descended below its first rung — either because no chain ran (a
+    // supply, where a person dictated the price) or because grade 1 produced
+    // it: the weighted average of stock actually present in this storage.
+    // true means grades 2-5, a substitute for a price this storage could not
+    // supply. Measured on the owner's first real stocktake, where a shortage
+    // line on a stocktake document came back false.
     cost_is_estimated: costIsEstimated,
   }
 }

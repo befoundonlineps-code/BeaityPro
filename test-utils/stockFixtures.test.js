@@ -719,11 +719,18 @@ describe('OWNER_HISTORY carries the costs the owner actually has', () => {
     expect(historyMovements('cooler').every((m) => m.cost_is_estimated)).toBe(true)
   })
 
-  it('marks nothing else as estimated, because a supply is dictated', () => {
-    // ⚠️ The distinction the whole column exists for. The poisoned supplies
-    // were WRONG, and wrong is not estimated: a person typed a price and the
-    // screen let a blank through as 0. Nobody guessed. Flagging them would put
-    // the badge on the ordinary case and empty it of meaning.
+  it('marks nothing else as estimated — no chain ran on those at all', () => {
+    // ⚠️ The distinction the whole column exists for, and it is NOT "typed
+    // versus computed". The poisoned supplies were WRONG, and wrong is not
+    // estimated: a person typed a price and the screen let a blank through as
+    // 0. Nobody guessed. Flagging them would put the badge on the ordinary
+    // case and empty it of meaning.
+    //
+    // The precise rule is that the flag is the negation of grade 1, and a
+    // supply never enters the chain at all — so there are two routes to false
+    // and this is one of them. The other, grade 1 itself, is measured on the
+    // owner's first real stocktake: a shortage line on a product with history
+    // came back false on a STOCKTAKE document, which no doc-type rule explains.
     for (const key of ['shampoo', 'laser']) {
       expect(historyMovements(key).some((m) => m.cost_is_estimated)).toBe(false)
     }
