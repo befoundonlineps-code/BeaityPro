@@ -8,6 +8,10 @@ import {
 } from '../lib/stockDocumentForm'
 import { today, maxDocumentDate } from '../lib/documentDate'
 import { hasSupplier, duplicateDocNumber } from '../lib/documentFilters'
+import {
+  DISCOUNT_KINDS, PAYMENT_METHODS, TRANSPORT_PAID_TO,
+  lineNet, supplierBalanceEffect, isOnAccount,
+} from '../lib/documentMoney'
 import { supplierChoices } from '../lib/supplierForm'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { Label } from '@/components/ui/label'
@@ -18,7 +22,14 @@ const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 p
 
 const UOMS = ['package', 'portion', 'unit']
 
-const emptyRow = () => ({ productId: '', enteredQuantity: '', enteredUom: 'package', unitCost: '' })
+// ⚠️ enteredUnitPrice, not unitCost. The box holds what the invoice says;
+// unit_cost is what the goods END UP costing once the line discount, the
+// document discount and the freight have landed on them. Two different
+// numbers, and neither can be recovered from the other.
+const emptyRow = () => ({
+  productId: '', enteredQuantity: '', enteredUom: 'package',
+  enteredUnitPrice: '', lineDiscountKind: 'percent', lineDiscountValue: '',
+})
 
 function Field({ label, hint, children }) {
   return (
@@ -61,6 +72,14 @@ export default function StockDocumentScreen({
   // entirely ordinary in the list. `today()` reads the local calendar.
   const [docDate, setDocDate] = useState(() => today())
   const [note, setNote] = useState('')
+
+  // The document's money. Blank throughout is the ordinary document.
+  const [discountKind, setDiscountKind] = useState('percent')
+  const [discountValue, setDiscountValue] = useState('')
+  const [transportAmount, setTransportAmount] = useState('')
+  const [transportPaidTo, setTransportPaidTo] = useState('supplier')
+  const [paidAmount, setPaidAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
   const [rows, setRows] = useState(() => [emptyRow()])
 
   const [saving, setSaving] = useState(false)
@@ -79,7 +98,35 @@ export default function StockDocumentScreen({
     [products]
   )
 
-  const { lineCount, total } = documentTotals(docType, rows)
+  // One object, handed to the totals, the validator and the payload alike.
+  // The ladder drawn below and the cost that gets stamped must be one
+  // computation: unit_cost is permanent, so a disagreement would be too.
+  const money = {
+    discountKind, discountValue, transportAmount, transportPaidTo,
+    paidAmount, paymentMethod,
+  }
+
+  const { lineCount, total, ladder } = documentTotals(docType, rows, money)
+
+  // ⚠️ A RETURN IS THE MIRROR OF A SUPPLY, in two ways the screen must say.
+  // Its cost comes from the storage average and not from these boxes, so a
+  // discount here changes only what the supplier gives back. And the money
+  // travels toward us, so "paid" is "received" and the balance goes
+  // negative — the supplier owes us.
+  const isReturn = docType === 'return_to_supplier'
+  const balance = ladder && hasSupplier(docType)
+    ? supplierBalanceEffect({
+      docType,
+      gross: ladder.gross,
+      lineDiscounts: ladder.lineDiscounts,
+      documentDiscount: ladder.documentDiscount,
+      transport: ladder.transport,
+      transportPaidTo,
+      settledAmount: paidAmount,
+    })
+    : null
+
+  const cash = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 2 })
 
   function setRowAt(index, patch) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
@@ -117,7 +164,7 @@ export default function StockDocumentScreen({
 
     const { payload, error: buildError } = stockDocumentPayload(
       docType,
-      { storageId, toStorageId, supplierId, supplierDocNumber, docDate, note, rows },
+      { storageId, toStorageId, supplierId, supplierDocNumber, docDate, note, rows, ...money },
       productsById
     )
     if (buildError) {
@@ -149,6 +196,11 @@ export default function StockDocumentScreen({
     setPosted(true)
     setRows([emptyRow()])
     setNote('')
+    // The money belongs to the document that was just written, not to the
+    // next one. Leaving a discount behind would apply it again in silence.
+    setDiscountValue('')
+    setTransportAmount('')
+    setPaidAmount('')
     if (onPosted) onPosted()
   }
 
@@ -305,13 +357,57 @@ export default function StockDocumentScreen({
             </Field>
 
             {form.cost && (
-              <Field
-                label={index === 0 ? t('products:docs.unitCostLabel') : undefined}
-                hint={nominalHint(row)}
-              >
-                <Input type="number" min="0" step="0.01" value={row.unitCost}
-                  onChange={(e) => setRowAt(index, { unitCost: e.target.value })} />
-              </Field>
+              <>
+                {/* ⚠️ The label names the unit it is priced in, derived from
+                    this row's own UoM. "تكلفة الوحدة" named no unit while the
+                    quantity two centimetres away named both — item 35. */}
+                <Field
+                  label={index === 0
+                    ? t(`products:docs.priceFor_${row.enteredUom || 'package'}`)
+                    : undefined}
+                  hint={nominalHint(row)}
+                >
+                  <Input type="number" min="0" step="0.01" value={row.enteredUnitPrice}
+                    onChange={(e) => setRowAt(index, { enteredUnitPrice: e.target.value })} />
+                </Field>
+
+                <Field label={index === 0 ? t('products:docs.lineDiscountLabel') : undefined}>
+                  <div className="flex gap-1">
+                    <Input type="number" min="0" step="0.01" className="w-20"
+                      value={row.lineDiscountValue}
+                      onChange={(e) => setRowAt(index, { lineDiscountValue: e.target.value })} />
+                    <select className={FIELD + ' w-16'} value={row.lineDiscountKind}
+                      onChange={(e) => setRowAt(index, { lineDiscountKind: e.target.value })}>
+                      {DISCOUNT_KINDS.map((k) => (
+                        <option key={k} value={k}>{t(`products:docs.discountKind_${k}`)}</option>
+                      ))}
+                    </select>
+                  </div>
+                </Field>
+
+                {/* ⚠️ COMPUTED, never typed, and never stored either: a third
+                    saved number is a third thing that can disagree with the
+                    two it came from.
+
+                    Two figures rather than one, because a percentage comes off
+                    the PRICE and a fixed amount comes off the LINE — so a
+                    single number called "the price after discount" would be
+                    right in one case and wrong in the other. */}
+                <Field label={index === 0 ? t('products:docs.lineNetLabel') : undefined}>
+                  <div className="flex h-8 flex-col justify-center">
+                    <span className="text-sm font-medium">
+                      {lineNet(row) === null ? '—' : `${cash(lineNet(row))} ₪`}
+                    </span>
+                    {lineNet(row) !== null && Number(row.enteredQuantity) > 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {t(`products:docs.netPerUnit_${row.enteredUom || 'package'}`, {
+                          price: cash(lineNet(row) / Number(row.enteredQuantity)),
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </Field>
+              </>
             )}
 
             <Button
@@ -334,6 +430,127 @@ export default function StockDocumentScreen({
         </Button>
       </div>
 
+
+      {/* ⚠️ A LADDER, NOT A TOTAL. Every rung is named because the third one
+          is the figure a refusal talks about: "the discount is bigger than
+          the total" is unhelpful when four different totals are on screen.
+          It is also the number the split divides by, so the check and the
+          arithmetic are visibly the same quantity. */}
+      {ladder && (
+        <div className="flex flex-col gap-2 rounded-xl border border-border p-3">
+          <h3 className="text-sm font-semibold">{t('products:docs.moneyTitle')}</h3>
+
+          {isReturn && (
+            <p className="rounded-md border border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+              {t('products:docs.returnMoneyNotice')}
+            </p>
+          )}
+
+          <dl className="flex flex-col gap-1 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">{t('products:docs.ladderGross')}</dt>
+              <dd>{cash(ladder.gross)} ₪</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-muted-foreground">{t('products:docs.ladderLineDiscounts')}</dt>
+              <dd>− {cash(ladder.lineDiscounts)} ₪</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-border pt-1 font-medium">
+              <dt>{t('products:docs.ladderBase')}</dt>
+              <dd>{cash(ladder.gross - ladder.lineDiscounts)} ₪</dd>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <dt className="flex items-center gap-2 text-muted-foreground">
+                {t('products:docs.ladderDocumentDiscount')}
+                <Input type="number" min="0" step="0.01" className="h-7 w-20"
+                  value={discountValue}
+                  onChange={(e) => { setDiscountValue(e.target.value); setPosted(false) }} />
+                <select className={FIELD + ' h-7 w-16'} value={discountKind}
+                  onChange={(e) => setDiscountKind(e.target.value)}>
+                  {DISCOUNT_KINDS.map((k) => (
+                    <option key={k} value={k}>{t(`products:docs.discountKind_${k}`)}</option>
+                  ))}
+                </select>
+              </dt>
+              <dd>− {cash(ladder.documentDiscount)} ₪</dd>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <dt className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                {t('products:docs.ladderTransport')}
+                <Input type="number" min="0" step="0.01" className="h-7 w-20"
+                  value={transportAmount}
+                  onChange={(e) => { setTransportAmount(e.target.value); setPosted(false) }} />
+                <select className={FIELD + ' h-7 w-32'} value={transportPaidTo}
+                  onChange={(e) => setTransportPaidTo(e.target.value)}>
+                  {TRANSPORT_PAID_TO.map((k) => (
+                    <option key={k} value={k}>{t(`products:docs.transportPaidTo_${k}`)}</option>
+                  ))}
+                </select>
+              </dt>
+              <dd>+ {cash(ladder.transport)} ₪</dd>
+            </div>
+
+            <div className="flex justify-between gap-4 border-t border-border pt-1 font-semibold">
+              <dt>{t(isReturn ? 'products:docs.ladderNetReturn' : 'products:docs.ladderNet')}</dt>
+              <dd>{cash(ladder.net)} ₪</dd>
+            </div>
+          </dl>
+
+          {/* ⚠️ "على الحساب" IS A BUTTON HERE AND NOT A VALUE THERE. Choosing
+              it stores zero and no method, so a part-cash part-deferred
+              document stays describable — which one four-valued column could
+              not do. */}
+          {hasSupplier(docType) && (
+            <div className="flex flex-col gap-2 border-t border-border pt-2">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  {t(isReturn ? 'products:docs.receivedNowLabel' : 'products:docs.paidNowLabel')}
+                  <Input type="number" min="0" step="0.01" className="h-8 w-28"
+                    value={paidAmount}
+                    onChange={(e) => { setPaidAmount(e.target.value); setPosted(false) }} />
+                </label>
+
+                {Number(paidAmount) > 0 && (
+                  <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                    {t('products:docs.paymentMethodLabel')}
+                    <select className={FIELD + ' h-8 w-32'} value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}>
+                      {PAYMENT_METHODS.map((k) => (
+                        <option key={k} value={k}>{t(`products:docs.paymentMethod_${k}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                <Button type="button" variant="outline" size="sm"
+                  onClick={() => { setPaidAmount(''); setPosted(false) }}>
+                  {t('products:docs.wholeOnAccount')}
+                </Button>
+              </div>
+
+              {balance !== null && (
+                <p className="text-sm">
+                  {isOnAccount(balance)
+                    ? t(balance > 0 ? 'products:docs.owedToSupplier' : 'products:docs.owedBySupplier',
+                      { paid: cash(paidAmount || 0), rest: cash(Math.abs(balance)) })
+                    : t('products:docs.settled')}
+                </p>
+              )}
+
+              {/* ⚠️ A figure that excludes something says what it excluded.
+                  Freight paid to a carrier is a real cost and is owed to
+                  nobody we track, so it is in unit_cost and not in this. */}
+              {transportPaidTo === 'carrier' && Number(transportAmount) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {t('products:docs.carrierNotInBalance')}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {posted && (
         <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/5 px-4 py-3 text-sm">
           <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
