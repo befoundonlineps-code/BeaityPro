@@ -10,7 +10,7 @@ import { today, maxDocumentDate } from '../lib/documentDate'
 import { hasSupplier, duplicateDocNumber } from '../lib/documentFilters'
 import {
   DISCOUNT_KINDS, PAYMENT_METHODS, TRANSPORT_PAID_TO,
-  lineNet, supplierBalanceEffect, isOnAccount,
+  lineDisplay, supplierBalanceEffect, isOnAccount,
 } from '../lib/documentMoney'
 import { supplierChoices } from '../lib/supplierForm'
 import { baseUnitsFor } from '../lib/stockDocument'
@@ -344,12 +344,13 @@ export default function StockDocumentScreen({
         </div>
 
         {rows.map((row, index) => (
-          // ⚠️ SEVEN SLOTS, NOT FIVE. This round added three cells to the priced
-          // row (price, discount, net) and the template still named five — grid
-          // silently invents implicit columns for the surplus and sizes them by
-          // content, so it LOOKS drawn while the widths nobody wrote are the
-          // ones in charge. A template shorter than its row is not an error
-          // anywhere; it is only ever visible to a reader.
+          // ⚠️ ONE SLOT PER CELL, and the count moves with the flags — four
+          // always, three more where there is money, one more where goods
+          // arrive. It was written as a fixed five while the row had seven:
+          // grid silently invents implicit columns for the surplus and sizes
+          // them by content, so it LOOKS drawn while the widths nobody wrote
+          // are the ones in charge. A template shorter than its row is not an
+          // error anywhere; it is only ever visible to a reader.
           <div key={index}
             className={`grid grid-cols-1 items-end gap-2 ${
               form.stampsCost
@@ -440,15 +441,27 @@ export default function StockDocumentScreen({
                     the PRICE and a fixed amount comes off the LINE — so a
                     single number called "the price after discount" would be
                     right in one case and wrong in the other. */}
+                {/* ⚠️ NOTHING IS SHOWN WHILE THE LINE IS REFUSED, and that is
+                    the point rather than tidiness. A bonus of 8 on 7 gives a
+                    net of −50 and a per-unit of −7.14 — two figures that are
+                    arithmetically honest about an input the document will not
+                    accept, sitting on screen looking like results. The owner
+                    watched them appear with nothing to explain them.
+
+                    And a negative net is not a display problem: it is this
+                    line's WEIGHT in the split, so it drags the other lines'
+                    shares of the discount and the freight with it. The figure
+                    is withheld because the document it describes cannot
+                    exist. */}
                 <Field label={index === 0 ? t('products:docs.lineNetLabel') : undefined}>
                   <div className="flex h-8 flex-col justify-center">
                     <span className="text-sm font-medium">
-                      {lineNet(row) === null ? '—' : `${cash(lineNet(row))} ₪`}
+                      {lineDisplay(row).net === null ? '—' : `${cash(lineDisplay(row).net)} ₪`}
                     </span>
-                    {lineNet(row) !== null && Number(row.enteredQuantity) > 0 && (
+                    {lineDisplay(row).perUnit !== null && (
                       <span className="text-[11px] text-muted-foreground">
                         {t(`products:docs.netPerUnit_${row.enteredUom || 'package'}`, {
-                          price: cash(lineNet(row) / Number(row.enteredQuantity)),
+                          price: cash(lineDisplay(row).perUnit),
                         })}
                       </span>
                     )}
@@ -465,6 +478,30 @@ export default function StockDocumentScreen({
             >
               <Trash2 className="size-3.5" />
             </Button>
+
+            {/* ⚠️ AT THE ROW, WHILE TYPING, and not only at the save. The
+                save-time refusal stays — it is the layer that actually protects
+                the ledger, and it must, because a row can be made invalid by a
+                path no keystroke passes through. This one exists so the reader
+                is never looking at a number nobody will accept without being
+                told which box made it so.
+
+                Full width rather than inside a cell: the sentence is about the
+                line, and both sentences it can carry name two boxes at once
+                (the bonus against the quantity, the discount against the
+                line).
+
+                ⚠️ And only once the row has produced a figure. Typing the
+                bonus before the quantity leaves the two nothing to be compared
+                against, and a half-filled row that argues with itself teaches
+                people to ignore the colour. lineNet is null exactly then, and
+                the save-time refusal still covers it — which is the layer that
+                has to. */}
+            {lineDisplay(row).error && (
+              <p className="col-span-full text-xs text-destructive">
+                {t(lineDisplay(row).error)}
+              </p>
+            )}
           </div>
         ))}
 

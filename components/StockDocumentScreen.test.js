@@ -135,3 +135,15 @@ describe('the bonus column belongs to arriving goods only', () => {
     expect(at('products:docs.bonusLabel')).toBeLessThan(at('products:docs.uomLabel'))
   })
 })
+
+describe('a fresh row carries no refusal', () => {
+  // The direction that decides whether the colour means anything. What a
+  // REFUSED row shows is decided by lineDisplay and tested where it lives —
+  // this screen cannot be typed into without hydration, and a test that
+  // re-asserts documentMoney while looking like a screen test is worse than no
+  // screen test.
+  it.each(DOC_TYPES)('%s renders untouched with nothing in red', (docType) => {
+    const html = render(docType)
+    expect(html).not.toContain('products:money.')
+  })
+})
