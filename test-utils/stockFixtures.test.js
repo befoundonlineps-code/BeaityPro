@@ -162,7 +162,7 @@ describe('productBalances reproduces the view, including what a paraphrase loses
     expect(productBalances(historyMovements('cooler')))
       .toContainEqual({
         storage_id: 'stor-general', product_id: 'p-cooler',
-        balance_base: -75, avg_cost: null, cost_has_estimate: false,
+        balance_base: -75, avg_cost: null, cost_has_estimate: true,
       })
   })
 
@@ -689,5 +689,53 @@ describe('cost_has_estimate', () => {
       movement({ id: 'm2', documentId: 'd2', ...cooler(1), unitCostPerBase: 6.6667, direction: -1 }),
     ])
     expect(row.cost_has_estimate).toBe(false)
+  })
+})
+
+// ── the measured constant is asserted, not just written down ────────────────
+//
+// ⚠️ This exists because OWNER_HISTORY carried an invented cost for months.
+// The cooler's transfer was recorded here at 6.6667, which is 100/15 — a
+// DISPLAY example from item 35 that leaked into the constant whose whole
+// purpose is "measured, not supposed". The real figure is 0.
+//
+// Nothing caught it because every test on this constant asserted quantities
+// and none asserted a cost. A number nobody checks is a number nobody
+// maintains, and this one was believed and reasoned from.
+describe('OWNER_HISTORY carries the costs the owner actually has', () => {
+  it('records the transfer at zero, which is the only value it could be', () => {
+    // The product has never been received anywhere, so at transfer time
+    // transfer_stock found no positive balance in the source, no earlier
+    // receipt and no nominal price. The chain ran out and ended at zero.
+    // 6.6667 would have meant it found something.
+    const rows = historyMovements('cooler')
+    expect(rows.map((m) => m.unit_cost)).toEqual(['0.0000', '0.0000'])
+  })
+
+  it('marks both sides of that transfer as estimated', () => {
+    // v_estimated = (source balance <= 0), and it was zero — so both movements
+    // of the pair carry the same flag, because they are two halves of one
+    // decision about cost.
+    expect(historyMovements('cooler').every((m) => m.cost_is_estimated)).toBe(true)
+  })
+
+  it('marks nothing else as estimated, because a supply is dictated', () => {
+    // ⚠️ The distinction the whole column exists for. The poisoned supplies
+    // were WRONG, and wrong is not estimated: a person typed a price and the
+    // screen let a blank through as 0. Nobody guessed. Flagging them would put
+    // the badge on the ordinary case and empty it of meaning.
+    for (const key of ['shampoo', 'laser']) {
+      expect(historyMovements(key).some((m) => m.cost_is_estimated)).toBe(false)
+    }
+  })
+
+  it('leaves the cooler unbadged anyway, and not because the flag is idle', () => {
+    // Both flagged rows sit in DIFFERENT storages, so neither group cancels
+    // internally — the badge is on in each. This is the opposite of the
+    // reversed pair, and it is why the flag has to be per-row rather than
+    // per-product.
+    const perStorage = productBalances(historyMovements('cooler'))
+    expect(perStorage.map((r) => [r.storage_id, r.cost_has_estimate]).sort())
+      .toEqual([['stor-general', true], ['stor-test', true]])
   })
 })

@@ -151,17 +151,34 @@ export const OWNER_HISTORY = {
     ],
     expected: { balance: 5, value: 500, average: 100 },
   },
-  // مبرد ومهدئ ليزر: transferred out of the general storage and never
-  // received into it, so its balance there is NEGATIVE. This is the row the
-  // stocktake screen will show as "recorded" on its first run.
   // مبرد ومهدئ ليزر: transferred out of the general storage into the test one.
   // BOTH sides, because the pair is the point — the general storage is at -75
   // and the test storage at +75, and summing them says zero.
+  //
+  // ⚠️ THE COST HERE WAS 6.6667 AND THAT WAS INVENTED, inside the constant
+  // whose entire purpose is "measured, not supposed". 6.6667 is 100/15 — the
+  // per-piece derivation of a package price of 100, which is a DISPLAY example
+  // from item 35 (see lib/stockDocumentList.js). It leaked in here as if it
+  // were a stored figure. Nothing caught it because no test asserted a cost on
+  // this constant, only its quantities.
+  //
+  // It is 0, and 0 is the only value it could have been: this product has
+  // never been received anywhere, so at transfer time transfer_stock found no
+  // positive balance in the source, no earlier receipt, and no nominal price —
+  // the chain ran out and coalesce(v_cost, 0) ended it. 6.6667 would have
+  // meant the chain found something, which contradicts the very argument
+  // item 34 was written from.
+  //
+  // cost_is_estimated is TRUE on both, which is what transfer_stock will stamp
+  // once item 43's script runs: v_estimated = (source balance <= 0), and the
+  // source balance was zero. The eight rows that predate the column carry
+  // `false` by DEFAULT, and these two are among the four that default lies
+  // about — item 43's Part 4 is the correction.
   cooler: {
     productId: 'p-cooler',
     movements: [
-      { enteredPackages: 5, unitCostPerBase: 6.6667, direction: -1, storageId: 'stor-general' },
-      { enteredPackages: 5, unitCostPerBase: 6.6667, direction: 1, storageId: 'stor-test' },
+      { enteredPackages: 5, unitCostPerBase: 0, direction: -1, storageId: 'stor-general', costIsEstimated: true },
+      { enteredPackages: 5, unitCostPerBase: 0, direction: 1, storageId: 'stor-test', costIsEstimated: true },
     ],
     expected: { perStorage: { 'stor-general': -75, 'stor-test': 75 }, summed: 0 },
   },

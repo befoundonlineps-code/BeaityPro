@@ -645,6 +645,57 @@ $function$;
 
 
 -- ───────────────────────────────────────────────────────────────────────────
+-- الجزء ٤ — تصحيح الأربعة التي يكذب عليها `default false`
+--
+-- ✅ **قُرئت العشرة صفوف ووُزنت كلٌّ منها بمنطق دالّتها وقت كتابتها**، فصار
+-- الجواب أربعة صفوف بأعيانها لا ستّة ولا عشرة:
+--
+--   ١،٢  توريد مسموم @0        `v_estimated=false` للتوريد دائمًا  ✅ صادق
+--   ٥،٦  عكسهما                نسخٌ عن ١،٢                          ✅ صادق
+--   ٧،٨  توريد مصحَّح @50 و@100  إنسانٌ أملاها                        ✅ صادق
+--   ٣،٤  التحويل ±75 @0        رصيد المصدر صفر ⇒ `true`            ❌ كاذب
+--   ٩،١٠ عكسه                  نسخٌ عن ٣،٤ ⇒ `true`                ❌ كاذب
+--
+-- ⚠️ **والتوريد المسموم صادقٌ عليه `false` وهو خطأ — والتمييز هو العمود كلّه.**
+-- خطأٌ أملاه إنسان ليس تقديرًا: أحدهم كتب سعرًا ومرّرت الشاشة فراغًا كصفر،
+-- **ولم يخمّن أحد**. ووسمُه يضع الشارة على الحالة العاديّة فيفرغها من معناها.
+--
+-- ⚠️ **ولا يُبنى على أن الشارة لا تظهر عليها اليوم.** الأربعة تتقابل داخل كل
+-- مستودع (٣ مع ٩، و٤ مع ١٠) فالكمّية والقيمة المقدَّرتان صفرٌ بكل مجموعة —
+-- **فالشارة `false` سواءً وُسمت أو لم تُوسم. مصادفةٌ حسابية لا دليل.**
+-- **والذي يهمّ البند ٥٨:** سطرا ٣ و١٠ يبقيان «آخر وارد موجب بتكلفة صفر»
+-- بمستودعيهما، **فيوم يُضاف مرشِّح البند ٥٣ تتوقّف فعّاليته كلها على صدق هذا
+-- الوسم** — ولو بقي `false` قُرئ الصفر ثمنًا مؤكَّدًا ومرّ من المرشِّح،
+-- **فأبطل البند ٥٣ على أوّل منتجٍ يحتاجه.**
+--
+-- ⚠️⚠️ **وشرط `count = 1` ليس زينةً — هو ما يجعل المعيار صادقًا.**
+-- «كل حركة تحويل مقدَّرة» **كاذبٌ كقاعدة عامّة**: تحويلٌ من مستودعٍ برصيدٍ
+-- موجب غير مقدَّر أصلًا. وهو صادقٌ هنا **لأن بقاعدة المالك تحويلًا واحدًا
+-- وحيدًا، مقيسًا**. فبلا الشرط يصير هذا السطر قنبلةً موقوتة: **السكربت
+-- موصوفٌ بأنه معاد التشغيل**، وأول إعادة تشغيل بعد تحويلٍ سليم تسمه بالخطأ.
+-- **فالشرط يجعله يطابق صفر صفوف بدل أن يفسد** — يفشل مغلقًا، والفحص ١١ يُظهر
+-- أنه لم يُطبَّق بدل أن يمرّ صامتًا.
+--
+-- ✅ ومعادُ التشغيل بذاته: وضعُ `true` على `true` لا أثر له.
+-- ───────────────────────────────────────────────────────────────────────────
+
+update stock_movements m
+set cost_is_estimated = true
+where (select count(*) from stock_documents where doc_type = 'transfer') = 1
+  and exists (
+    select 1 from stock_documents d
+    where d.id = m.document_id
+      and (
+        d.doc_type = 'transfer'
+        or (d.doc_type = 'reversal' and exists (
+          select 1 from stock_documents o
+          where o.id = d.reverses_document_id and o.doc_type = 'transfer'
+        ))
+      )
+  );
+
+
+-- ───────────────────────────────────────────────────────────────────────────
 -- التحقّق — بعد الأجزاء كلها
 --
 -- ⚠️ **وحدُّه يُقال: هذه الفحوص تجري داخل المعاملة نفسها**، فهي تصف ما تراه
@@ -772,7 +823,20 @@ join pg_class t on t.oid = ix.indrelid
 where t.relname = 'stock_documents'
   and pg_get_indexdef(i.oid) like '%reverses_document_id%';
 
--- ١٠. والعمود نفسه — يُسرَد لأن غيابه سُجِّل مرّةً وهو موجود. **بحثٌ بالمفهوم
+-- ١١. ⚠️ **وأثر الجزء ٤ يُقرأ سطرًا سطرًا — لأن `update` لا يقول كم أصاب.**
+--     **المتوقَّع: أربعة صفوف `true`، كلّها من مستند التحويل أو من عكسه، ولا
+--     صفّ توريدٍ بينها.** ولو رجعت صفرًا فشرط `count = 1` منع التنفيذ — أي
+--     أن بالقاعدة تحويلًا ثانيًا، **والمعيار لم يعد صالحًا فيُعاد التفكير فيه
+--     لا يُجبَر.**
+select m.id, d.doc_type, o.doc_type as reverses_type,
+       m.quantity_base, m.unit_cost, m.cost_is_estimated
+from stock_movements m
+left join stock_documents d on d.id = m.document_id
+left join stock_documents o on o.id = d.reverses_document_id
+where m.cost_is_estimated
+order by m.created_at, m.id;
+
+-- ١٢. والعمود نفسه — يُسرَد لأن غيابه سُجِّل مرّةً وهو موجود. **بحثٌ بالمفهوم
 --     لا بالاسم:** كل عمود `uuid` بـ`stock_documents` يشير إلى نفس الجدول.
 --     البحث بالاسم يفشل مفتوحًا — يعطي «لا شيء» ويبدو حاسمًا.
 select a.attname, format_type(a.atttypid, a.atttypmod) as type,
@@ -842,8 +906,15 @@ select 'functions: insert carries the column (expect all 1)',
            and p.proname in ('post_stocktake', 'post_stock_document',
                              'transfer_stock', 'reverse_stock_document'))
 union all
-select 'movements flagged (read check 4, do not trust this number)',
+-- ⚠️ العدد المتوقَّع ٤ بعد الجزء ٤، **وصفرٌ يعني أن شرط `count = 1` منع
+--    التنفيذ لا أن كل شيء نظيف** — فالرقم وحده لا يفرّق بينهما. الفحص ١١
+--    يفرّق، لأنه يسمّي الصفوف ومستنداتها.
+select 'movements flagged (expect 4 — but read check 11, not this)',
        (select count(*)::text from stock_movements where cost_is_estimated)
+union all
+select 'part 4 criterion still valid? (transfers must be exactly 1)',
+       (select count(*)::text || ' transfer document(s)'
+          from stock_documents where doc_type = 'transfer')
 union all
 select 'balance rows flagged',
        (select count(*)::text from product_balances where cost_has_estimate)
