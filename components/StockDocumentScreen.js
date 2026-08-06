@@ -7,6 +7,7 @@ import {
   validateStockDocument, documentTotals, stockDocumentPayload, storageChoices, docForm,
 } from '../lib/stockDocumentForm'
 import { today, maxDocumentDate } from '../lib/documentDate'
+import { hasSupplier, duplicateDocNumber } from '../lib/documentFilters'
 import { supplierChoices } from '../lib/supplierForm'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { Label } from '@/components/ui/label'
@@ -45,7 +46,7 @@ function Field({ label, hint, children }) {
 // invoices" as its own window needing paging, filters and a reversal action;
 // half of it bolted on here would be the half that looks finished.
 export default function StockDocumentScreen({
-  docType, storages, suppliers, products, loading, onPosted,
+  docType, storages, suppliers, products, documents, loading, onPosted,
 }) {
   const { t } = useTranslation(['products', 'common'])
   const form = docForm(docType)
@@ -53,6 +54,7 @@ export default function StockDocumentScreen({
   const [storageId, setStorageId] = useState('')
   const [toStorageId, setToStorageId] = useState('')
   const [supplierId, setSupplierId] = useState('')
+  const [supplierDocNumber, setSupplierDocNumber] = useState('')
   // ⚠️ Was `new Date().toISOString().slice(0, 10)`, which is UTC. East of
   // Greenwich that is yesterday for the first hours of every day — so a supply
   // entered at 1am in Palestine was dated the day before, silently and looking
@@ -114,7 +116,9 @@ export default function StockDocumentScreen({
     setPosted(false)
 
     const { payload, error: buildError } = stockDocumentPayload(
-      docType, { storageId, toStorageId, supplierId, docDate, note, rows }, productsById
+      docType,
+      { storageId, toStorageId, supplierId, supplierDocNumber, docDate, note, rows },
+      productsById
     )
     if (buildError) {
       setError(t(buildError))
@@ -150,6 +154,15 @@ export default function StockDocumentScreen({
 
   const validationKey = validateStockDocument(docType, {
     storageId, toStorageId, supplierId, docDate,
+  })
+
+  // ⚠️ A WARNING, NEVER A REFUSAL. The person is standing at the delivery with
+  // the supplier's paper in front of them; if the real number were refused they
+  // would type an invented one to get past the box, and the field that exists
+  // to match two pieces of paper would hold a fiction. So it names the document
+  // that already carries it and leaves the decision where the paper is.
+  const duplicate = duplicateDocNumber({
+    documents, supplierId, docNumber: supplierDocNumber,
   })
 
   return (
@@ -205,6 +218,27 @@ export default function StockDocumentScreen({
                 </option>
               ))}
             </select>
+          </Field>
+        )}
+
+        {/* ⚠️ Only where there is a counterparty outside the salon, which is
+            the same two types the supplier filter applies to — they are one
+            fact seen twice. A transfer moves between our own storages and has
+            no invoice to copy a number from. */}
+        {hasSupplier(docType) && (
+          <Field
+            label={t('products:docs.supplierDocNumberLabel')}
+            hint={duplicate
+              ? t('products:docs.supplierDocNumberDuplicateHint', {
+                date: String(duplicate.doc_date || '').slice(0, 10),
+              })
+              : t('products:docs.supplierDocNumberHint')}
+          >
+            {/* Never auto-filled: suggesting the next number would invent a
+                reference in a ledger we cannot see. Blank means "no paper",
+                and blank is sent as null rather than ''. */}
+            <Input value={supplierDocNumber}
+              onChange={(e) => { setSupplierDocNumber(e.target.value); setPosted(false) }} />
           </Field>
         )}
 

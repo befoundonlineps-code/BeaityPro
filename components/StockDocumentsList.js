@@ -4,14 +4,23 @@ import { AlertTriangle, Undo2, ChevronDown, ChevronLeft } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { reverseStockDocument } from '../lib/stockIO'
 import {
+  EMPTY_FILTERS, filterDocuments, supplierFilterApplies, filterEmptyReason, FILTER_EMPTY,
+} from '../lib/documentFilters'
+import {
   sortDocuments, movementsOf, movementFrames, reversalState,
   documentProductNames, documentDate, costFrames, documentValue, documentValueLabel,
 } from '../lib/stockDocumentList'
+import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION } from '../lib/stockDocument'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
+
+// The types the filter offers. Derived from the two lists that already decide
+// what a document can be, plus the three with their own functions — rather
+// than a fourth hand-typed list that drifts from them.
+const DOC_TYPE_OPTIONS = [...RECEIPT_TYPES, ...ISSUE_TYPES, ...OWN_FUNCTION]
 
 // The documents that have been posted, newest first, and one thing to do with
 // them: undo one.
@@ -35,7 +44,19 @@ export default function StockDocumentsList({
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
 
-  const rows = sortDocuments(documents)
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
+
+  // ⚠️ NARROWED HERE, IN MEMORY — never in the query, and this is a safety
+  // property rather than a preference. reversalState below is handed
+  // `documents` (the whole loaded set) and not `rows`: a reversal filtered out
+  // of the view must still answer "was this reversed?". Filtering in the query
+  // would drop it from both, the button would light up on an already-reversed
+  // document, and the database would refuse with a sentence this screen never
+  // expected. Measured in lib/documentFilters.test.js.
+  const rows = sortDocuments(filterDocuments(documents, filters))
+  const emptyKind = filterEmptyReason({ documents, filtered: rows, filters })
+  const supplierUsable = supplierFilterApplies(filters.docType)
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const nameOf = (list, id) => (list || []).find((x) => x.id === id)?.name || '—'
 
@@ -132,10 +153,82 @@ export default function StockDocumentsList({
 
       {actionError && <div className="text-sm text-destructive">{actionError}</div>}
 
+      {/* ⚠️ The supplier control is DISABLED for a type that cannot have one,
+          not silently ignored. A filter that is ignored is a filter that lies:
+          it shows rows that do not match what was asked and nothing says so.
+          Same language the reference uses when it dims the document buttons
+          under «all storages». */}
+      <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border p-3">
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {t('products:documents.filterFrom')}
+          <input type="date" className={'h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50'}
+            value={filters.from} onChange={(e) => setFilter('from', e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {t('products:documents.filterTo')}
+          <input type="date" className={'h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50'}
+            value={filters.to} onChange={(e) => setFilter('to', e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {t('products:documents.filterType')}
+          <select className={'h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50'}
+            value={filters.docType} onChange={(e) => setFilter('docType', e.target.value)}>
+            <option value="">{t('products:documents.filterAll')}</option>
+            {DOC_TYPE_OPTIONS.map((k) => (
+              <option key={k} value={k}>{t(`products:docs.${k}.title`)}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {t('products:documents.filterNumber')}
+          <input className={'h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50'} value={filters.docNumber}
+            onChange={(e) => setFilter('docNumber', e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {t('products:documents.filterSupplier')}
+          <select className={'h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50'} disabled={!supplierUsable}
+            title={supplierUsable ? undefined : t('products:documents.filterSupplierNa')}
+            value={supplierUsable ? filters.supplierId : ''}
+            onChange={(e) => setFilter('supplierId', e.target.value)}>
+            <option value="">{t('products:documents.filterAll')}</option>
+            {(suppliers || []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {t('products:documents.filterStorage')}
+          <select className={'h-8 rounded-lg border border-input bg-transparent px-2 text-sm disabled:opacity-50'}
+            value={filters.storageId} onChange={(e) => setFilter('storageId', e.target.value)}>
+            <option value="">{t('products:documents.filterAll')}</option>
+            {(storages || []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+        </label>
+        <Button type="button" variant="outline" size="sm"
+          onClick={() => setFilters(EMPTY_FILTERS)}>
+          {t('products:documents.filterClear')}
+        </Button>
+      </div>
+
+
       {rows.length === 0 ? (
         <div className="flex flex-col gap-1 py-10 text-center text-sm text-muted-foreground">
-          <span>{t('products:documents.emptyTitle')}</span>
-          <span className="text-xs">{t('products:documents.emptyHint')}</span>
+          {/* ⚠️ Three empty states, not one. «none yet» sends somebody to post a
+              document and «nothing matched» sends them to widen the filter — and
+              the third is not merely empty but CONTRADICTORY: asking a supplier
+              of documents that have none returns nothing forever, and drawn as a
+              blank list it invites the conclusion that they are missing. */}
+          {emptyKind === FILTER_EMPTY.CONTRADICTORY ? (
+            <span>{t('products:documents.emptyContradictory')}</span>
+          ) : emptyKind === FILTER_EMPTY.NO_MATCH ? (
+            <>
+              <span>{t('products:documents.emptyNoMatchTitle')}</span>
+              <span className="text-xs">{t('products:documents.emptyNoMatchHint')}</span>
+            </>
+          ) : (
+            <>
+              <span>{t('products:documents.emptyTitle')}</span>
+              <span className="text-xs">{t('products:documents.emptyHint')}</span>
+            </>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-2">

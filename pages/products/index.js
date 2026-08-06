@@ -134,6 +134,9 @@ export default function ProductsPage() {
                 storages={directories.storages}
                 suppliers={directories.suppliers}
                 products={catalogue.products}
+                // For the duplicate-number warning: it looks for another
+                // document of the same supplier carrying the same number.
+                documents={stockDocuments.documents}
                 loading={directories.loading || catalogue.loading}
                 onPosted={() => { catalogue.reload(); stockDocuments.reload() }}
               />
