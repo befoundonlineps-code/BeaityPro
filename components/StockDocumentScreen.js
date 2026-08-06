@@ -326,9 +326,17 @@ export default function StockDocumentScreen({
         </div>
 
         {rows.map((row, index) => (
+          // ⚠️ SEVEN SLOTS, NOT FIVE. This round added three cells to the priced
+          // row (price, discount, net) and the template still named five — grid
+          // silently invents implicit columns for the surplus and sizes them by
+          // content, so it LOOKS drawn while the widths nobody wrote are the
+          // ones in charge. A template shorter than its row is not an error
+          // anywhere; it is only ever visible to a reader.
           <div key={index}
             className={`grid grid-cols-1 items-end gap-2 ${
-              form.cost ? 'sm:grid-cols-[2fr_1fr_1fr_1fr_auto]' : 'sm:grid-cols-[2fr_1fr_1fr_auto]'
+              form.money
+                ? 'sm:grid-cols-[1.6fr_0.7fr_0.9fr_0.9fr_1.3fr_1.1fr_auto]'
+                : 'sm:grid-cols-[2fr_1fr_1fr_auto]'
             }`}>
             <Field label={index === 0 ? t('products:docs.productLabel') : undefined}>
               <select className={FIELD} value={row.productId}
@@ -356,7 +364,7 @@ export default function StockDocumentScreen({
               </select>
             </Field>
 
-            {form.cost && (
+            {form.money && (
               <>
                 {/* ⚠️ The label names the unit it is priced in, derived from
                     this row's own UoM. "تكلفة الوحدة" named no unit while the
