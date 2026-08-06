@@ -5,7 +5,7 @@ import { dbErrorSentence } from '../lib/dbErrors'
 import { BALANCE_STATE, emptyReason, EMPTY_REASON } from '../lib/balanceView'
 import {
   sheetRows, lineReading, stocktakeSummary, countedRowsToSend,
-  COUNT_STATE, countState, countUoms, defaultCountUom, droppedCounts, unsavedCounts,
+  COUNT_STATE, countState, countUoms, defaultCountUom, droppedCounts,
 } from '../lib/stocktakeSheet'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { stocktakePayload } from '../lib/stockDocumentForm'
@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input'
 // one this module cannot detect afterwards.
 export default function StocktakeScreen({
   balances, products, categories, storageId, loading, error, onPosted,
-  onPendingChange,
+  counts, onCountsChange, uoms, onUomsChange,
 }) {
   const { t } = useTranslation(['products', 'common'])
 
@@ -37,15 +37,25 @@ export default function StocktakeScreen({
   const [docDate, setDocDate] = useState(() => today())
   const [note, setNote] = useState('')
 
-  // Keyed by product id, and holding the RAW string — never a number. The
-  // difference between '' and '0' is the whole of COUNT_STATE, and Number()
-  // destroys it.
-  const [counts, setCounts] = useState({})
-
-  // The frame each row is being counted in, keyed the same way. Empty means
-  // "whatever this product opens with" — held rather than pre-filled, so a
-  // product arriving from a reload is framed by the rule and not by a stale map.
-  const [uoms, setUoms] = useState({})
+  // ⚠️ THE COUNTS DO NOT LIVE HERE ANY MORE, and the reason is a fault this
+  // screen had all along rather than a preference.
+  //
+  // The page draws each tab as `{view === 'stocktake' && <StocktakeScreen/>}`,
+  // so moving to another tab UNMOUNTS this component and React discards its
+  // state. Somebody halfway through counting a shelf who stepped over to the
+  // balances tab to check a figure came back to an empty sheet — silent,
+  // plausible, permanent, with no question asked anywhere.
+  //
+  // ⚠️ And it made the storage-lens guard worse than useless: the page kept
+  // its count of unsaved lines across the unmount, so changing storage after
+  // stepping away asked "you will lose 3 lines" about work already gone.
+  //
+  // Lifted, the counts outlive both the tab and the remount, and the page
+  // derives the pending total from the state it is now holding — so nothing
+  // reports anything upward and there is no second copy to disagree.
+  //
+  // They are still the RAW strings, never numbers: the difference between ''
+  // and '0' is the whole of COUNT_STATE, and Number() destroys it.
 
   const [confirming, setConfirming] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -139,18 +149,8 @@ export default function StocktakeScreen({
     [rows]
   )
 
-  // ⚠️ The parent is told how much unsaved work exists, on the way through.
-  // Not from an effect watching the total: an effect would report after the
-  // render that already let the lens move, which is one render too late for a
-  // question about whether to move it.
-  function report(next) {
-    if (onPendingChange) onPendingChange(unsavedCounts(next))
-  }
-
   function setCount(productId, raw) {
-    const next = { ...counts, [productId]: raw }
-    setCounts(next)
-    report(next)
+    onCountsChange({ ...counts, [productId]: raw })
     setPosted(null)
   }
 
@@ -160,7 +160,7 @@ export default function StocktakeScreen({
   // BECAUSE they mistyped, it destroys the correction they were about to make.
   // The reading underneath re-reads, which is where the change belongs.
   function setUom(productId, uom) {
-    setUoms((current) => ({ ...current, [productId]: uom }))
+    onUomsChange({ ...uoms, [productId]: uom })
     setPosted(null)
   }
 
@@ -208,10 +208,9 @@ export default function StocktakeScreen({
     // gone the moment this screen forgets it (item 44). Clearing the fields
     // without saying so would make the numbers vanish silently.
     setPosted({ countedLines: summary.countedLines, changed: summary.changing.length })
-    setCounts({})
-    report({})
+    onCountsChange({})
     // The frames go with the counts: they described a sheet that has been sent.
-    setUoms({})
+    onUomsChange({})
     if (onPosted) onPosted()
   }
 

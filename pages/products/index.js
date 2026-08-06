@@ -19,6 +19,7 @@ import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
 import { currentLens, lensChoices, lensChangeCosts } from '../../lib/storageLens'
+import { unsavedCounts } from '../../lib/stocktakeSheet'
 
 export async function getServerSideProps({ locale }) {
   return {
@@ -100,12 +101,23 @@ export default function ProductsPage() {
   // between tabs lost the choice every time.
   const [chosenStorage, setChosenStorage] = useState('')
 
-  // ⚠️ How much unsaved counting exists, reported up by the stocktake — because
-  // this feature can recreate the fault it was built after. One lens means
-  // changing storage on the balances tab wipes an in-progress count on the
-  // stocktake tab: silent, plausible, permanent. A count is bound to its
-  // storage and cannot follow one, so the honest move is to ask.
-  const [pendingCounts, setPendingCounts] = useState(0)
+  // ⚠️ THE STOCKTAKE'S COUNTS LIVE HERE, not in the screen that draws them.
+  //
+  // Each tab is drawn as `{view === 'x' && <Screen/>}`, so leaving the tab
+  // UNMOUNTS the screen and React discards its state. Somebody halfway
+  // through counting who stepped over to the balances tab to check a figure
+  // came back to an empty sheet, with nothing asked and nothing recoverable —
+  // and post_stocktake stores no counts (item 44), so it is gone for good.
+  //
+  // ⚠️ It also made the lens guard below worse than useless: the pending total
+  // was reported up and survived the unmount, so changing storage after
+  // stepping away asked "you will lose 3 lines" about work already destroyed.
+  //
+  // Held here, the counts survive the tab and the remount, and the pending
+  // total is DERIVED from them rather than reported — so there is no second
+  // copy to fall out of step with the first.
+  const [counts, setCounts] = useState({})
+  const [uoms, setUoms] = useState({})
   const [pendingLens, setPendingLens] = useState(null)
 
   const catalogue = useProductCatalog()
@@ -113,6 +125,7 @@ export default function ProductsPage() {
   const balances = useProductBalances()
 
   const lensId = currentLens(directories.storages, chosenStorage)
+  const pendingCounts = unsavedCounts(counts)
 
   function askLens(next) {
     if (next === lensId) return
@@ -120,9 +133,14 @@ export default function ProductsPage() {
     setChosenStorage(next)
   }
 
+  // ⚠️ The counts are dropped HERE, where the person just said to drop them.
+  // A count belongs to the storage it was made in and cannot follow one, so
+  // this is the only place in the module that throws counting away — and it
+  // is one line after the sentence that asked.
   function confirmLens() {
     setChosenStorage(pendingLens)
-    setPendingCounts(0)
+    setCounts({})
+    setUoms({})
     setPendingLens(null)
   }
 
@@ -241,7 +259,10 @@ export default function ProductsPage() {
                 // this key changes.
                 key={lensId}
                 storageId={lensId}
-                onPendingChange={setPendingCounts}
+                counts={counts}
+                onCountsChange={setCounts}
+                uoms={uoms}
+                onUomsChange={setUoms}
                 balances={balances.balances}
                 products={catalogue.products}
                 categories={catalogue.categories}
