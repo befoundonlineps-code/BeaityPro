@@ -110,7 +110,7 @@ export default function StockDocumentScreen({
     paidAmount, paymentMethod,
   }
 
-  const { lineCount, total, ladder } = documentTotals(docType, rows, money)
+  const { lineCount, total, ladder, blocked } = documentTotals(docType, rows, money)
 
   // ⚠️ A RETURN IS THE MIRROR OF A SUPPLY, in two ways the screen must say.
   // Its cost comes from the storage average and not from these boxes, so a
@@ -131,6 +131,13 @@ export default function StockDocumentScreen({
     : null
 
   const cash = (value) => Number(value).toLocaleString('ar', { maximumFractionDigits: 2 })
+
+  // ⚠️ THE SAME RULE THE ROW FOLLOWS, applied to the sums the row is inside.
+  // A refused line withheld its own net while the panel below added that net
+  // into a gross, a base and a document discount — the withheld numbers on
+  // screen after all, one row lower and added up. The controls stay usable;
+  // only the figures wait.
+  const fig = (value, sign = '') => (blocked ? '—' : `${sign}${cash(value)} ₪`)
 
   function setRowAt(index, patch) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
@@ -530,18 +537,24 @@ export default function StockDocumentScreen({
             </p>
           )}
 
+          {/* Why the rungs are dashes. A panel of "—" with no sentence is a
+              broken screen; with one, it is a screen waiting on a row. */}
+          {blocked && (
+            <p className="text-xs text-destructive">{t('products:docs.blockedByLines')}</p>
+          )}
+
           <dl className="flex flex-col gap-1 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">{t('products:docs.ladderGross')}</dt>
-              <dd>{cash(ladder.gross)} ₪</dd>
+              <dd>{fig(ladder.gross)}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">{t('products:docs.ladderLineDiscounts')}</dt>
-              <dd>− {cash(ladder.lineDiscounts)} ₪</dd>
+              <dd>{fig(ladder.lineDiscounts, '− ')}</dd>
             </div>
             <div className="flex justify-between gap-4 border-t border-border pt-1 font-medium">
               <dt>{t('products:docs.ladderBase')}</dt>
-              <dd>{cash(ladder.gross - ladder.lineDiscounts)} ₪</dd>
+              <dd>{fig(ladder.gross - ladder.lineDiscounts)}</dd>
             </div>
 
             <div className="flex items-center justify-between gap-4">
@@ -557,7 +570,7 @@ export default function StockDocumentScreen({
                   ))}
                 </select>
               </dt>
-              <dd>− {cash(ladder.documentDiscount)} ₪</dd>
+              <dd>{fig(ladder.documentDiscount, '− ')}</dd>
             </div>
 
             <div className="flex items-center justify-between gap-4">
@@ -573,12 +586,12 @@ export default function StockDocumentScreen({
                   ))}
                 </select>
               </dt>
-              <dd>+ {cash(ladder.transport)} ₪</dd>
+              <dd>{fig(ladder.transport, '+ ')}</dd>
             </div>
 
             <div className="flex justify-between gap-4 border-t border-border pt-1 font-semibold">
               <dt>{t(isReturn ? 'products:docs.ladderNetReturn' : 'products:docs.ladderNet')}</dt>
-              <dd>{cash(ladder.net)} ₪</dd>
+              <dd>{fig(ladder.net)}</dd>
             </div>
           </dl>
 
@@ -614,7 +627,7 @@ export default function StockDocumentScreen({
                 </Button>
               </div>
 
-              {balance !== null && (
+              {balance !== null && !blocked && (
                 <p className="text-sm">
                   {isOnAccount(balance)
                     ? t(balance > 0 ? 'products:docs.owedToSupplier' : 'products:docs.owedBySupplier',
