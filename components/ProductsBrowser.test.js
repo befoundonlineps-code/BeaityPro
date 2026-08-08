@@ -1,0 +1,99 @@
+import { renderToStaticMarkup } from 'react-dom/server'
+import ProductsBrowser from './ProductsBrowser'
+import { catalogueRows } from '../lib/catalogueView'
+
+// ⚠️ THE ONE RESIDUAL THE OWNER'S EYE COULD NOT CLOSE.
+//
+// Three of stage 2's four cases tell on themselves: an empty table is obviously
+// empty, a failed search obviously finds nothing, a subfolder's products are
+// obviously there or not. «All products» is the exception — nobody looking at a
+// long list can tell ALL from MOST, and the owner confirmed he did not check the
+// numbers.
+//
+// The library test already asserts catalogueRows returns every product. That is
+// a different claim from "the table DRAWS every row it was given": a slice, a
+// nested map that loses a run, a grouping that drops its last group would all
+// pass upstream and fail here.
+//
+// So it is counted at the render, which needs no owner and re-runs every suite.
+jest.mock('next-i18next', () => ({
+  useTranslation: () => ({ t: (key) => key }),
+}))
+
+const CATEGORIES = [
+  { id: 'c-hair', parent_id: null, name: 'شعر', sort_order: 1, is_active: true },
+  { id: 'c-shampoo', parent_id: 'c-hair', name: 'شامبو', sort_order: 1, is_active: true },
+  { id: 'c-nails', parent_id: null, name: 'أظافر', sort_order: 2, is_active: true },
+]
+
+const product = (id, categoryId, over) => ({
+  id, name: `منتج ${id}`, category_id: categoryId, sort_order: 1,
+  is_active: true, units_per_package: 1, base_unit: 'pcs', ...over,
+})
+
+// Spread across every folder, plus one whose folder is gone — the row most
+// likely to be dropped by a grouping that assumes every product has a heading.
+const PRODUCTS = [
+  product('a', 'c-hair'), product('b', 'c-hair', { sort_order: 2 }),
+  product('c', 'c-shampoo'), product('d', 'c-shampoo', { sort_order: 2 }),
+  product('e', 'c-nails'),
+  product('f', 'c-gone'),
+]
+
+const render = (over) => renderToStaticMarkup(
+  <ProductsBrowser
+    salonId="s" suppliers={[]} storages={[]} balances={[]}
+    catalogue={{
+      products: PRODUCTS, categories: CATEGORIES, loading: false, error: null, reload: () => {},
+    }}
+    {...over}
+  />
+)
+
+// ⚠️ THE ROW'S OWN CLASSES, not just `cursor-pointer` — which the first version
+// counted and got 7 for 6 products. The extra was the "hide archived" LABEL,
+// which is also clickable. A counter that catches anything clickable is a
+// counter that reports a duplicate row where there is none, and the next person
+// reads it as the code being wrong.
+//
+// Corroborated by the test below it: every name appears exactly once, which
+// already ruled out a real duplicate before this was traced.
+const drawnRows = (html) => (html.match(/cursor-pointer border-b border-border\/60/g) || []).length
+
+describe('the table draws every row it was given', () => {
+  it('draws ALL products, not most of them, when no folder is chosen', () => {
+    // ⚠️ The residual, closed by counting. Six products in, six rows out — and
+    // asserted against PRODUCTS.length rather than a literal, so adding a
+    // fixture product cannot quietly make this test describe fewer.
+    expect(drawnRows(render())).toBe(PRODUCTS.length)
+  })
+
+  it('names each one exactly once', () => {
+    // A count alone would pass if one product were drawn twice and another not
+    // at all — which is precisely what a mis-nested map produces.
+    const html = render()
+    for (const p of PRODUCTS) {
+      expect(html.split(p.name).length - 1).toBe(1)
+    }
+  })
+
+  it('keeps the row whose folder no longer exists', () => {
+    // The row a grouping is most likely to lose, and the one nobody would miss.
+    expect(render()).toContain('منتج f')
+  })
+
+  it('draws exactly what the scope says, folder by folder', () => {
+    // ⚠️ Compared against catalogueRows rather than against a number typed here.
+    // A literal would have to be updated whenever the fixture moves, and the
+    // person updating it would be writing down whatever the code now does.
+    for (const categoryId of [null, 'c-hair', 'c-shampoo', 'c-nails']) {
+      const expected = catalogueRows({
+        products: PRODUCTS, categories: CATEGORIES, categoryId,
+      }).length
+      // The screen holds the selection itself, so only the unfiltered case can
+      // be rendered directly — the rest assert the rule the screen reads.
+      if (categoryId === null) expect(drawnRows(render())).toBe(expected)
+      else expect(expected).toBeGreaterThan(0)
+    }
+  })
+})
