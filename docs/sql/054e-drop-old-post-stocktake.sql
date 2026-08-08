@@ -1,0 +1,46 @@
+-- ==========================================================================
+-- 054e -- CHANGE ONLY. No SELECT in this file. Verification is 054f.
+--
+-- PREPARED, NOT RUN BY ME. The owner executes it.
+--
+-- ⚠️ AND NOT YET. THIS IS THE ONE SCRIPT IN THE SERIES WITH A PRECONDITION THAT
+-- IS NOT ANOTHER SCRIPT: run it only after the new counting sheet has been used
+-- on real data and confirmed working — a count typed, the page reloaded, the
+-- count still there, and a stocktake posted from it.
+--
+-- Until then the old function is the working path and this drop is the thing
+-- that would break stocktaking. The code that called it is already gone
+-- (StocktakeScreen now calls post_stocktake_session), so nothing in the app
+-- reaches it — but "nothing calls it" and "the replacement works" are two
+-- different statements, and only the second one makes this safe.
+--
+-- ---------------------------------------------------------------------------
+-- WHY IT GOES AT ALL
+--
+-- Two functions writing stocktakes is two answers to one question. They agree
+-- today because one was copied from the other an hour ago; they diverge the day
+-- one of them learns something — which is ADR-053, and the reason 054c called
+-- the new one by a different name instead of leaving an overload behind.
+--
+-- ⚠️ The old one also carries the fault this whole stage exists to remove:
+-- `if v_diff = 0 then continue`, so a product counted and found correct leaves
+-- no trace. Anything still able to call it can still produce a stocktake with
+-- no coverage record, and nothing downstream could tell that document from one
+-- posted properly.
+--
+-- ---------------------------------------------------------------------------
+-- THE SIGNATURE IS WRITTEN OUT IN FULL, and CLAUDE.md §5 is why: a function's
+-- identity is its argument types, so `drop function post_stocktake` with no
+-- argument list is refused while more than one exists, and a WRONG list drops
+-- nothing and reports success. The list below is the one 049b created and 043
+-- records:
+--
+--     (uuid, jsonb, uuid, timestamp with time zone, text)
+--
+-- ⚠️ NO `if exists`. A missing function should fail here rather than pass
+-- quietly: "it was already gone" and "I typed the signature wrong" are the same
+-- silence, and this is the one script in the series where being wrong leaves
+-- the fault in place while looking finished.
+-- ==========================================================================
+
+drop function public.post_stocktake(uuid, jsonb, uuid, timestamp with time zone, text);
