@@ -5,10 +5,27 @@
 -- RUN ORDER: 054a -> 054b -> 054c (this) -> 054d. 054a must have run: this
 -- function reads stocktake_counts.
 --
--- The body below is the canonical post_stocktake from
--- docs/sql/043-cost-estimated.sql, taken mechanically, with the changes named
--- one by one. It is NOT rebuilt from memory and NOT copied from 049b, which
+-- The body below comes from the canonical post_stocktake in
+-- docs/sql/043-cost-estimated.sql — NOT from memory, and not from 049b, which
 -- says in its own header that 043 holds the canonical text.
+--
+-- ⚠️ AND "TAKEN MECHANICALLY" WAS AN OVERSTATEMENT, corrected here after the
+-- reviewer asked. It is true of the COST LADDER and not of the function: the
+-- loop was rewritten by hand to read a table instead of a jsonb argument, the
+-- session lock and the balance update are new, and two variables were renamed.
+-- The phrase was carried over from 049b's header, where it described a real
+-- copy of three hint strings.
+--
+-- ✅ So the part where it has to hold is MEASURED, and permanently:
+-- lib/costLadderParity.test.js cuts the ladder out of both files by its own
+-- landmarks, strips comments, applies the two documented renames and compares.
+-- 20 statements of 20 identical. It re-runs with every suite, so the day
+-- somebody edits one ladder and not the other, a test says so.
+--
+-- The ladder is the right place to spend that, because it is where a dropped
+-- line is INVISIBLE: every tier returns a number, so a missing tier does not
+-- fail — it hands back a different cost, once, for a product with no history,
+-- and the stamped unit_cost is permanent (ADR-051).
 --
 -- ---------------------------------------------------------------------------
 -- ⚠️ A NEW NAME AND NOT A NEW SIGNATURE, WHICH IS A DECISION ABOUT DOWNTIME
