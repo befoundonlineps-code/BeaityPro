@@ -123,7 +123,14 @@ create table if not exists public.stock_fines (
 
   -- ⚠️ NULLABLE ON PURPOSE. Null is not missing data — it is the recorded fact
   -- that nobody could be charged, and `resolution` says which of the two ways.
-  employee_id  uuid        references public.employees (id) on delete restrict,
+  --
+  -- ⚠️ The simple reference this used to carry was the round's own lesson NOT
+  -- applied one column over: the file cites "the order tables' lesson" on
+  -- stock_fine_lines.salon_id and left this one plain, while every other
+  -- employee column in the schema is composite (storages.owner_employee_id,
+  -- stock_documents.employee_id, storage_responsibles.employee_id). Caught in
+  -- review. The composite key is declared below.
+  employee_id  uuid,
 
   attribution        public.fine_attribution not null default 'posting',
   resolution         public.fine_resolution  not null,
@@ -138,6 +145,18 @@ create table if not exists public.stock_fines (
   fine_basis    public.fine_basis not null,
 
   created_at    timestamptz not null default now(),
+
+  -- ⚠️ COMPOSITE, so a fine cannot name an employee of another salon. The
+  -- target exists and is measured: `employees_id_salon_id_key` (055).
+  --
+  -- ⚠️ AND A NULL employee_id STILL PASSES, which is what is wanted and is worth
+  -- saying because it looks like a hole. A foreign key defaults to MATCH SIMPLE,
+  -- which is satisfied whenever ANY of its columns is null — so an unresolved
+  -- fine, whose whole point is a null employee, is not checked against employees
+  -- at all. MATCH FULL would refuse it and would be wrong here.
+  constraint stock_fines_employee_fkey
+    foreign key (employee_id, salon_id)
+    references public.employees (id, salon_id) on delete restrict,
 
   constraint stock_fines_one_per_document unique (document_id),
   -- Not redundant with the primary key: the composite foreign key below needs a
@@ -226,10 +245,48 @@ grant select, insert on public.stock_fine_lines to authenticated;
 -- — {public}, matching the other tables.
 -- --------------------------------------------------------------------------
 
+-- ⚠️ THE ONE POLICY IN THIS SCHEMA THAT DOES NOT COPY THE CONVENTION, and the
+-- reason is that the convention was never asked this question.
+--
+-- Every other table's salon_id predicate was written for STOCK — quantities,
+-- costs, documents, data about THINGS, where nobody is exposed by a colleague
+-- reading it. These rows are about a named person's MONEY. Extending the
+-- convention here would be "same shape, same claim", which this project has
+-- paid for repeatedly.
+--
+-- ✅ And 057 measured that narrowing is expressible with no new column:
+-- `employees.profile_id -> profiles(id)`, UNIQUE. (DATABASE_DIAGRAM claimed the
+-- two were independent; that line was stale and has been corrected.)
+--
+-- ⚠️ BOTH BRANCHES CARRY salon_id EXPLICITLY. The first one does not need it to
+-- be correct — the composite foreign key above already makes an employee of
+-- another salon unreferenceable — and it carries it anyway, because a policy
+-- that is safe only because of a constraint declared 90 lines away is safe
+-- until somebody edits the constraint. Two independent statements, and the
+-- weaker one is still true on its own.
+--
+-- ⚠️ THE ROLE LIST IS THE OWNER'S DECISION AND THESE THREE ARE A PLACEHOLDER
+-- taken from the reviewer's own message, not a choice made here. Written as an
+-- explicit IN rather than as a negation on purpose: a role added to
+-- employee_role tomorrow is granted nothing silently — it fails closed, which
+-- is the right direction for a policy about somebody's pay.
+--
+-- ⚠️ And this subquery reads `employees`, so EMPLOYEES' OWN RLS APPLIES TO IT.
+-- If that table is ever narrowed, a fine can become invisible even to
+-- management — failing closed, so harmless, but confusing. 058 reads that
+-- policy's text directly rather than inferring it from an absence.
 drop policy if exists stock_fines_select on public.stock_fines;
 create policy stock_fines_select on public.stock_fines
   for select
-  using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
+  using (
+    employee_id = (select e.id from public.employees e
+                    where e.profile_id = auth.uid()
+                      and e.salon_id = stock_fines.salon_id)
+    or exists (select 1 from public.employees e
+                where e.profile_id = auth.uid()
+                  and e.salon_id = stock_fines.salon_id
+                  and e.role in ('administrator', 'executive', 'owner'))
+  );
 
 drop policy if exists stock_fines_insert on public.stock_fines;
 create policy stock_fines_insert on public.stock_fines

@@ -37,7 +37,15 @@
 --               this expectation exists for: RLS refusing a command it has no
 --               policy for is what makes "a fine is never edited and never
 --               deleted" structural instead of a habit.
---               roles {public}, and each clause matching stock_documents'.
+--               roles {public}.
+--
+--               ⚠️ AND stock_fines_select MUST *NOT* MATCH stock_documents —
+--               matching would mean the narrowing was lost. It is the one
+--               policy in this schema written for a different question: these
+--               rows are about a named person's money, not about stock. Its
+--               text must contain `profile_id` and `e.role`.
+--
+--               The other three DO match. A false on any of them is a fault.
 --
 --               ⚠️ AND EVERY ROW WILL SHOW ONE `true` AND ONE `false`, BY
 --               DESIGN — read it before it worries anybody. A SELECT policy has
@@ -116,7 +124,13 @@ select
   p.policyname,
   p.roles,
   (p.qual       is not distinct from (select qual from reference)) as using_matches_stock_documents,
-  (p.with_check is not distinct from (select qual from reference)) as with_check_matches_stock_documents
+  (p.with_check is not distinct from (select qual from reference)) as with_check_matches_stock_documents,
+  -- ⚠️ The right question for the one policy that is SUPPOSED to differ.
+  -- "Does it match?" would read as a failure on a correct narrowing — the same
+  -- trap 054b hit with the delete policies. True on stock_fines_select and
+  -- false on the other three.
+  (p.qual like '%profile_id%' and p.qual like '%role%') as narrowed_to_person_or_management,
+  p.qual as using_clause
 from pg_policies p
 where p.schemaname = 'public'
   and p.tablename in ('stock_fines', 'stock_fine_lines')
