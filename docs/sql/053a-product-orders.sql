@@ -86,19 +86,28 @@
 -- left to put it.
 --
 -- ---------------------------------------------------------------------------
--- TWO SMALLER CHOICES, STATED RATHER THAN BURIED
+-- NO `TO` CLAUSE ON ANY OF THE EIGHT, WHICH IS {public} -- CORRECTED, NOT CHOSEN
 --
--- `to authenticated` on all eight. The survey returned a roles column that did
--- not come back with the reading, so this is not copied. It is also not a
--- behavioural choice: with `to public` an anonymous request fails the predicate
--- because auth.uid() is null, and with `to authenticated` it has no applicable
--- policy at all. Both deny. If the survey's roles column read {public}, drop
--- the two words from all eight to match; nothing else changes.
+-- The first draft wrote `to authenticated` and said it was not copied because
+-- the survey's roles column had not come back. It had come back: {public} on
+-- all seven existing policies, on all three tables. So the clause is dropped
+-- and these match the house literally.
 --
--- The grant is the other half of the same gate and is easy to forget: RLS
--- filters rows, GRANT decides whether the role may touch the table. Missing, it
--- fails loudly with "permission denied"; present, it changes nothing that RLS
--- does not still decide. anon is not granted.
+-- ⚠️ AND THE REASON FOR PREFERRING THE LITERAL MATCH IS NOT THE BEHAVIOUR --
+-- the two really are equivalent, since an anonymous request either fails the
+-- predicate (auth.uid() is null) or has no applicable policy, and both deny.
+-- It is that "the same as the other three" is a property somebody can CHECK, in
+-- one query, years from now. "Different but equivalent for reasons written in a
+-- comment" has to be re-derived by whoever finds it, and the re-derivation is
+-- where a wrong conclusion gets drawn.
+--
+-- The grant is a different lever and is easy to confuse with this one: RLS
+-- filters rows, GRANT decides whether the role may touch the table at all, and
+-- pg_policies says nothing about it. Missing, it fails loudly with "permission
+-- denied"; present, it changes nothing RLS does not still decide. anon is not
+-- granted. ⚠️ What the existing three tables grant has never been measured
+-- either -- 053b now asks, alongside these two, so the answer arrives with a
+-- script that had to run anyway.
 -- ==========================================================================
 
 create table if not exists public.product_orders (
@@ -133,6 +142,33 @@ create table if not exists public.product_order_lines (
   -- than there would round a number on the way INTO the order and hand the
   -- supply screen a different quantity than was typed. Wider cannot.
   entered_quantity    numeric     not null,
+
+  -- ⚠️ THE THREE VALUES BELOW ARE MEASURED AGAINST THE WRITER, NOT THE COLUMN,
+  -- and the first draft of this file did not say which. It cited 050b for the
+  -- price -- a real measurement -- and cited nothing for these, in the same
+  -- voice. Raised in review; the citation is the fix, not the values.
+  --
+  -- WHAT IS MEASURED: lib/stockDocument.js:31 exports UOM = ['package',
+  -- 'portion', 'unit'] and every write path validates against it before
+  -- building a row (stockLine, the multi-line builder, and the stocktake
+  -- builder all call UOM.includes and refuse otherwise). It is exported for
+  -- exactly this reason -- "a second list would be a second answer" -- so it is
+  -- the single source for every uom the application can produce.
+  --
+  -- WHAT IS NOT: whether stock_movements.entered_uom carries a constraint of
+  -- its own, and what it says. Nobody here has ever asked. That is the same
+  -- unmeasured class as entered_quantity's type, one line above.
+  --
+  -- ⚠️ THE DIFFERENCE FROM THE salon_id GAP, which is why this one is written
+  -- rather than deferred: both directions of error here are LOUD. Too strict
+  -- refuses an insert with a named constraint, and cannot happen today since
+  -- the writer validates against the same list first. Too loose lets a typo
+  -- land, which the supply screen then refuses when it reads the order back --
+  -- also by name. The salon_id question was the other kind: wrong in one
+  -- direction and indistinguishable from correct.
+  --
+  -- 053b asks the database both halves anyway: stock_movements' own constraint
+  -- text, and the distinct entered_uom values actually stored in it.
   entered_uom         text        not null,
 
   -- numeric(14,4) is copied exactly from stock_movements.entered_unit_price
@@ -178,7 +214,7 @@ grant select, insert, update, delete on public.product_order_lines to authentica
 
 drop policy if exists product_orders_select on public.product_orders;
 create policy product_orders_select on public.product_orders
-  for select to authenticated
+  for select
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 -- ⚠️ WITH CHECK is not a second line of defence on these two tables, it is the
@@ -187,18 +223,18 @@ create policy product_orders_select on public.product_orders
 -- without this clause a request may name any salon_id it likes.
 drop policy if exists product_orders_insert on public.product_orders;
 create policy product_orders_insert on public.product_orders
-  for insert to authenticated
+  for insert
   with check (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 drop policy if exists product_orders_update on public.product_orders;
 create policy product_orders_update on public.product_orders
-  for update to authenticated
+  for update
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()))
   with check (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 drop policy if exists product_orders_delete on public.product_orders;
 create policy product_orders_delete on public.product_orders
-  for delete to authenticated
+  for delete
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 -- --------------------------------------------------------------------------
@@ -207,23 +243,23 @@ create policy product_orders_delete on public.product_orders
 
 drop policy if exists product_order_lines_select on public.product_order_lines;
 create policy product_order_lines_select on public.product_order_lines
-  for select to authenticated
+  for select
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 drop policy if exists product_order_lines_insert on public.product_order_lines;
 create policy product_order_lines_insert on public.product_order_lines
-  for insert to authenticated
+  for insert
   with check (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 drop policy if exists product_order_lines_update on public.product_order_lines;
 create policy product_order_lines_update on public.product_order_lines
-  for update to authenticated
+  for update
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()))
   with check (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 drop policy if exists product_order_lines_delete on public.product_order_lines;
 create policy product_order_lines_delete on public.product_order_lines
-  for delete to authenticated
+  for delete
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 -- --------------------------------------------------------------------------

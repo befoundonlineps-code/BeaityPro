@@ -47,6 +47,17 @@
 --                 ⚠️ If it reads FOREIGN KEY (order_id) alone, the line can be
 --                 attached to another salon's order and everything else here
 --                 still passes.
+-- 6  grants     the two new tables beside the three existing ones, because
+--               what the house grants has never been measured either.
+-- 7,8 uom       ⚠️ NOT A CHECK ON 053a -- A MEASUREMENT IT WAS WRITTEN WITHOUT.
+--               053a's uom constraint lists package/portion/unit, measured from
+--               lib/stockDocument.js:31, which is every value the application
+--               can write. What stock_movements itself accepts, and what it
+--               actually holds, has never been asked. These two ask.
+--
+--               A fourth value in query 8 means the order table would refuse a
+--               uom the supply table already stores -- one ALTER, and better
+--               known now than at the first pre-fill.
 -- ==========================================================================
 
 -- 1 -- the columns, with the two facts a function body can never reveal.
@@ -128,12 +139,46 @@ order by cl.relname, con.contype, con.conname;
 
 -- 6 -- the grant, which RLS says nothing about. Without it every read fails
 -- with "permission denied for table" no matter how correct the policies are.
+--
+-- ⚠️ The three existing tables are in the list on purpose. The policies were
+-- copied from a measurement; the grant was not, because pg_policies does not
+-- carry it. Reading both here is what turns "probably the same" into a row you
+-- can look at -- and it costs one extra line in a query that had to run.
 select
   g.table_name,
   g.grantee,
   g.privilege_type
 from information_schema.role_table_grants g
 where g.table_schema = 'public'
-  and g.table_name in ('product_orders', 'product_order_lines')
-  and g.grantee in ('authenticated', 'anon')
+  and g.table_name in ('product_orders', 'product_order_lines',
+                       'stock_documents', 'stock_movements', 'products')
+  and g.grantee in ('authenticated', 'anon', 'public')
 order by g.table_name, g.grantee, g.privilege_type;
+
+-- 7 -- ⚠️ THE QUESTION 053a WAS WRITTEN WITHOUT AN ANSWER TO. Its uom
+-- constraint lists package/portion/unit because that is what the application
+-- writes (lib/stockDocument.js:31, exported so the document screens and the
+-- stocktake sheet cannot answer differently). What stock_movements ACCEPTS is a
+-- separate fact, and one no function body could ever have revealed -- the same
+-- blind spot that hid entered_quantity's type.
+select
+  con.conname,
+  pg_get_constraintdef(con.oid) as definition
+from pg_constraint con
+join pg_class cl on cl.oid = con.conrelid
+join pg_namespace n on n.oid = cl.relnamespace
+where n.nspname = 'public'
+  and cl.relname = 'stock_movements'
+  and con.contype = 'c'
+order by con.conname;
+
+-- 8 -- and what it actually HOLDS, which is the stronger of the two: a
+-- constraint says what was allowed, the data says what was written. A value
+-- here outside the three means 053a's constraint would refuse a row the supply
+-- table already contains, and the pre-fill would fail on real history.
+select
+  m.entered_uom,
+  count(*) as rows_stored
+from public.stock_movements m
+group by m.entered_uom
+order by m.entered_uom;
