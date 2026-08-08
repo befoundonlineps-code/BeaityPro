@@ -19,8 +19,24 @@
 --    type on one table only.
 --
 -- 2  product_order_lines constraints: product_order_lines_uom_check is GONE.
---    The other four stay — the primary key, the composite foreign key, the
---    positive-quantity check and the non-negative-price check.
+--    The other FIVE stay — the primary key, the composite foreign key, the
+--    foreign key on product_id, the positive-quantity check and the
+--    non-negative-price check.
+--
+--    ⚠️ THIS SAID FOUR, AND LISTED FOUR, AND THE RESULT WAS FIVE. Caught in
+--    review; the data was right and the sentence describing it was not.
+--
+--    The cause is worth more than the correction: I enumerated the constraints
+--    I had NAMED in 053a — the four with a `constraint <name>` in front of them
+--    — and product_id's foreign key has none, because it is written inline as
+--    `references public.products (id)` and Postgres names it afterwards. So the
+--    list was "constraints I typed", read back as "constraints on the table".
+--
+--    Same shape as the three misses this round already carries: the instrument
+--    was sound and the candidate set was drawn from the wrong place. An inline
+--    reference does not look like a constraint in the source, which is exactly
+--    why the count has to come from pg_constraint and not from memory — as this
+--    query does, and as the sentence above it did not.
 --
 -- 3  ⚠️ ALL EIGHT POLICIES STILL PRESENT. `alter column type` rewrites the
 --    table, and the whole point of this round was what protects it. A policy
