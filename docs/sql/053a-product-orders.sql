@@ -275,3 +275,31 @@ comment on column public.product_order_lines.sort_order is
 
 comment on column public.product_order_lines.entered_unit_price is
   'Per ENTERED unit, matching stock_movements.entered_unit_price exactly so pre-filling a supply is a copy and not a conversion. Nullable: an order may list what is wanted before a price is agreed.';
+
+-- ==========================================================================
+-- ⚠️ ADDED AFTER EXECUTION. NOT ONE SQL STATEMENT ABOVE THIS LINE WAS CHANGED
+-- -- the file above is byte-for-byte what was pasted and run, because a script
+-- that has been executed is the only record of what was executed.
+--
+-- TWO SENTENCES ABOVE ARE WRONG, AND 053b IS WHAT SAID SO. Corrected here
+-- rather than silently edited, and in full in 053c.
+--
+--  1. "anon is not granted." True about what THIS SCRIPT does, and false about
+--     the state it leaves behind, which is how a reader will take it. 053b
+--     query 6 shows anon holding select/insert/update/delete on all five
+--     tables, including the two created here -- from Supabase's default
+--     privileges on the public schema, granted long before this file existed.
+--     ⚠️ RLS is therefore not the first line of defence on these tables. It is
+--     the only one. Recorded permanently as ADR-054.
+--
+--  2. "whether stock_movements.entered_uom carries a constraint of its own ...
+--     nobody here has ever asked." Nobody had asked pg_constraint. Six function
+--     bodies in this same folder cast `(v_line->>'entered_uom')::entry_uom` --
+--     the column is an ENUM, and a type is a guard no CHECK query can see. So
+--     the `text` column and three-literal CHECK above are a second statement of
+--     a fact the database already holds in one place: the same divergence the
+--     salon_id finding was, one column to the left.
+--
+-- Neither is a reason to undo anything here. 053c measures both, and the enum
+-- alignment follows in 053d once its labels have been read rather than assumed.
+-- ==========================================================================
