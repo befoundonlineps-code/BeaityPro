@@ -17,17 +17,27 @@
 -- claim", which this project has paid for repeatedly.
 --
 -- ---------------------------------------------------------------------------
--- ⚠️ AND NARROWING MAY NOT BE EXPRESSIBLE AT ALL TODAY, which is why this is a
--- survey and not a patch.
+-- ⚠️ THE HEADER BELOW WAS WRITTEN BEFORE THIS SCRIPT RAN, AND ITS PREMISE WAS
+-- WRONG. It is kept and corrected rather than rewritten, because the way it was
+-- wrong is the point.
 --
--- DATABASE_DIAGRAM records that employees are "مستقلين عن profiles" —
--- independent of profiles. RLS can only speak about auth.uid(), which reaches
--- profiles. So "an employee may read her OWN fine" requires a path from a
--- profile to an employee row, and if no such column exists the rule cannot be
--- written at all — not narrowly, not at all.
+-- ❌ ~~DATABASE_DIAGRAM records that employees are "مستقلين عن profiles" —
+-- independent of profiles, so "an employee may read her OWN fine" may not be
+-- expressible at all.~~
 --
--- Likewise "management may read all of them" requires some notion of management
--- on profiles. Whether one exists has never been read here.
+-- ✅ MEASURED: `employees.profile_id → profiles(id)`, UNIQUE, ON DELETE SET
+-- NULL. The link exists and always did; the DIAGRAM LINE IS STALE, and it has
+-- been corrected. Both narrowings are expressible today with no new column.
+--
+-- ⚠️ AND THE FAILURE IS THIS ROUND'S OWN CLASS, one turn further out: I did not
+-- ask the database and read a wrong answer — I quoted a DOCUMENT and treated it
+-- as a measurement. CLAUDE.md §4b says a count or a completeness check must be
+-- derived from the system itself; a hand-written list is not the only thing that
+-- fails open. A hand-written SENTENCE does too, and it is more convincing.
+--
+-- What the survey found instead: profiles carries only id, salon_id (NULLABLE),
+-- email, created_at — no notion of a role anywhere. So "management" can only be
+-- said through employees.role, never through profiles.
 --
 -- So the order is: find out what the schema can express, THEN decide. Choosing
 -- first would produce a decision that cannot be implemented, or a column added
