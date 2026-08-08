@@ -350,5 +350,18 @@ comment on column public.stock_fines.employee_id is
 comment on column public.stock_fines.fine_percent is
   'Frozen from storages at posting, never read live. The storage dialog edits fine_percent and fine_basis, so a fine derived from them at read time would move every historical figure at once with nothing recording that it had — balance_at_count''s fault in another context. ⚠️ The AMOUNT is not stored: it follows from these and the lines, and a third stored number is a third thing that can disagree.';
 
+-- ⚠️ ADDED AFTER EXECUTION. NOT ONE SQL STATEMENT ABOVE THIS LINE WAS CHANGED —
+-- this file is the record of what was run.
+--
+-- `stock_fines_document_id_fkey` above is a SIMPLE reference to
+-- stock_documents(id), and it should have been composite like the other three.
+-- Found only after this ran, by reading the whole constraint list rather than
+-- the columns somebody had noticed — which is the method fault, and it is the
+-- fourth column in this file to have it.
+--
+-- ⚠️ It is corrected by 060a and NOT by editing above, because `create table if
+-- not exists` would skip the whole statement on a re-run: no new constraint, no
+-- error, and a file that disagrees with the database it describes.
+
 comment on column public.stock_fine_lines.unit_value is
   'The price actually used, per fine_basis, frozen because it cannot be recovered afterwards — a product''s price changes and the basis decides which price was even being read. ⚠️ The line total and the fine total are both derived from here; neither is stored, and shortage_base is positive because a fine line means "this much was missing" rather than carrying the movement''s negative sign into every sum.';
