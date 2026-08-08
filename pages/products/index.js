@@ -13,6 +13,7 @@ import StockDocumentsList from '../../components/StockDocumentsList'
 import StorageBalances from '../../components/StorageBalances'
 import StocktakeScreen from '../../components/StocktakeScreen'
 import ProductOrderScreen from '../../components/ProductOrderScreen'
+import StocktakeCoverage from '../../components/StocktakeCoverage'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
@@ -22,6 +23,7 @@ import { useProductOrders } from '../../hooks/useProductOrders'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
 import { currentLens, lensChoices } from '../../lib/storageLens'
 import { useStocktakeSession } from '../../hooks/useStocktakeSession'
+import { useStocktakeCoverage } from '../../hooks/useStocktakeCoverage'
 
 export async function getServerSideProps({ locale }) {
   return {
@@ -47,6 +49,7 @@ const BREADCRUMB = {
   return_to_supplier: 'products:breadcrumbReturn',
   transfer: 'products:breadcrumbTransfer',
   stocktake: 'products:breadcrumbStocktake',
+  coverage: 'products:breadcrumbCoverage',
   documents: 'products:breadcrumbDocuments',
   balances: 'products:breadcrumbBalances',
 }
@@ -131,6 +134,9 @@ export default function ProductsPage() {
   // inside the order tab would be a list the supply tab could not see — and
   // calling it in both places would be two reads of the same two tables.
   const productOrders = useProductOrders()
+  // Its own read: this asks what has happened across every storage, so it does
+  // not follow the lens and must not reload when the lens moves.
+  const coverage = useStocktakeCoverage()
 
   const lensId = currentLens(directories.storages, chosenStorage)
 
@@ -268,6 +274,22 @@ export default function ProductsPage() {
                 // untouched rather than wrong — so nothing looks amiss at all.
                 error={balances.error || catalogue.error || directories.error}
                 onPosted={() => { balances.reload(); stockDocuments.reload() }}
+              />
+            )}
+            {view === 'coverage' && (
+              <StocktakeCoverage
+                sessions={coverage.sessions}
+                counts={coverage.counts}
+                documents={stockDocuments.documents}
+                products={catalogue.products}
+                storages={directories.storages}
+                loading={coverage.loading || catalogue.loading || stockDocuments.loading}
+                // ⚠️ Any of the three failing fails the screen. A coverage
+                // report drawn from half a read says products were never
+                // counted when they were — the one thing it exists to say, said
+                // wrongly and with no sign of it.
+                error={coverage.error || catalogue.error || stockDocuments.error}
+                reload={coverage.reload}
               />
             )}
             {view === 'documents' && (

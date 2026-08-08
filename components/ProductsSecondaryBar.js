@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next'
-import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ClipboardList, ScrollText, Boxes } from 'lucide-react'
+import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ClipboardList, ListChecks, ScrollText, Boxes } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
@@ -45,6 +45,9 @@ const ITEMS = [
   // and the difference is derived. Its own screen for the same reason it has
   // its own function.
   { view: 'stocktake', icon: ClipboardCheck, key: 'stocktake' },
+  // ⚠️ Beside the stocktake, because it is the stocktake read the other way
+  // round: the sheet asks what is on the shelf, this asks what has been asked.
+  { view: 'coverage', icon: ListChecks, key: 'coverage' },
   // Last two, because they are where you go after posting rather than to post.
   { view: 'documents', icon: ScrollText, key: 'documents' },
   // ⚠️ "What do I have?" is asked once; "what is about to run out?" is asked
