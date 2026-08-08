@@ -18,7 +18,18 @@
 --               to reuse, which is the fault 053a shipped in the other
 --               direction and 053d had to undo.
 --
--- 2  columns    stock_fines 10, stock_fine_lines 6.
+-- 2  columns    ⚠️ NO COUNT, for the same reason expectation 3 has none — and
+--               this one was WRONG from the first draft and nobody noticed:
+--               it said 10 and the table has 11. storage_id was there all
+--               along; the count was simply never checked against the rows.
+--               A hand-written number is the same failure as a hand-written
+--               list (CLAUDE.md §4b), and writing it in an EXPECTATION makes it
+--               worse — it invites the reader to compare against the wrong
+--               figure and call a correct table broken.
+--
+--               What matters is the nullability, so that is what is written:
+--               NULLABLE — employee_id, role_at_resolution
+--               NOT NULL — everything else on both tables.
 --               fine_basis is USER-DEFINED / fine_basis — the SAME udt_name
 --               storages.fine_basis has, compared to it directly rather than to
 --               a literal typed here.
@@ -57,6 +68,12 @@
 --               text must contain `profile_id` and `e.role`.
 --
 --               The other three DO match. A false on any of them is a fault.
+--
+--               ⚠️ And `narrowed_to_person_or_management` reads NULL rather
+--               than false on the two INSERT rows, which is correct and is not
+--               a third state: an INSERT policy has no USING at all, so the
+--               LIKE is applied to NULL and yields NULL. Read "not true" —
+--               true belongs on stock_fines_select and nowhere else.
 --
 --               ⚠️ AND EVERY ROW WILL SHOW ONE `true` AND ONE `false`, BY
 --               DESIGN — read it before it worries anybody. A SELECT policy has
