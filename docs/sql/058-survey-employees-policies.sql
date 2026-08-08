@@ -93,3 +93,51 @@ join pg_enum e on e.enumtypid = t.oid
 where n.nspname = 'public'
   and t.typname = 'employee_role'
 order by e.enumsortorder;
+
+-- 6 -- ⚠️ CAN storage_id AND product_id EVEN BE MADE COMPOSITE? Asked directly,
+-- because the obvious way to ask it is a proxy.
+--
+-- The review proposes the same fix employee_id just received, on
+-- stock_fines.storage_id and stock_fine_lines.product_id — and it is right that
+-- they are the same shape and the same argument. But a composite foreign key
+-- needs the TARGET to carry `unique (id, salon_id)`. employees has one and it
+-- was measured (employees_id_salon_id_key, 055). Whether storages and products
+-- do has never been read.
+--
+-- ⚠️ AND "does anything else already reference them compositely?" DOES NOT
+-- ANSWER IT. If nothing does, that is equally consistent with "the unique
+-- exists and nobody used it" and with "there is no unique to use" — and only
+-- one of those makes the fix a copy rather than a schema change. Inferring the
+-- constraint from the absence of its users is the same move as inferring
+-- employees' policy from its absence from a filtered list, which is what query
+-- 1 above exists to stop doing.
+--
+-- So: every unique and primary-key constraint on the two tables, in full text,
+-- and the salon_id column beside them. One look answers it.
+select
+  cl.relname as table_name,
+  con.conname,
+  con.contype,
+  pg_get_constraintdef(con.oid) as definition
+from pg_constraint con
+join pg_class cl on cl.oid = con.conrelid
+join pg_namespace n on n.oid = cl.relnamespace
+where n.nspname = 'public'
+  and cl.relname in ('storages', 'products')
+  and con.contype in ('p', 'u')
+order by cl.relname, con.contype, con.conname;
+
+-- 7 -- and that salon_id is actually on both, and NOT NULL — because a
+-- composite key onto a nullable salon_id would pass MATCH SIMPLE on any row
+-- where it is null, which is the behaviour employee_id WANTS and these two do
+-- not.
+select
+  c.table_name,
+  c.column_name,
+  c.data_type,
+  c.is_nullable
+from information_schema.columns c
+where c.table_schema = 'public'
+  and c.table_name in ('storages', 'products')
+  and c.column_name = 'salon_id'
+order by c.table_name;
