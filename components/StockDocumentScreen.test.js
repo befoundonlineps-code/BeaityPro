@@ -147,3 +147,49 @@ describe('a fresh row carries no refusal', () => {
     expect(html).not.toContain('products:money.')
   })
 })
+
+// ==========================================================================
+// ⚠️ THE PRE-FILL IS A PER-VARIANT CLAIM ON A SHARED SCREEN, which is the shape
+// that produced this file in the first place. One component draws four
+// documents, so "the button is there" is four different statements — and the
+// return screen proved that three of them can be false while the fourth is
+// checked.
+//
+// Asserted over DOC_TYPES against the rule rather than against a list of names,
+// so a fifth document type is covered the day it is added.
+// ==========================================================================
+const FILL_MARK = 'products:orders.fillFromOrder'
+
+const ORDERS = [{ id: 'o1', supplier_id: 'sup1', order_date: '2020-01-01', note: null }]
+const ORDER_LINES = [
+  { id: 'l1', order_id: 'o1', product_id: 'p1', entered_quantity: 2, entered_uom: 'package', entered_unit_price: 100, sort_order: 0 },
+]
+
+const renderWithOrders = (docType, over = {}) => renderToStaticMarkup(
+  <StockDocumentScreen docType={docType} {...PROPS} orders={ORDERS} orderLines={ORDER_LINES} {...over} />,
+)
+
+describe('filling a document from an order', () => {
+  it.each(DOC_TYPES)('%s offers the pre-fill exactly when it is a supply', (docType) => {
+    // An order is a request to BUY. There is nothing to fill a write-off, a
+    // return or a transfer from, and a button that appears everywhere and works
+    // in one place is read as broken in the other three.
+    expect(renderWithOrders(docType).includes(FILL_MARK)).toBe(docType === 'supply')
+  })
+
+  it('offers it even when there are no orders yet', () => {
+    // ⚠️ Hiding the button until an order exists would hide the feature from
+    // everybody who has not used it. The empty case is answered INSIDE the
+    // picker, in a sentence, which is a thing somebody can read.
+    expect(renderWithOrders('supply', { orders: [], orderLines: [] }).includes(FILL_MARK)).toBe(true)
+  })
+
+  it('does not draw the picker or either question until it is asked for', () => {
+    // The three states are exclusive, and the two dialogs are the ones that
+    // would be alarming to find open on a fresh document.
+    const html = renderWithOrders('supply')
+    expect(html).not.toContain('products:orders.fillPickTitle')
+    expect(html).not.toContain('products:orders.fillReplaceTitle')
+    expect(html).not.toContain('products:orders.filledNotice')
+  })
+})

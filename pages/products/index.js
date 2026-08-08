@@ -12,11 +12,13 @@ import StockDocumentScreen from '../../components/StockDocumentScreen'
 import StockDocumentsList from '../../components/StockDocumentsList'
 import StorageBalances from '../../components/StorageBalances'
 import StocktakeScreen from '../../components/StocktakeScreen'
+import ProductOrderScreen from '../../components/ProductOrderScreen'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
 import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
+import { useProductOrders } from '../../hooks/useProductOrders'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
 import { currentLens, lensChoices, lensChangeCosts } from '../../lib/storageLens'
 import { unsavedCounts } from '../../lib/stocktakeSheet'
@@ -39,6 +41,7 @@ const BREADCRUMB = {
   catalog: 'products:breadcrumbCatalog',
   storages: 'products:breadcrumbStorages',
   suppliers: 'products:breadcrumbSuppliers',
+  orders: 'products:breadcrumbOrders',
   supply: 'products:breadcrumbSupply',
   write_off: 'products:breadcrumbWriteOff',
   return_to_supplier: 'products:breadcrumbReturn',
@@ -123,6 +126,11 @@ export default function ProductsPage() {
   const catalogue = useProductCatalog()
   const stockDocuments = useStockDocuments()
   const balances = useProductBalances()
+  // ⚠️ Read at the page and not inside the order screen, for the same reason
+  // the catalogue is: the supply screen fills FROM these, so a hook called
+  // inside the order tab would be a list the supply tab could not see — and
+  // calling it in both places would be two reads of the same two tables.
+  const productOrders = useProductOrders()
 
   const lensId = currentLens(directories.storages, chosenStorage)
   const pendingCounts = unsavedCounts(counts)
@@ -231,6 +239,18 @@ export default function ProductsPage() {
                 salonId={salonId}
               />
             )}
+            {view === 'orders' && (
+              <ProductOrderScreen
+                salonId={salonId}
+                orders={productOrders.orders}
+                lines={productOrders.lines}
+                suppliers={directories.suppliers}
+                products={catalogue.products}
+                loading={productOrders.loading || catalogue.loading || directories.loading}
+                error={productOrders.error || catalogue.error || directories.error}
+                reload={productOrders.reload}
+              />
+            )}
             {isDocumentView(view) && (
               <StockDocumentScreen
                 // Keyed on the doc type so switching documents starts a fresh
@@ -246,6 +266,12 @@ export default function ProductsPage() {
                 // For the duplicate-number warning: it looks for another
                 // document of the same supplier carrying the same number.
                 documents={stockDocuments.documents}
+                // ⚠️ The supply is filled FROM these, so they are read at the
+                // page and handed down — the same reason the catalogue is. A
+                // hook inside the order tab would be a list this screen could
+                // not see.
+                orders={productOrders.orders}
+                orderLines={productOrders.lines}
                 loading={directories.loading || catalogue.loading}
                 onPosted={() => { catalogue.reload(); stockDocuments.reload() }}
               />

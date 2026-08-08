@@ -1,5 +1,5 @@
 import { useTranslation } from 'next-i18next'
-import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ScrollText, Boxes } from 'lucide-react'
+import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ClipboardList, ScrollText, Boxes } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
@@ -31,6 +31,11 @@ function SecondaryItem({ icon: IconComp, label, active, onClick }) {
 const ITEMS = [
   { view: 'storages', icon: Warehouse, key: 'storages' },
   { view: 'suppliers', icon: Truck, key: 'suppliers' },
+  // ⚠️ BEFORE the supply and not after it, because that is the order the work
+  // happens in: the order is written, the goods come, the supply is filled from
+  // it. Placed among the documents it would read as a fifth document, and it
+  // moves nothing.
+  { view: 'orders', icon: ClipboardList, key: 'orders' },
   { view: 'supply', icon: PackagePlus, key: 'supply' },
   { view: 'write_off', icon: PackageMinus, key: 'writeOff' },
   { view: 'return_to_supplier', icon: Undo2, key: 'returnToSupplier' },

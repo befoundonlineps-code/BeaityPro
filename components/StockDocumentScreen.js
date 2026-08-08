@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
-import { Plus, Trash2, CheckCircle2 } from 'lucide-react'
+import { Plus, Trash2, CheckCircle2, ClipboardList } from 'lucide-react'
+import { orderRowsFromLines, documentRowsHoldWork, orderTotal } from '../lib/productOrder'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { postStockDocument, transferStock } from '../lib/stockIO'
 import {
   validateStockDocument, documentTotals, stockDocumentPayload, storageChoices, docForm,
+  emptyDocumentRow,
 } from '../lib/stockDocumentForm'
 import { today, maxDocumentDate } from '../lib/documentDate'
 import { hasSupplier, duplicateDocNumber } from '../lib/documentFilters'
@@ -22,18 +24,10 @@ const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 p
 
 const UOMS = ['package', 'portion', 'unit']
 
-// ⚠️ enteredUnitPrice, not unitCost. The box holds what the invoice says;
-// unit_cost is what the goods END UP costing once the line discount, the
-// document discount and the freight have landed on them. Two different
-// numbers, and neither can be recovered from the other.
-const emptyRow = () => ({
-  productId: '', enteredQuantity: '', enteredUom: 'package',
-  enteredUnitPrice: '', lineDiscountKind: 'percent', lineDiscountValue: '',
-  // ⚠️ Blank, never 0. The whole module treats an untouched box as a statement
-  // nobody made, and a stored zero here would say "a bonus of nothing" — which
-  // is a different row from "no bonus" for anybody counting free goods.
-  bonusQuantity: '',
-})
+// ⚠️ The blank row moved to lib/stockDocumentForm.js when the order screen
+// began building one too. Its reasons live with it there; what matters here is
+// that there is one of it.
+const emptyRow = emptyDocumentRow
 
 function Field({ label, hint, children }) {
   return (
@@ -62,6 +56,7 @@ function Field({ label, hint, children }) {
 // half of it bolted on here would be the half that looks finished.
 export default function StockDocumentScreen({
   docType, storages, suppliers, products, documents, storageId, loading, onPosted,
+  orders, orderLines,
 }) {
   const { t } = useTranslation(['products', 'common'])
   const form = docForm(docType)
@@ -92,6 +87,27 @@ export default function StockDocumentScreen({
   const [paidAmount, setPaidAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [rows, setRows] = useState(() => [emptyRow()])
+
+  // Where the pre-fill has got to: null, choosing an order, or asking what to
+  // do with the lines already typed.
+  const [filling, setFilling] = useState(null)
+  const [filled, setFilled] = useState(null)
+
+  // ⚠️ REPLACE OR APPEND, decided by the person and never by the code. The
+  // silent replace is the version that destroys work: somebody who typed three
+  // lines and then remembered the order would lose them with no sentence
+  // anywhere. Appending silently is the milder wrong answer and still wrong —
+  // it produces a document with the same product twice, which
+  // stockDocumentLines refuses by name, at save time, after the surprise.
+  function applyFill(picked, replace) {
+    setRows((prev) => {
+      const kept = replace ? [] : prev.filter((row) => row.productId)
+      return [...kept, ...picked]
+    })
+    setFilling(null)
+    setPosted(false)
+    setFilled({ count: picked.length, unpriced: picked.some((row) => row.enteredUnitPrice === '') })
+  }
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -507,13 +523,66 @@ export default function StockDocumentScreen({
           </div>
         ))}
 
-        <Button
-          type="button" variant="outline" size="sm" className="self-start"
-          onClick={() => { setRows((prev) => [...prev, emptyRow()]); setPosted(false) }}
-        >
-          <Plus className="size-3.5" />
-          {t('products:docs.rowAdd')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button" variant="outline" size="sm" className="self-start"
+            onClick={() => { setRows((prev) => [...prev, emptyRow()]); setPosted(false) }}
+          >
+            <Plus className="size-3.5" />
+            {t('products:docs.rowAdd')}
+          </Button>
+
+          {/* ⚠️ ON THE SUPPLY ONLY. An order is a request to buy, so there is
+              nothing to fill a write-off, a return or a transfer from — and a
+              button that appears everywhere and works in one place is read as
+              broken in the other three. */}
+          {docType === 'supply' && (
+            <Button
+              type="button" variant="outline" size="sm" className="self-start"
+              onClick={() => { setFilling({ step: 'pick', orderId: null }); setPosted(false) }}
+            >
+              <ClipboardList className="size-3.5" />
+              {t('products:orders.fillFromOrder')}
+            </Button>
+          )}
+        </div>
+
+        {filling && <OrderFill
+          step={filling.step}
+          orders={orders}
+          orderLines={orderLines}
+          supplierId={supplierId}
+          suppliers={suppliers}
+          rowCount={rows.filter((r) => r.productId).length}
+          onCancel={() => setFilling(null)}
+          onPick={(orderId) => {
+            const picked = orderRowsFromLines((orderLines || []).filter((l) => l.order_id === orderId))
+            // ⚠️ ASKED ONLY WHEN THERE IS SOMETHING TO LOSE. An untouched blank
+            // row is not work, so a document nobody has typed in is filled
+            // straight away — a confirmation there would be a question with one
+            // sensible answer, which is the friction that teaches people to
+            // click through questions.
+            if (documentRowsHoldWork(rows)) { setFilling({ step: 'replace', picked }); return }
+            applyFill(picked, true)
+          }}
+          onReplace={(replace) => applyFill(filling.picked, replace)}
+        />}
+
+        {filled && (
+          <div className="rounded-md border border-border bg-muted/40 p-2 text-sm">
+            <p className="flex items-center gap-2">
+              <CheckCircle2 className="size-4 text-primary" />
+              {t('products:orders.filledNotice', { count: filled.count })}
+            </p>
+            {/* ⚠️ SAID AT THE MOMENT OF FILLING, not left for the save to
+                refuse. An order written before prices were agreed produces rows
+                with empty price boxes, which is correct — and somebody who does
+                not know that reads the refusal as the pre-fill having failed. */}
+            {filled.unpriced && (
+              <p className="mt-1 text-xs text-muted-foreground">{t('products:orders.unpricedNotice')}</p>
+            )}
+          </div>
+        )}
       </div>
 
 
@@ -662,6 +731,88 @@ export default function StockDocumentScreen({
           <span className="text-xs text-muted-foreground">{t(validationKey)}</span>
         )}
       </div>
+    </div>
+  )
+}
+
+// Choosing an order, then deciding what happens to what is already typed.
+//
+// ⚠️ TWO STEPS AND NOT ONE DIALOG, because the second question only exists
+// sometimes. Asking "replace or append?" on an untouched document is a question
+// with one sensible answer, and questions with one answer are what teach people
+// to click past the ones that matter.
+//
+// ⚠️ THE LIST IS NARROWED BY SUPPLIER WHEN ONE IS CHOSEN, and shows everything
+// when none is. Narrowing always would hide every order from somebody who has
+// not picked the supplier yet — which is the order they are about to use to
+// remember who the supplier was.
+function OrderFill({
+  step, orders, orderLines, supplierId, suppliers, rowCount, onCancel, onPick, onReplace,
+}) {
+  const { t } = useTranslation(['products', 'common'])
+
+  if (step === 'replace') {
+    return (
+      <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+        <p className="font-medium">{t('products:orders.fillReplaceTitle')}</p>
+        <p className="mt-1 text-muted-foreground">
+          {t('products:orders.fillReplaceBody', { count: rowCount })}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => onReplace(true)}>
+            {t('products:orders.fillReplace')}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => onReplace(false)}>
+            {t('products:orders.fillAppend')}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+            {t('products:orders.fillCancel')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const shown = (orders || []).filter((o) => !supplierId || o.supplier_id === supplierId)
+  const byId = Object.fromEntries((suppliers || []).map((s) => [s.id, s]))
+
+  return (
+    <div className="rounded-md border border-border p-3 text-sm">
+      <p className="font-medium">{t('products:orders.fillPickTitle')}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t('products:orders.fillPickHint')}</p>
+
+      {shown.length === 0 ? (
+        <p className="mt-3 text-muted-foreground">{t('products:orders.fillNone')}</p>
+      ) : (
+        <ul className="mt-3 flex flex-col gap-1">
+          {shown.map((order) => {
+            const own = (orderLines || []).filter((line) => line.order_id === order.id)
+            const totals = orderTotal(own)
+            const supplier = byId[order.supplier_id]
+            return (
+              <li key={order.id}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-start hover:bg-muted"
+                  onClick={() => onPick(order.id)}
+                >
+                  <span>
+                    {order.order_date} · {supplier ? supplier.name : '—'}
+                    {order.note ? ` · ${order.note}` : ''}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {t('products:orders.linesValue', { count: totals.lineCount })}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={onCancel}>
+        {t('products:orders.fillCancel')}
+      </Button>
     </div>
   )
 }
