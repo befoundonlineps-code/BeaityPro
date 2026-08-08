@@ -119,7 +119,19 @@ create table if not exists public.stock_fines (
   -- session plays for posting. Without it a re-run of 056c's logic would charge
   -- twice for one shortage.
   document_id  uuid        not null references public.stock_documents (id) on delete restrict,
-  storage_id   uuid        not null references public.storages (id)  on delete restrict,
+
+  -- ⚠️ Composite for the same reason employee_id is, and it was left plain in
+  -- the same file that explained why it should not be — caught in review, one
+  -- column over from the fix that had just been made.
+  --
+  -- ⚠️ AND SAFE UNCONDITIONALLY, WHICH HAD TO BE MEASURED RATHER THAN ASSUMED.
+  -- A composite key onto a NULLABLE salon_id would not merely constrain, it
+  -- would FORBID: stock_fines.salon_id is NOT NULL, so `NULL = value` stays
+  -- UNKNOWN and no row would ever match — a "general" storage belonging to no
+  -- salon could never be fined at all. 058 query 7 read it: salon_id is
+  -- mandatory on both storages and products, so there is no such row and the
+  -- key constrains without forbidding anything.
+  storage_id   uuid        not null,
 
   -- ⚠️ NULLABLE ON PURPOSE. Null is not missing data — it is the recorded fact
   -- that nobody could be charged, and `resolution` says which of the two ways.
@@ -158,6 +170,10 @@ create table if not exists public.stock_fines (
     foreign key (employee_id, salon_id)
     references public.employees (id, salon_id) on delete restrict,
 
+  constraint stock_fines_storage_fkey
+    foreign key (storage_id, salon_id)
+    references public.storages (id, salon_id) on delete restrict,
+
   constraint stock_fines_one_per_document unique (document_id),
   -- Not redundant with the primary key: the composite foreign key below needs a
   -- unique constraint on exactly the columns it references.
@@ -193,7 +209,10 @@ create table if not exists public.stock_fine_lines (
   id            uuid    primary key default gen_random_uuid(),
   salon_id      uuid    not null,
   fine_id       uuid    not null,
-  product_id    uuid    not null references public.products (id) on delete restrict,
+  -- Composite, like storage_id above and for the same measured reason:
+  -- products.salon_id is NOT NULL, so no product exists that this key would
+  -- make unfineable.
+  product_id    uuid    not null,
 
   -- ⚠️ POSITIVE, and the sign is dropped on purpose. A stocktake's shortage is a
   -- NEGATIVE movement, and carrying that sign here would make every sum need a
@@ -214,6 +233,10 @@ create table if not exists public.stock_fine_lines (
   constraint stock_fine_lines_fine_fkey
     foreign key (fine_id, salon_id)
     references public.stock_fines (id, salon_id) on delete cascade,
+
+  constraint stock_fine_lines_product_fkey
+    foreign key (product_id, salon_id)
+    references public.products (id, salon_id) on delete restrict,
 
   constraint stock_fine_lines_amounts_check
     check (shortage_base > 0 and unit_value >= 0)

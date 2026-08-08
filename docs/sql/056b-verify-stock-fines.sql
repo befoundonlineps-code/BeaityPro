@@ -25,12 +25,23 @@
 --               employee_id and role_at_resolution NULLABLE; everything else on
 --               the head NOT NULL except them.
 --
--- 3  constraints  five on stock_fines, three on stock_fine_lines. The two that
---               matter to read rather than count:
---                 employee_matches_resolution — the XOR that makes "charged"
---                   and "not charged" structurally unmixable
---                 the composite FK: (fine_id, salon_id) -> (id, salon_id)
---                   ON DELETE CASCADE
+-- 3  constraints  ⚠️ NO COUNT IS GIVEN HERE, ON PURPOSE. 054e's expectation
+--               said "the other four" and the table had five, because the list
+--               was enumerated from the constraints I had NAMED while an inline
+--               `references` is named by Postgres. A count typed by hand goes
+--               stale the moment a column changes; what is written below is
+--               what must be PRESENT, and the query reads the rest.
+--
+--               ⚠️ FOUR COMPOSITE KEYS, and every one of them was added after
+--               review caught it missing — the same lesson four columns running:
+--                 stock_fines_employee_fkey  (employee_id, salon_id)
+--                 stock_fines_storage_fkey   (storage_id, salon_id)
+--                 stock_fine_lines_fine_fkey (fine_id, salon_id) ON DELETE CASCADE
+--                 stock_fine_lines_product_fkey (product_id, salon_id)
+--
+--               And the XOR that makes "charged" and "not charged"
+--               structurally unmixable:
+--                 stock_fines_employee_matches_resolution_check
 --
 -- 4  policies   FOUR rows, not eight. select + insert on each table and NOTHING
 --               ELSE. ⚠️ An UPDATE or DELETE row appearing here is the failure
