@@ -186,7 +186,13 @@ export default function TwoPaneBrowser({
           </div>
         </div>
 
-        {!selectedCategoryId ? (
+        {/* ⚠️ THE HINT IS OPTIONAL, AND ITS ABSENCE IS A STATEMENT. A screen
+            that passes one means "nothing is selected, so there is nothing to
+            show"; a screen that passes none means "nothing selected shows
+            everything". The products catalogue is the second and the services
+            browser is still the first, so widening this had to be opt-in — a
+            shared component changed for one caller breaks the other quietly. */}
+        {!selectedCategoryId && pickCategoryHint ? (
           <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
             {pickCategoryHint}
           </div>

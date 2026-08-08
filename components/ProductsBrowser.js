@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { Fragment, useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, Plus, Pencil, Archive } from 'lucide-react'
 import TwoPaneBrowser, { ToolButton } from './TwoPaneBrowser'
@@ -7,6 +7,7 @@ import ProductCategoryFormDialog from './ProductCategoryFormDialog'
 import { buildProductTree, countProducts } from '../lib/productTree'
 import { treeContains } from '../lib/categoryTree'
 import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
+import { catalogueRows, catalogueGroups } from '../lib/catalogueView'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { stockedStorages } from '../lib/balanceView'
@@ -81,15 +82,27 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
   // written wrongly.
   const visibleSelectedId = treeContains(tree, selectedCategoryId) ? selectedCategoryId : null
 
-  const rows = useMemo(() => {
-    if (!visibleSelectedId) return []
-    const q = search.trim().toLowerCase()
-    return (products || [])
-      .filter((p) => p.category_id === visibleSelectedId)
-      .filter((p) => !hideArchived || p.is_active !== false)
-      .filter((p) => !q || (p.name || '').toLowerCase().includes(q))
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-  }, [products, visibleSelectedId, search, hideArchived])
+  // ⚠️ NO FOLDER CHOSEN MEANS EVERY PRODUCT, not an empty table.
+  //
+  // This returned [] until somebody clicked a folder, while the search box was
+  // drawn the whole time — so a person looking for a product whose folder they
+  // did not know, which is the only reason to search, was told «ما في نتائج»
+  // about a product that exists. Not silent: a confident wrong answer.
+  //
+  // And the folder now includes its subfolders, by the SAME walk the counting
+  // sheet and the archive dialog use. It filtered on direct children alone, so
+  // «شعر» meant one set here and another set there — one question with two
+  // answers, which is the class the storage lens closed one stage ago.
+  const rows = useMemo(
+    () => catalogueRows({
+      products, categories, categoryId: visibleSelectedId, search, hideArchived,
+    }),
+    [products, categories, visibleSelectedId, search, hideArchived]
+  )
+
+  // Runs of rows, each carrying its folder so the table can head it. Grouping,
+  // not ranking: what matters is that a folder's products are adjacent.
+  const groups = useMemo(() => catalogueGroups(rows, categories), [rows, categories])
 
   function selectCategory(id) {
     setSelectedCategoryId(id)
@@ -203,7 +216,6 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t('products:searchPlaceholder')}
-        pickCategoryHint={t('products:pickCategoryHint')}
         // A catalogue that starts at zero folders needs to say so. The services
         // screen never did — it opened onto a seeded tree — so an empty white
         // pane here would read as a screen that failed to load.
@@ -288,7 +300,20 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
               answer today is "unknown", and a column of zeros would say
               "nothing left" instead. They arrive with the movements. */}
           <tbody>
-            {rows.map((p) => (
+            {groups.map((group) => (
+              <Fragment key={group.categoryId || 'none'}>
+                {/* ⚠️ A heading per run, including when there is only one. The
+                    table spans folders now, so a row with no folder above it is
+                    a row whose folder the reader has to remember from the tree —
+                    the very thing the tree stopped being the only answer to. And
+                    a product whose folder is unknown keeps its row and says so
+                    rather than vanishing. */}
+                <tr className="bg-muted/40">
+                  <td colSpan={5} className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                    {group.category ? group.category.name : t('products:noCategoryGroup')}
+                  </td>
+                </tr>
+                {group.products.map((p) => (
               <tr
                 key={p.id}
                 onClick={() => setSelectedProductId(p.id)}
@@ -315,11 +340,13 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
                 <td className="px-3 py-1.5">{money(p.nominal_purchase_price)}</td>
                 <td className="px-3 py-1.5">{money(p.package_price)}</td>
               </tr>
+                ))}
+              </Fragment>
             ))}
             {rows.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                  {search.trim() ? t('common:noResults') : t('products:emptyCategory')}
+                  {search.trim() ? t('common:noResults') : t('products:emptyCatalogue')}
                 </td>
               </tr>
             )}
