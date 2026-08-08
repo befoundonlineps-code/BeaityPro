@@ -41,6 +41,12 @@
 --                  UPDATE       true             true
 --                  DELETE       true             false
 --
+--              ⚠️ AND roles = {public} on all eight. The first draft of 053a
+--              wrote `to authenticated`, which would read {authenticated} here
+--              — equivalent in behaviour, and a difference from the other three
+--              that nothing would ever have flagged. This column is the check
+--              on that, which is why it is selected and not assumed.
+--
 -- 5  constraints  the composite foreign key must read
 --                 FOREIGN KEY (order_id, salon_id)
 --                 REFERENCES product_orders(id, salon_id) ON DELETE CASCADE
