@@ -39,6 +39,19 @@
 --               deleted" structural instead of a habit.
 --               roles {public}, and each clause matching stock_documents'.
 --
+--               ⚠️ AND EVERY ROW WILL SHOW ONE `true` AND ONE `false`, BY
+--               DESIGN — read it before it worries anybody. A SELECT policy has
+--               no WITH CHECK and an INSERT policy has no USING; that is
+--               Postgres, not a missing clause. So:
+--
+--                   cmd      using_matches   with_check_matches
+--                   SELECT       true             false
+--                   INSERT       false            true
+--
+--               A `false` in the column that does not apply is the expected
+--               reading. What would be a fault is a `false` in the one that
+--               does.
+--
 -- 5  exposure   ADR-054's standing audit, re-run because two tables were just
 --               created. Every row must read `protected`.
 -- ==========================================================================
