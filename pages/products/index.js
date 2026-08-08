@@ -273,7 +273,17 @@ export default function ProductsPage() {
                 // front of them, and the products that never appeared are
                 // untouched rather than wrong — so nothing looks amiss at all.
                 error={balances.error || catalogue.error || directories.error}
-                onPosted={() => { balances.reload(); stockDocuments.reload() }}
+                // ⚠️ THE COVERAGE READ RELOADS TOO, and forgetting it was the
+                // module's oldest fault wearing a new coat. The page's own
+                // comment records the first two: ProductsBrowser held its own
+                // catalogue, so creating a product left the document screens
+                // showing a list without it. Here, posting a stocktake creates
+                // the very rows the coverage report is about, and a report
+                // opened beforehand kept saying the count had not happened.
+                //
+                // Found by the owner, on real data, by having both tabs open —
+                // which is how somebody actually uses this.
+                onPosted={() => { balances.reload(); stockDocuments.reload(); coverage.reload() }}
               />
             )}
             {view === 'coverage' && (
