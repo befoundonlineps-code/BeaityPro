@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Plus, Trash2, CheckCircle2, ClipboardList } from 'lucide-react'
-import { orderRowsFromLines, documentRowsHoldWork, orderTotal } from '../lib/productOrder'
+import {
+  orderRowsFromLines, documentRowsHoldWork, orderTotal, mergeFilledRows,
+} from '../lib/productOrder'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { postStockDocument, transferStock } from '../lib/stockIO'
 import {
@@ -100,10 +102,7 @@ export default function StockDocumentScreen({
   // it produces a document with the same product twice, which
   // stockDocumentLines refuses by name, at save time, after the surprise.
   function applyFill(picked, replace) {
-    setRows((prev) => {
-      const kept = replace ? [] : prev.filter((row) => row.productId)
-      return [...kept, ...picked]
-    })
+    setRows((prev) => mergeFilledRows(prev, picked, replace))
     setFilling(null)
     setPosted(false)
     setFilled({ count: picked.length, unpriced: picked.some((row) => row.enteredUnitPrice === '') })
