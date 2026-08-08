@@ -29,12 +29,23 @@
 --                    UPDATE       true             true
 --                    DELETE       true             false
 --
---                ⚠️ DELETE on the SESSIONS is the "discard and start fresh"
---                path and the second in this schema. UPDATE on the sessions is
---                how post_stocktake closes one — the function runs as the
---                invoker (051b:28, prosecdef = false, measured), so it meets
---                these policies like any other write. Missing either, the
---                feature fails with 0 rows affected rather than an error.
+--                ⚠️ EXCEPT THE TWO DELETE POLICIES, which must NOT match —
+--                they carry an extra conjunct and matching would mean the
+--                narrowing was lost:
+--
+--                  stocktake_sessions_delete  ->  using_matches FALSE, and its
+--                    text must contain `document_id IS NULL`
+--                  stocktake_counts_delete    ->  using_matches FALSE, and its
+--                    text must contain an EXISTS on stocktake_sessions
+--
+--                A `true` on either of those is the failure this expectation
+--                exists for: the policy would read correct, delete would work,
+--                and a posted stocktake's coverage could be erased.
+--
+--                UPDATE on the sessions is how post_stocktake closes one — the
+--                function runs as the invoker (051b:28, prosecdef = false,
+--                measured), so it meets these policies like any other write.
+--                Missing it, posting fails with 0 rows affected, not an error.
 -- 4  indexes     stocktake_sessions_one_open_per_storage must be UNIQUE and
 --                PARTIAL, its definition ending `WHERE (document_id IS NULL)`.
 --                ⚠️ Without the WHERE it becomes one count per storage EVER,
@@ -87,7 +98,12 @@ select
   p.policyname,
   p.roles,
   (p.qual       is not distinct from (select qual from reference)) as using_matches_stock_documents,
-  (p.with_check is not distinct from (select qual from reference)) as with_check_matches_stock_documents
+  (p.with_check is not distinct from (select qual from reference)) as with_check_matches_stock_documents,
+  -- ⚠️ The two DELETE policies are SUPPOSED to differ, so "does it match?" is
+  -- the wrong question for them and would read as a failure. This is the right
+  -- one, and it must be true on exactly those two rows and false on the six.
+  (p.cmd = 'DELETE' and p.qual like '%document_id IS NULL%') as delete_is_narrowed_to_open,
+  p.qual as using_clause
 from pg_policies p
 where p.schemaname = 'public'
   and p.tablename in ('stocktake_sessions', 'stocktake_counts')

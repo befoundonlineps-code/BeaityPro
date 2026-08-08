@@ -84,6 +84,25 @@
 -- Discard is a DELETE and not a flag: a cancelled_at column would make the
 -- index `where document_id is null and cancelled_at is null`, which is the
 -- status column refused at the front door coming back through the side one.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ THE WHOLE FILE IS IDEMPOTENT, and that is load-bearing rather than tidy.
+--
+-- create table if not exists · create index if not exists · enable row level
+-- security · grant · drop policy if exists + create policy · comment on —
+-- every one of them may be run twice with the same result. So if this file was
+-- already pasted before the DELETE policies below were narrowed in review,
+-- RE-RUN THE WHOLE THING: it converges on what is written here rather than
+-- leaving the database and the file disagreeing about what was executed.
+--
+-- ⚠️ UPDATE ON stocktake_counts IS DELIBERATELY *NOT* NARROWED, and the residual
+-- is named rather than hidden. It should be — rewriting a posted count is the
+-- same history edit as deleting one — but post_stocktake writes balance_at_post
+-- through it, and a policy the posting path has to tiptoe around fails as
+-- `0 rows affected` rather than as an error. Silence in the operation this
+-- whole feature exists for is a worse trade than a rewrite no screen offers.
+-- Closable once 054c fixes the order (balances first, document_id last) and
+-- 054d asserts it — as its own decision, not slipped in with this one.
 -- ==========================================================================
 
 create table if not exists public.stocktake_sessions (
@@ -210,16 +229,28 @@ create policy stocktake_sessions_update on public.stocktake_sessions
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()))
   with check (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
--- ⚠️ DELETE is the "discard and start fresh" path, and it is the second table
--- in this schema to have one. The reason is the same as the order's: a session
--- records no event — no stock moved, no money, and nothing points at it until
--- it has a document. A session WITH a document is a different matter, and the
--- screen never offers to delete one; the database does not forbid it, which is
--- a known limit rather than an oversight (see 054b's note).
+-- ⚠️ DELETE IS NARROWED TO AN OPEN SESSION, and the first draft was not — it
+-- named the gap and then left it to the screen, which is the pattern this
+-- project has refused all round: protection on the screen is not protection.
+-- Raised in review.
+--
+-- The order's DELETE policy is unnarrowed because an order documents NO event;
+-- the owner settled that. A session with a document is the opposite: a real
+-- count, at a real time, against balances read under a lock. Deleting it
+-- cascades the counts away and leaves stock_documents and stock_movements
+-- standing — a stocktake whose coverage record no longer exists, which is the
+-- one thing these tables were created to hold.
+--
+-- ⚠️ And it must survive a REVERSAL too, which is the case that settles it: a
+-- reversed stocktake says the ADJUSTMENT was wrong, not that nobody counted.
+-- The coverage is still true. So nothing should ever delete a posted session,
+-- and there is no administrative correction that needs it — reverse_stock_
+-- document already covers undoing the stock effect.
 drop policy if exists stocktake_sessions_delete on public.stocktake_sessions;
 create policy stocktake_sessions_delete on public.stocktake_sessions
   for delete
-  using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
+  using (document_id is null
+     and salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
 drop policy if exists stocktake_counts_select on public.stocktake_counts;
 create policy stocktake_counts_select on public.stocktake_counts
@@ -239,14 +270,20 @@ create policy stocktake_counts_update on public.stocktake_counts
   using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()))
   with check (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
 
--- Removing one product's count from an open sheet. ⚠️ Discarding a whole
--- session does NOT come through here: ON DELETE CASCADE is referential
--- integrity and bypasses row security, so the parent's policy is the gate. This
--- one governs the direct delete only.
+-- Removing one product's count from an OPEN sheet, and narrowed for the same
+-- reason as the parent: deleting one count out of a posted stocktake rewrites
+-- its coverage just as surely as deleting all of them, and more quietly.
+--
+-- ⚠️ Discarding a whole session does NOT come through here: ON DELETE CASCADE
+-- is referential integrity and bypasses row security, so the parent's policy is
+-- the gate — which is now the narrowed one above. This governs the direct
+-- delete only.
 drop policy if exists stocktake_counts_delete on public.stocktake_counts;
 create policy stocktake_counts_delete on public.stocktake_counts
   for delete
-  using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
+  using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid())
+     and exists (select 1 from public.stocktake_sessions s
+                  where s.id = session_id and s.document_id is null));
 
 -- --------------------------------------------------------------------------
 
