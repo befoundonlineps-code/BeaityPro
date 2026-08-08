@@ -9,7 +9,7 @@ import {
 } from '../lib/stocktakeSheet'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { stocktakePayload } from '../lib/stockDocumentForm'
-import { postStocktake } from '../lib/stockIO'
+import { postStocktakeSession } from '../lib/stockIO'
 import { today, maxDocumentDate } from '../lib/documentDate'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,9 +23,13 @@ import { Input } from '@/components/ui/input'
 // a wrong recorded figure looks exactly like an ordinary correction, and is the
 // one this module cannot detect afterwards.
 export default function StocktakeScreen({
-  balances, products, categories, storageId, loading, error, onPosted,
-  counts, onCountsChange, uoms, onUomsChange,
+  balances, products, categories, storageId, salonId, userId, loading, error, onPosted,
+  stocktake,
 }) {
+  const {
+    session, startedBy, startedAt, counts, uoms, setCounts, setUoms,
+    writeError, writeCount, discard, clearAfterPost,
+  } = stocktake
   const { t } = useTranslation(['products', 'common'])
 
   // ⚠️ THE STORAGE IS NOT THIS SCREEN'S ANY MORE — it comes from the module's
@@ -58,6 +62,7 @@ export default function StocktakeScreen({
   // and '0' is the whole of COUNT_STATE, and Number() destroys it.
 
   const [confirming, setConfirming] = useState(false)
+  const [discarding, setDiscarding] = useState(false)
   const [saving, setSaving] = useState(false)
   const [actionError, setActionError] = useState('')
   const [posted, setPosted] = useState(null)
@@ -149,9 +154,21 @@ export default function StocktakeScreen({
     [rows]
   )
 
+  // The box, as it is typed. Nothing reaches the database from here — the row
+  // is written when the box loses focus.
   function setCount(productId, raw) {
-    onCountsChange({ ...counts, [productId]: raw })
+    setCounts({ ...counts, [productId]: raw })
     setPosted(null)
+  }
+
+  // ⚠️ THE ONE PLACE A COUNT REACHES THE TABLE, and it takes the value from the
+  // INPUT rather than from state. Reading `counts[id]` here would read whatever
+  // the closure of the last render captured, and a paste followed immediately
+  // by a tab-out can blur before that render has happened — writing the value
+  // before last, which is a plausible count and therefore the worst kind of
+  // wrong. The DOM node cannot be stale about its own value.
+  function writeRow(product, raw) {
+    writeCount({ salonId, product, raw, uom: uoms[product.id] })
   }
 
   // ⚠️ The number is NOT converted when the frame changes. "3" typed as
@@ -160,8 +177,14 @@ export default function StocktakeScreen({
   // BECAUSE they mistyped, it destroys the correction they were about to make.
   // The reading underneath re-reads, which is where the change belongs.
   function setUom(productId, uom) {
-    onUomsChange({ ...uoms, [productId]: uom })
+    setUoms({ ...uoms, [productId]: uom })
     setPosted(null)
+    // ⚠️ REWRITTEN IMMEDIATELY, and not on a later blur. The number stays as
+    // typed and its MEANING changes — 3 packages and 3 units are different
+    // counts of base units — so the stored row is wrong from this instant until
+    // something rewrites it. A select has no blur to wait for.
+    const product = (products || []).find((p) => p.id === productId)
+    if (product) writeCount({ salonId, product, raw: counts[productId], uom })
   }
 
   async function save() {
@@ -179,7 +202,14 @@ export default function StocktakeScreen({
       return
     }
 
-    const { payload, error: buildError } = stocktakePayload({
+    // ⚠️ THE PAYLOAD IS STILL BUILT, AND IT IS NO LONGER SENT. stocktakePayload
+    // validates the date and every line — the whole-pieces rule, the frame a
+    // product does not have, a count that is not a number — and none of that
+    // moved into the database. Dropping it because the RPC no longer takes
+    // lines would have deleted five refusals along with the argument they used
+    // to travel in. What goes over the wire is the session id; what decides
+    // whether it is worth sending is unchanged.
+    const { error: buildError } = stocktakePayload({
       storageId,
       docDate,
       note,
@@ -192,7 +222,17 @@ export default function StocktakeScreen({
       return
     }
 
-    const { ok, error: rpcError } = await postStocktake(payload)
+    // ⚠️ Nothing has been counted, so there is no session and nothing to post.
+    // Reached only if the confirmation was opened on an empty sheet.
+    if (!session) {
+      setSaving(false)
+      setActionError(t('products:stocktake.nothingCounted'))
+      return
+    }
+
+    const { ok, error: rpcError } = await postStocktakeSession({
+      sessionId: session.id, docDate, note,
+    })
     setSaving(false)
 
     if (!ok) {
@@ -203,14 +243,20 @@ export default function StocktakeScreen({
     }
 
     setConfirming(false)
-    // ⚠️ The counted numbers are shown one last time here, because the ledger
-    // does not keep them: post_stocktake stores the DIFFERENCE and the count is
-    // gone the moment this screen forgets it (item 44). Clearing the fields
-    // without saying so would make the numbers vanish silently.
+    // ⚠️ The counted numbers were shown one last time here BECAUSE THE LEDGER
+    // DID NOT KEEP THEM — post_stocktake stored the difference and the count
+    // was gone the moment this screen forgot it (item 44). That is no longer
+    // true: stocktake_counts holds every count, including the ones that matched,
+    // and post_stocktake_session stamps the balance it was measured against.
+    //
+    // The summary stays anyway, and for a different reason: it is the receipt
+    // for what was just sent. What it must not do now is imply the numbers are
+    // about to be lost.
     setPosted({ countedLines: summary.countedLines, changed: summary.changing.length })
-    onCountsChange({})
-    // The frames go with the counts: they described a sheet that has been sent.
-    onUomsChange({})
+    // The rows belong to a document now; this sheet is over. Not a reload —
+    // the session has a document_id, so re-reading would find nothing and the
+    // round trip would only confirm what the RPC already returned.
+    clearAfterPost()
     if (onPosted) onPosted()
   }
 
@@ -231,9 +277,77 @@ export default function StocktakeScreen({
 
   let lastCategory = null
 
+  const countedRows = Object.values(counts).filter(
+    (raw) => countState(raw) !== COUNT_STATE.UNTOUCHED
+  ).length
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">{t('products:stocktake.hint')}</p>
+
+      {/* ⚠️ A BANNER AND NOT A DIALOG, because there is nothing to decide before
+          counting can continue. The sheet already has the saved counts in it —
+          resuming is what happens by default, so a modal would be a question
+          whose answer is "yes, obviously" every time but one.
+
+          The wording splits on whose count it is, which is the whole reason
+          started_by exists: "your interrupted count" and "somebody else's open
+          count" are different situations and only one of them is a surprise. */}
+      {session && countedRows > 0 && (
+        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <p>
+            {t(startedBy && startedBy === userId
+              ? 'products:stocktake.resumeYours'
+              : 'products:stocktake.resumeOther',
+            { when: startedAt ? String(startedAt).slice(0, 10) : '' })}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t('products:stocktake.resumeCounted', { count: countedRows })}
+          </p>
+          <Button
+            type="button" variant="outline" size="sm" className="mt-2"
+            onClick={() => setDiscarding(true)}
+          >
+            {t('products:stocktake.discardButton')}
+          </Button>
+        </div>
+      )}
+
+      {/* ⚠️ THE NUMBER IS IN THE QUESTION, not just in the button. Discarding an
+          order destroys no work; discarding a count destroys an hour of
+          somebody standing at a shelf, and "are you sure?" does not say that.
+          It is also the one operation here the database will not undo — the
+          rows go by cascade. */}
+      {discarding && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+          <p className="font-medium">{t('products:stocktake.discardTitle')}</p>
+          <p className="mt-1 text-muted-foreground">
+            {t('products:stocktake.discardBody', { count: countedRows })}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button
+              type="button" variant="destructive" size="sm"
+              onClick={async () => { setDiscarding(false); await discard() }}
+            >
+              {t('products:stocktake.discardConfirm')}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setDiscarding(false)}>
+              {t('products:stocktake.discardCancel')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠️ SAID AT THE MOMENT IT HAPPENS, not held until the post. A count that
+          did not reach the table is still on screen, looking exactly like one
+          that did — and the person walks away believing it is safe. This is the
+          only difference they can see between the two. */}
+      {writeError && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+          <p>{t('products:stocktake.writeFailed')}</p>
+          <p className="mt-1 text-muted-foreground">{dbErrorSentence(writeError, t, 'StocktakeScreen.write')}</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-end gap-3">
 
@@ -325,6 +439,12 @@ export default function StocktakeScreen({
                               inputMode="decimal"
                               value={counts[row.product.id] ?? ''}
                               onChange={(e) => setCount(row.product.id, e.target.value)}
+                              // ⚠️ ON BLUR, NOT ON EVERY KEYSTROKE. Typing 250
+                              // would otherwise be four writes, three of them
+                              // describing counts nobody made — and the third,
+                              // "25", is a perfectly plausible count to leave
+                              // behind if the connection drops on the fourth.
+                              onBlur={(e) => writeRow(row.product, e.target.value)}
                               placeholder={t('products:stocktake.notCounted')}
                             />
                             {/* One frame is not a choice. A product whose

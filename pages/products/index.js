@@ -20,8 +20,8 @@ import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
 import { useProductOrders } from '../../hooks/useProductOrders'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
-import { currentLens, lensChoices, lensChangeCosts } from '../../lib/storageLens'
-import { unsavedCounts } from '../../lib/stocktakeSheet'
+import { currentLens, lensChoices } from '../../lib/storageLens'
+import { useStocktakeSession } from '../../hooks/useStocktakeSession'
 
 export async function getServerSideProps({ locale }) {
   return {
@@ -104,24 +104,24 @@ export default function ProductsPage() {
   // between tabs lost the choice every time.
   const [chosenStorage, setChosenStorage] = useState('')
 
-  // ⚠️ THE STOCKTAKE'S COUNTS LIVE HERE, not in the screen that draws them.
+  // ⚠️ THE COUNTS ARE ROWS NOW, and this is the second time they moved.
   //
-  // Each tab is drawn as `{view === 'x' && <Screen/>}`, so leaving the tab
-  // UNMOUNTS the screen and React discards its state. Somebody halfway
-  // through counting who stepped over to the balances tab to check a figure
-  // came back to an empty sheet, with nothing asked and nothing recoverable —
-  // and post_stocktake stores no counts (item 44), so it is gone for good.
+  // They started inside StocktakeScreen, where leaving the tab unmounted the
+  // component and React discarded them. They were lifted here, which survived
+  // the tab and the remount and nothing else: F5, a closed browser, a dropped
+  // connection, or finishing the count on another device all still lost them —
+  // and being called away mid-count is the ordinary case, not the exception.
   //
-  // ⚠️ It also made the lens guard below worse than useless: the pending total
-  // was reported up and survived the unmount, so changing storage after
-  // stepping away asked "you will lose 3 lines" about work already destroyed.
+  // Now they are written to stocktake_counts as they are typed, and this holds
+  // a cache over those rows rather than the only copy. Item 44's browser half
+  // is closed by that, not by holding them one level higher.
   //
-  // Held here, the counts survive the tab and the remount, and the pending
-  // total is DERIVED from them rather than reported — so there is no second
-  // copy to fall out of step with the first.
-  const [counts, setCounts] = useState({})
-  const [uoms, setUoms] = useState({})
-  const [pendingLens, setPendingLens] = useState(null)
+  // ⚠️ AND THE LENS QUESTION IS GONE WITH THEM. "You will lose 3 lines —
+  // discard and switch?" existed because a count could not follow a storage and
+  // there was nowhere to put it. Each storage now has its own session, so
+  // switching destroys nothing and there is nothing to ask about. That is
+  // deferred item (j) closed by the design rather than built: the question does
+  // not get a better answer, it stops having a subject.
 
   const catalogue = useProductCatalog()
   const stockDocuments = useStockDocuments()
@@ -133,24 +133,10 @@ export default function ProductsPage() {
   const productOrders = useProductOrders()
 
   const lensId = currentLens(directories.storages, chosenStorage)
-  const pendingCounts = unsavedCounts(counts)
 
-  function askLens(next) {
-    if (next === lensId) return
-    if (lensChangeCosts(pendingCounts)) { setPendingLens(next); return }
-    setChosenStorage(next)
-  }
-
-  // ⚠️ The counts are dropped HERE, where the person just said to drop them.
-  // A count belongs to the storage it was made in and cannot follow one, so
-  // this is the only place in the module that throws counting away — and it
-  // is one line after the sentence that asked.
-  function confirmLens() {
-    setChosenStorage(pendingLens)
-    setCounts({})
-    setUoms({})
-    setPendingLens(null)
-  }
+  // Keyed on the lens, so the sheet for each storage is read from its own
+  // session. Switching back and forth costs a read and loses nothing.
+  const stocktake = useStocktakeSession(lensId)
 
   return (
     <AuthGate>
@@ -178,7 +164,7 @@ export default function ProductsPage() {
                 <select
                   className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
                   value={lensId}
-                  onChange={(e) => askLens(e.target.value)}
+                  onChange={(e) => setChosenStorage(e.target.value)}
                 >
                   {lensChoices(directories.storages, lensId).length === 0 && (
                     <option value="">{t('products:docs.storageNone')}</option>
@@ -193,30 +179,13 @@ export default function ProductsPage() {
             )}
           </div>
 
-          {/* The question, asked rather than answered for them: a count cannot
-              move to another storage, so the only two outcomes are losing it or
-              staying where it was made. */}
-          {pendingLens !== null && (
-            <div className="mx-5 mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
-              <p>{t('products:lens.pendingCounts', { count: pendingCounts })}</p>
-              <div className="mt-3 flex gap-2">
-                <button
-                  type="button"
-                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
-                  onClick={confirmLens}
-                >
-                  {t('products:lens.discardAndSwitch')}
-                </button>
-                <button
-                  type="button"
-                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
-                  onClick={() => setPendingLens(null)}
-                >
-                  {t('products:lens.stay')}
-                </button>
-              </div>
-            </div>
-          )}
+          {/* ⚠️ THE LENS QUESTION USED TO BE HERE and is deliberately gone. It
+              asked "you will lose 3 counted lines — discard and switch?" because
+              a count could not follow a storage and lived only in this page's
+              memory. Each storage now has its own session, so switching keeps
+              both sheets and there is nothing to lose. A confirmation whose
+              subject no longer exists is worse than none: it teaches people that
+              the questions here are noise. */}
 
           <div className="flex flex-col gap-4 p-5">
             {view === 'catalog' && (
@@ -278,17 +247,16 @@ export default function ProductsPage() {
             )}
             {view === 'stocktake' && (
               <StocktakeScreen
-                // ⚠️ Keyed on the lens, so changing storage starts a fresh sheet by
-                // REMOUNTING rather than by an effect clearing state after a render.
-                // The counts belong to the storage they were made in and cannot
-                // follow one; the question above has already been asked by the time
-                // this key changes.
+                // ⚠️ Keyed on the lens, so changing storage starts a fresh sheet
+                // by REMOUNTING rather than by an effect clearing state after a
+                // render. What remounts is the folder choice and the note; the
+                // counts come from the session for that storage and are read
+                // again, not thrown away.
                 key={lensId}
                 storageId={lensId}
-                counts={counts}
-                onCountsChange={setCounts}
-                uoms={uoms}
-                onUomsChange={setUoms}
+                salonId={salonId}
+                userId={session.user.id}
+                stocktake={stocktake}
                 balances={balances.balances}
                 products={catalogue.products}
                 categories={catalogue.categories}

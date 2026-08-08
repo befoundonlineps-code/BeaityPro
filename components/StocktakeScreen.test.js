@@ -39,13 +39,34 @@ const BASE = {
   loading: false,
   error: null,
   onPosted: () => {},
-  counts: {},
-  onCountsChange: () => {},
-  uoms: {},
-  onUomsChange: () => {},
+  salonId: 'sal1',
+  userId: 'u1',
 }
 
-const render = (over) => renderToStaticMarkup(<StocktakeScreen {...BASE} {...over} />)
+// ⚠️ The counts arrive as one object now instead of four props, because they
+// are a cache over rows rather than page state — but the claim these tests make
+// has not changed and must not: this screen keeps NO count of its own. Handed
+// different counts it draws different numbers, and there is no path by which it
+// remembers one.
+const sheet = (over) => ({
+  session: null, startedBy: null, startedAt: null,
+  counts: {}, uoms: {}, writeError: null,
+  setCounts: () => {}, setUoms: () => {}, reload: () => {},
+  writeCount: () => {}, discard: () => {}, clearAfterPost: () => {},
+  ...over,
+})
+
+const render = (over = {}) => {
+  const { counts, uoms, ...rest } = over
+  // ⚠️ Only the keys actually given. Spreading `{ counts: undefined }` would
+  // overwrite the default with undefined and every test would die reading a
+  // property of it — a harness that fails LOUDLY, luckily, and the reason this
+  // is written out rather than passed straight through.
+  const given = {}
+  if (counts !== undefined) given.counts = counts
+  if (uoms !== undefined) given.uoms = uoms
+  return renderToStaticMarkup(<StocktakeScreen {...BASE} {...rest} stocktake={sheet(given)} />)
+}
 
 const valuesOf = (html) => [...html.matchAll(/<input[^>]*value="([^"]*)"/g)].map((m) => m[1])
 
