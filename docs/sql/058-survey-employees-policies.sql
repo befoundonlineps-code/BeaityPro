@@ -25,6 +25,16 @@
 -- again, and the most convincing of the three, because a query really did run.
 --
 -- Raised in review. One query, and it reads the text.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ ONE QUERY PER PASTE, AND THIS ONE WAS PAID FOR THIS WEEK. Two selects
+-- pasted together returned only the second, and the first — a NULL check —
+-- vanished from the result without an error, without a gap, and without
+-- anything saying a result was missing. A survey whose answer silently arrives
+-- half-sized is worse than one that fails, because the half that came back
+-- looks complete.
+--
+-- Every numbered query below is meant to be run and read on its own.
 -- ==========================================================================
 
 -- 1 -- every policy on employees, in full, with no filter of any kind.

@@ -265,11 +265,21 @@ grant select, insert on public.stock_fine_lines to authenticated;
 -- until somebody edits the constraint. Two independent statements, and the
 -- weaker one is still true on its own.
 --
--- ⚠️ THE ROLE LIST IS THE OWNER'S DECISION AND THESE THREE ARE A PLACEHOLDER
--- taken from the reviewer's own message, not a choice made here. Written as an
--- explicit IN rather than as a negation on purpose: a role added to
--- employee_role tomorrow is granted nothing silently — it fails closed, which
--- is the right direction for a policy about somebody's pay.
+-- ✅ THE ROLE LIST IS THE OWNER'S DIRECT DECISION: administrator, executive,
+-- owner — chosen after the full ten labels of employee_role were read out to
+-- him (058 query 4), not picked from the three that happened to be mentioned in
+-- conversation. The earlier draft of this comment called them a placeholder;
+-- that stopped being true and is corrected rather than left standing.
+--
+-- Written as an explicit IN rather than as a negation on purpose: a role added
+-- to employee_role tomorrow is granted nothing silently — it fails closed,
+-- which is the right direction for a policy about somebody's pay.
+--
+-- ✅ And the subquery's own table is safe to lean on, measured by 058: employees
+-- has RLS actually enabled (not merely policies defined), and employees_select
+-- is the standard salon_id predicate with no further narrowing — so a manager
+-- can read her own employees row and this branch resolves. `role` is NOT NULL,
+-- so the IN can never go UNKNOWN and grant nothing by accident.
 --
 -- ⚠️ And this subquery reads `employees`, so EMPLOYEES' OWN RLS APPLIES TO IT.
 -- If that table is ever narrowed, a fine can become invisible even to
