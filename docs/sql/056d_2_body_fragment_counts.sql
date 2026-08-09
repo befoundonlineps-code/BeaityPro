@@ -13,8 +13,30 @@
 -- a comment could also contain. The counter cannot tell code from comment, and
 -- 056c's header discusses all of these by name.
 --
--- EXPECTED: every column matches the number in its own name, and
--- fine_before_close_expect_true is true.
+-- ⚠️ WITH EXACTLY ONE EXCEPTION, AND IT IS MARKED WHERE IT SITS:
+-- nullif_comment_updated_expect_1 matches a phrase FROM a comment, deliberately,
+-- because a comment is the thing it is checking. The rule above is about not
+-- mistaking a comment for code; this needle is not making that mistake, it is
+-- aiming at the comment on purpose. What makes it safe is measurement rather
+-- than intent — the phrase occurs exactly once in the body — and the rule stands
+-- unchanged for every other needle here. Do not copy this pattern to check code.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ THIS FILE HAS AN ORDER DEPENDENCY THAT ITS COLUMN NAMES CANNOT EXPRESS
+--
+-- nullif_comment_updated_expect_1 reads 0 until 056c has been RE-RUN to sync the
+-- corrected comment into the deployed body. A column named expect_1 answering 0
+-- in a row of ones reads as a failure, and here it is not one — it is the
+-- database still carrying the older wording.
+--
+-- So the binding order is: 056c (re-run) -> 056d_2 -> 056d_3. Nothing in this
+-- file should be read before that re-run.
+--
+-- ⚠️ Written HERE rather than said in a message, because this file is read alone
+-- six months from now and the message is not read with it.
+--
+-- EXPECTED, AFTER THE RE-RUN: every column matches the number in its own name,
+-- and fine_before_close_expect_true is true.
 -- ==========================================================================
 
 with fn as (

@@ -95,8 +95,14 @@
 -- the division cannot fail". That was repeated from DATABASE_DIAGRAM:528 and was
 -- never READ from the catalogue — caught in review, and the sentence is left
 -- here corrected rather than deleted, because it is the exact shape this project
--- keeps paying for: a document quoted until it sounds measured. 064 asks the
--- catalogue. The divisor is guarded either way; see the nullif below.
+-- keeps paying for: a document quoted until it sounds measured.
+--
+-- ✅ 064 HAS SINCE ASKED, AND THE ANSWER CLOSES IT: the constraint really is
+-- there — CHECK ((units_per_package > (0)::numeric)) — the column is NOT NULL
+-- with a default of 1, and zero rows offend it across seven products. The
+-- document was telling the truth; demanding the measurement was still right.
+-- The divisor keeps its nullif as immunity against a future ALTER, not as a
+-- guard against a value that can occur today. See the nullif below.
 --
 -- ⚠️ A MISSING PRICE IS A LINE OF ZERO, NOT AN ABSENT LINE. Both source columns
 -- are nullable (`numberOrNull` in lib/productForm.js, and package_price is
