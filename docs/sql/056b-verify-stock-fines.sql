@@ -18,26 +18,62 @@
 --               to reuse, which is the fault 053a shipped in the other
 --               direction and 053d had to undo.
 --
--- 2  columns    stock_fines 10, stock_fine_lines 6.
+-- 2  columns    ⚠️ NO COUNT, for the same reason expectation 3 has none — and
+--               this one was WRONG from the first draft and nobody noticed:
+--               it said 10 and the table has 11. storage_id was there all
+--               along; the count was simply never checked against the rows.
+--               A hand-written number is the same failure as a hand-written
+--               list (CLAUDE.md §4b), and writing it in an EXPECTATION makes it
+--               worse — it invites the reader to compare against the wrong
+--               figure and call a correct table broken.
+--
+--               What matters is the nullability, so that is what is written:
+--               NULLABLE — employee_id, role_at_resolution
+--               NOT NULL — everything else on both tables.
 --               fine_basis is USER-DEFINED / fine_basis — the SAME udt_name
 --               storages.fine_basis has, compared to it directly rather than to
 --               a literal typed here.
 --               employee_id and role_at_resolution NULLABLE; everything else on
 --               the head NOT NULL except them.
 --
--- 3  constraints  five on stock_fines, three on stock_fine_lines. The two that
---               matter to read rather than count:
---                 employee_matches_resolution — the XOR that makes "charged"
---                   and "not charged" structurally unmixable
---                 the composite FK: (fine_id, salon_id) -> (id, salon_id)
---                   ON DELETE CASCADE
+-- 3  constraints  ⚠️ NO COUNT IS GIVEN HERE, ON PURPOSE. 054e's expectation
+--               said "the other four" and the table had five, because the list
+--               was enumerated from the constraints I had NAMED while an inline
+--               `references` is named by Postgres. A count typed by hand goes
+--               stale the moment a column changes; what is written below is
+--               what must be PRESENT, and the query reads the rest.
+--
+--               ⚠️ FOUR COMPOSITE KEYS, and every one of them was added after
+--               review caught it missing — the same lesson four columns running:
+--                 stock_fines_employee_fkey  (employee_id, salon_id)
+--                 stock_fines_storage_fkey   (storage_id, salon_id)
+--                 stock_fine_lines_fine_fkey (fine_id, salon_id) ON DELETE CASCADE
+--                 stock_fine_lines_product_fkey (product_id, salon_id)
+--
+--               And the XOR that makes "charged" and "not charged"
+--               structurally unmixable:
+--                 stock_fines_employee_matches_resolution_check
 --
 -- 4  policies   FOUR rows, not eight. select + insert on each table and NOTHING
 --               ELSE. ⚠️ An UPDATE or DELETE row appearing here is the failure
 --               this expectation exists for: RLS refusing a command it has no
 --               policy for is what makes "a fine is never edited and never
 --               deleted" structural instead of a habit.
---               roles {public}, and each clause matching stock_documents'.
+--               roles {public}.
+--
+--               ⚠️ AND stock_fines_select MUST *NOT* MATCH stock_documents —
+--               matching would mean the narrowing was lost. It is the one
+--               policy in this schema written for a different question: these
+--               rows are about a named person's money, not about stock. Its
+--               text must contain `profile_id` and `e.role`.
+--
+--               The other three DO match. A false on any of them is a fault.
+--
+--               ⚠️ And `narrowed_to_person_or_management` reads NULL rather
+--               than false on the two INSERT rows, which is correct and is not
+--               a third state: an INSERT policy has no USING at all, so the
+--               LIKE is applied to NULL and yields NULL. Read "not true" —
+--               true belongs on stock_fines_select and nowhere else.
 --
 --               ⚠️ AND EVERY ROW WILL SHOW ONE `true` AND ONE `false`, BY
 --               DESIGN — read it before it worries anybody. A SELECT policy has
@@ -116,7 +152,13 @@ select
   p.policyname,
   p.roles,
   (p.qual       is not distinct from (select qual from reference)) as using_matches_stock_documents,
-  (p.with_check is not distinct from (select qual from reference)) as with_check_matches_stock_documents
+  (p.with_check is not distinct from (select qual from reference)) as with_check_matches_stock_documents,
+  -- ⚠️ The right question for the one policy that is SUPPOSED to differ.
+  -- "Does it match?" would read as a failure on a correct narrowing — the same
+  -- trap 054b hit with the delete policies. True on stock_fines_select and
+  -- false on the other three.
+  (p.qual like '%profile_id%' and p.qual like '%role%') as narrowed_to_person_or_management,
+  p.qual as using_clause
 from pg_policies p
 where p.schemaname = 'public'
   and p.tablename in ('stock_fines', 'stock_fine_lines')

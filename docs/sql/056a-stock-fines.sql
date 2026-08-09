@@ -119,11 +119,30 @@ create table if not exists public.stock_fines (
   -- session plays for posting. Without it a re-run of 056c's logic would charge
   -- twice for one shortage.
   document_id  uuid        not null references public.stock_documents (id) on delete restrict,
-  storage_id   uuid        not null references public.storages (id)  on delete restrict,
+
+  -- ⚠️ Composite for the same reason employee_id is, and it was left plain in
+  -- the same file that explained why it should not be — caught in review, one
+  -- column over from the fix that had just been made.
+  --
+  -- ⚠️ AND SAFE UNCONDITIONALLY, WHICH HAD TO BE MEASURED RATHER THAN ASSUMED.
+  -- A composite key onto a NULLABLE salon_id would not merely constrain, it
+  -- would FORBID: stock_fines.salon_id is NOT NULL, so `NULL = value` stays
+  -- UNKNOWN and no row would ever match — a "general" storage belonging to no
+  -- salon could never be fined at all. 058 query 7 read it: salon_id is
+  -- mandatory on both storages and products, so there is no such row and the
+  -- key constrains without forbidding anything.
+  storage_id   uuid        not null,
 
   -- ⚠️ NULLABLE ON PURPOSE. Null is not missing data — it is the recorded fact
   -- that nobody could be charged, and `resolution` says which of the two ways.
-  employee_id  uuid        references public.employees (id) on delete restrict,
+  --
+  -- ⚠️ The simple reference this used to carry was the round's own lesson NOT
+  -- applied one column over: the file cites "the order tables' lesson" on
+  -- stock_fine_lines.salon_id and left this one plain, while every other
+  -- employee column in the schema is composite (storages.owner_employee_id,
+  -- stock_documents.employee_id, storage_responsibles.employee_id). Caught in
+  -- review. The composite key is declared below.
+  employee_id  uuid,
 
   attribution        public.fine_attribution not null default 'posting',
   resolution         public.fine_resolution  not null,
@@ -138,6 +157,22 @@ create table if not exists public.stock_fines (
   fine_basis    public.fine_basis not null,
 
   created_at    timestamptz not null default now(),
+
+  -- ⚠️ COMPOSITE, so a fine cannot name an employee of another salon. The
+  -- target exists and is measured: `employees_id_salon_id_key` (055).
+  --
+  -- ⚠️ AND A NULL employee_id STILL PASSES, which is what is wanted and is worth
+  -- saying because it looks like a hole. A foreign key defaults to MATCH SIMPLE,
+  -- which is satisfied whenever ANY of its columns is null — so an unresolved
+  -- fine, whose whole point is a null employee, is not checked against employees
+  -- at all. MATCH FULL would refuse it and would be wrong here.
+  constraint stock_fines_employee_fkey
+    foreign key (employee_id, salon_id)
+    references public.employees (id, salon_id) on delete restrict,
+
+  constraint stock_fines_storage_fkey
+    foreign key (storage_id, salon_id)
+    references public.storages (id, salon_id) on delete restrict,
 
   constraint stock_fines_one_per_document unique (document_id),
   -- Not redundant with the primary key: the composite foreign key below needs a
@@ -174,7 +209,10 @@ create table if not exists public.stock_fine_lines (
   id            uuid    primary key default gen_random_uuid(),
   salon_id      uuid    not null,
   fine_id       uuid    not null,
-  product_id    uuid    not null references public.products (id) on delete restrict,
+  -- Composite, like storage_id above and for the same measured reason:
+  -- products.salon_id is NOT NULL, so no product exists that this key would
+  -- make unfineable.
+  product_id    uuid    not null,
 
   -- ⚠️ POSITIVE, and the sign is dropped on purpose. A stocktake's shortage is a
   -- NEGATIVE movement, and carrying that sign here would make every sum need a
@@ -195,6 +233,10 @@ create table if not exists public.stock_fine_lines (
   constraint stock_fine_lines_fine_fkey
     foreign key (fine_id, salon_id)
     references public.stock_fines (id, salon_id) on delete cascade,
+
+  constraint stock_fine_lines_product_fkey
+    foreign key (product_id, salon_id)
+    references public.products (id, salon_id) on delete restrict,
 
   constraint stock_fine_lines_amounts_check
     check (shortage_base > 0 and unit_value >= 0)
@@ -226,10 +268,58 @@ grant select, insert on public.stock_fine_lines to authenticated;
 -- — {public}, matching the other tables.
 -- --------------------------------------------------------------------------
 
+-- ⚠️ THE ONE POLICY IN THIS SCHEMA THAT DOES NOT COPY THE CONVENTION, and the
+-- reason is that the convention was never asked this question.
+--
+-- Every other table's salon_id predicate was written for STOCK — quantities,
+-- costs, documents, data about THINGS, where nobody is exposed by a colleague
+-- reading it. These rows are about a named person's MONEY. Extending the
+-- convention here would be "same shape, same claim", which this project has
+-- paid for repeatedly.
+--
+-- ✅ And 057 measured that narrowing is expressible with no new column:
+-- `employees.profile_id -> profiles(id)`, UNIQUE. (DATABASE_DIAGRAM claimed the
+-- two were independent; that line was stale and has been corrected.)
+--
+-- ⚠️ BOTH BRANCHES CARRY salon_id EXPLICITLY. The first one does not need it to
+-- be correct — the composite foreign key above already makes an employee of
+-- another salon unreferenceable — and it carries it anyway, because a policy
+-- that is safe only because of a constraint declared 90 lines away is safe
+-- until somebody edits the constraint. Two independent statements, and the
+-- weaker one is still true on its own.
+--
+-- ✅ THE ROLE LIST IS THE OWNER'S DIRECT DECISION: administrator, executive,
+-- owner — chosen after the full ten labels of employee_role were read out to
+-- him (058 query 4), not picked from the three that happened to be mentioned in
+-- conversation. The earlier draft of this comment called them a placeholder;
+-- that stopped being true and is corrected rather than left standing.
+--
+-- Written as an explicit IN rather than as a negation on purpose: a role added
+-- to employee_role tomorrow is granted nothing silently — it fails closed,
+-- which is the right direction for a policy about somebody's pay.
+--
+-- ✅ And the subquery's own table is safe to lean on, measured by 058: employees
+-- has RLS actually enabled (not merely policies defined), and employees_select
+-- is the standard salon_id predicate with no further narrowing — so a manager
+-- can read her own employees row and this branch resolves. `role` is NOT NULL,
+-- so the IN can never go UNKNOWN and grant nothing by accident.
+--
+-- ⚠️ And this subquery reads `employees`, so EMPLOYEES' OWN RLS APPLIES TO IT.
+-- If that table is ever narrowed, a fine can become invisible even to
+-- management — failing closed, so harmless, but confusing. 058 reads that
+-- policy's text directly rather than inferring it from an absence.
 drop policy if exists stock_fines_select on public.stock_fines;
 create policy stock_fines_select on public.stock_fines
   for select
-  using (salon_id = (select profiles.salon_id from public.profiles where profiles.id = auth.uid()));
+  using (
+    employee_id = (select e.id from public.employees e
+                    where e.profile_id = auth.uid()
+                      and e.salon_id = stock_fines.salon_id)
+    or exists (select 1 from public.employees e
+                where e.profile_id = auth.uid()
+                  and e.salon_id = stock_fines.salon_id
+                  and e.role in ('administrator', 'executive', 'owner'))
+  );
 
 drop policy if exists stock_fines_insert on public.stock_fines;
 create policy stock_fines_insert on public.stock_fines
@@ -259,6 +349,19 @@ comment on column public.stock_fines.employee_id is
 
 comment on column public.stock_fines.fine_percent is
   'Frozen from storages at posting, never read live. The storage dialog edits fine_percent and fine_basis, so a fine derived from them at read time would move every historical figure at once with nothing recording that it had — balance_at_count''s fault in another context. ⚠️ The AMOUNT is not stored: it follows from these and the lines, and a third stored number is a third thing that can disagree.';
+
+-- ⚠️ ADDED AFTER EXECUTION. NOT ONE SQL STATEMENT ABOVE THIS LINE WAS CHANGED —
+-- this file is the record of what was run.
+--
+-- `stock_fines_document_id_fkey` above is a SIMPLE reference to
+-- stock_documents(id), and it should have been composite like the other three.
+-- Found only after this ran, by reading the whole constraint list rather than
+-- the columns somebody had noticed — which is the method fault, and it is the
+-- fourth column in this file to have it.
+--
+-- ⚠️ It is corrected by 060a and NOT by editing above, because `create table if
+-- not exists` would skip the whole statement on a re-run: no new constraint, no
+-- error, and a file that disagrees with the database it describes.
 
 comment on column public.stock_fine_lines.unit_value is
   'The price actually used, per fine_basis, frozen because it cannot be recovered afterwards — a product''s price changes and the basis decides which price was even being read. ⚠️ The line total and the fine total are both derived from here; neither is stored, and shortage_base is positive because a fine line means "this much was missing" rather than carrying the movement''s negative sign into every sum.';
