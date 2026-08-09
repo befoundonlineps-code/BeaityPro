@@ -65,8 +65,12 @@ export default function StorageFormDialog({
   const [saleByVolume, setSaleByVolume] = useState(true)
   const [saleByPortion, setSaleByPortion] = useState(true)
   const [saleByUnits, setSaleByUnits] = useState(true)
-  const [finePercent, setFinePercent] = useState('100')
-  const [fineBasis, setFineBasis] = useState('purchase_price')
+  // ⚠️ Blank, not 100. These defaulted to '100' and 'purchase_price', and both
+  // live storages were saved with them untouched — a 100% wage deduction that
+  // nobody decided on. A pre-filled field is an answer the screen gives on the
+  // user's behalf, and there is no way to tell it later from one they meant.
+  const [finePercent, setFinePercent] = useState('')
+  const [fineBasis, setFineBasis] = useState('')
   const [selectedKeys, setSelectedKeys] = useState([])
 
   const [saving, setSaving] = useState(false)
@@ -109,8 +113,12 @@ export default function StorageFormDialog({
     setSaleByVolume(storage ? storage.sale_by_volume !== false : true)
     setSaleByPortion(storage ? storage.sale_by_portion !== false : true)
     setSaleByUnits(storage ? storage.sale_by_units !== false : true)
-    setFinePercent(storage && storage.fine_percent != null ? String(storage.fine_percent) : '100')
-    setFineBasis(storage ? storage.fine_basis || 'purchase_price' : 'purchase_price')
+    // ⚠️ A null column loads as blank and stays blank. These used to fall back
+    // to '100' / 'purchase_price', so opening a storage that had no policy and
+    // saving anything at all would give it one silently — the absence could be
+    // stored but never survived being looked at.
+    setFinePercent(storage && storage.fine_percent != null ? String(storage.fine_percent) : '')
+    setFineBasis(storage && storage.fine_basis ? storage.fine_basis : '')
     setSelectedKeys(storage
       ? (responsibles || []).filter((r) => r.storage_id === storage.id).map(responsibleKey)
       : [])
@@ -296,15 +304,24 @@ export default function StorageFormDialog({
             {/* Shown for both kinds. A professional storage has no picker
                 because its owner is the answerable one, but the percentage and
                 what it is taken from still apply to them. */}
+            {/* ⚠️ "Leave it blank" is a concept the system invented and nobody
+                asked for, so it is explained where it appears, with an example
+                and with the action that ends it — the third part being the one
+                that turns a description into something the reader can act on. */}
+            <p className="text-xs text-muted-foreground">{t('products:storageDialog.fineOptionalHint')}</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label>{t('products:storageDialog.finePercentLabel')}</Label>
                 <Input type="number" min="0" max="100" step="0.01" value={finePercent}
+                  placeholder={t('products:storageDialog.fineBlankPlaceholder')}
                   onChange={(e) => setFinePercent(e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>{t('products:storageDialog.fineBasisLabel')}</Label>
                 <select className={FIELD} value={fineBasis} onChange={(e) => setFineBasis(e.target.value)}>
+                  {/* The empty option is the default and has to be selectable:
+                      a blank policy you cannot get back to is not a state. */}
+                  <option value="">{t('products:storageDialog.fineBlankPlaceholder')}</option>
                   {FINE_BASES.map((b) => (
                     <option key={b} value={b}>{t(`products:storageDialog.fineBasis_${b}`)}</option>
                   ))}
