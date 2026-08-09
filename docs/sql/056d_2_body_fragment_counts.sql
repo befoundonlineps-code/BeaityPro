@@ -53,6 +53,29 @@ select
           / length('''many_responsibles''') from fn)                        as many_responsibles_expect_1,
   (select (length(prosrc) - length(replace(prosrc, '''no_responsible''', '')))
           / length('''no_responsible''') from fn)                           as no_responsible_expect_1,
+  -- ⚠️ THE ONLY NEEDLE HERE AIMED AT A COMMENT, AND IT EXISTS BECAUSE OF WHAT
+  -- THE OTHER NINE CANNOT SAY.
+  --
+  -- 056c was corrected after it ran: 064_2 read the catalogue and the note
+  -- beside `nullif` turned out to overstate its own guard. Nothing executable
+  -- changed — which means re-running 056c to sync the comment would be followed
+  -- by a verification that proves ONLY THAT WHAT DID NOT CHANGE DID NOT CHANGE,
+  -- and says nothing about the single thing that did.
+  --
+  -- ⚠️ This is last round's stale-needle fault mirrored. There a needle outlived
+  -- the text it matched; here a needle was missing for text that was born. Both
+  -- leave a ✓ that is about something other than the change.
+  --
+  -- ⚠️ And a comment is the right target precisely because the comment SHIPS:
+  -- whoever reads this function reads it through pg_get_functiondef, so a note
+  -- that is right in the repository and wrong in the database is the wrong note.
+  -- That is 046's lesson — a description shipped to the database becomes part of
+  -- the behaviour it describes.
+  --
+  -- Expect 0 BEFORE the re-run and 1 after. Zero here is not a failure; it is
+  -- the deployed body still carrying the older wording.
+  (select (length(prosrc) - length(replace(prosrc, 'DEAD CODE TODAY, PROVABLY', '')))
+          / length('DEAD CODE TODAY, PROVABLY') from fn)                      as nullif_comment_updated_expect_1,
   -- ⚠️ THE ORDER 054c ③ DEPENDS ON: the session is closed by the LAST statement,
   -- so the fine block must sit ABOVE it. A body where the fine insert came after
   -- would still work today and would silently break the narrowing of

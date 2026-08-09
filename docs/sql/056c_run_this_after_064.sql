@@ -149,11 +149,26 @@
 -- would abort the posting with 23502 — loud, but reading as a bug in this
 -- function rather than as something the user can fix.
 --
--- So it is refused by name instead, with a hint that says what to do. The screen
--- has always required the number (lib/storageForm.js:73 refuses a blank box), so
--- this branch is probably dead — 056d measures whether the column is nullable
--- and counts the rows, which turns "probably" into a number for the cost of a
--- query that was going to run anyway.
+-- So it is refused by name instead, with a hint that says what to do.
+--
+-- ⚠️ THIS PARAGRAPH USED TO SAY "this branch is probably dead", AND THE SENTENCE
+-- OUTLIVED ITS WORLD BY ABOUT AN HOUR. It was dead because lib/storageForm.js:73
+-- refused a blank box — and 056d_4 then measured both columns nullable, which
+-- made the screen, not the schema, the only thing holding the branch shut.
+--
+-- What the screen was holding shut turned out to be a fault: it pre-filled 100
+-- and purchase_price, so both live storages carried a 100% wage deduction the
+-- owner said was written to fill the box. The fields are optional now, blank
+-- stores null, and check5 cleared both rows to null.
+--
+-- ✅ SO THE BRANCH IS LIVE, AND BOTH STORAGES ARE INSIDE IT. Its Arabic sentence
+-- has still never been seen on a screen — 056d_3 read it out of prosrc, which
+-- proves the text, not the path. The first stocktake with a shortage is now the
+-- only way to it.
+--
+-- ⚠️ And the shape of this is worth keeping: a guard built for an unreachable
+-- state, where the thing making it unreachable was later found to be the defect,
+-- and the state was then entered on purpose.
 --
 -- ⚠️ AND ONE PATH IS DECLARED RATHER THAN GUARDED: `unit_value >= 0` would
 -- refuse a negative weighted average. Costs are never stored negative, and
