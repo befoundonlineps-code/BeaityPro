@@ -531,7 +531,7 @@ erDiagram
         numeric package_price "Retail price"
         boolean sell_by_portions
         numeric portion_price
-        numeric nominal_purchase_price "⚠️ اسمي عمدًا: افتراضي مستند التوريد وأساس الغرامة. التكلفة الفعلية تُشتقّ من الحركات المختومة ولا تُقرأ من هنا"
+        numeric nominal_purchase_price "⚠️ اسمي عمدًا: افتراضي مستند التوريد، ولا شيء آخر. ⚠️ كان مكتوبًا هنا «وأساس الغرامة» وسقط بـ٠٥٦ج: وحدته غير مسجَّلة (بند ٣١) والغرامة تضربه بكمّيةٍ بالوحدة الأساسية، فالخطأ المحتمل معامل التعبئة كاملًا. أساس الغرامة هو unit_cost المختوم على حركة النقص. التكلفة الفعلية تُشتقّ من الحركات المختومة ولا تُقرأ من هنا"
         numeric low_supply_units
         text abbreviation
         text bar_code "مفهرس (salon_id, bar_code) للمسح بالقارئ، بلا قيد تفرّد"
