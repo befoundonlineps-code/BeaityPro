@@ -34,11 +34,34 @@
 -- somebody is looking at. And the left join is what makes a product with NO
 -- movements appear as a zero row rather than vanish — the vanishing is what
 -- would make the screen honest-looking and wrong.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ AND THE FIRST DRAFT OF THIS FILE CONTAINED THE FAULT THE PARAGRAPH ABOVE
+-- WARNS ABOUT, FOURTEEN LINES BELOW IT: `and p.kind = 'product'`.
+--
+-- Every SET disappeared — no zero, no row, no mention. One vanishing was
+-- guarded against and the other was manufactured in the same query. And the
+-- catalogue draws sets: the mockup's "طقم الترطيب الكامل" carries a balance and
+-- two badges, so the survey that decides what the balance column can show would
+-- not have covered every row the screen draws. Sixteen rows returning as
+-- fourteen says nothing about the two that left.
+--
+-- ⚠️ WORSE, IT DECIDED THE QUESTION INSTEAD OF MEASURING IT. "Does a set carry
+-- stock?" is an answer this screen needs: if a set is assembled at the point of
+-- sale it has no balance of its own, and the catalogue must then show it NO
+-- number at all — the mockup shows 4.0, which would be wrong. If it does carry
+-- stock, the row is legitimate. The filter made the question unanswerable, and
+-- it is the question that decides what gets drawn.
+--
+-- So the filter is gone and `p.kind` is a COLUMN. The survey now says how many
+-- sets exist and whether any of them has ever moved, which together are the
+-- answer.
 -- ==========================================================================
 
 select
   s.name                                   as storage_name,
   p.name                                   as product_name,
+  p.kind                                   as product_kind,
   count(m.id)                              as movements,
   coalesce(sum(m.quantity_base), 0)        as balance_base,
   p.base_unit,
@@ -50,6 +73,5 @@ left join public.stock_movements m
  and m.product_id = p.id
  and m.salon_id   = s.salon_id
 where p.salon_id = s.salon_id
-  and p.kind = 'product'
-group by s.id, s.name, p.id, p.name, p.base_unit, p.units_per_package
-order by s.name, p.name;
+group by s.id, s.name, p.id, p.name, p.kind, p.base_unit, p.units_per_package
+order by s.name, p.kind, p.name;
