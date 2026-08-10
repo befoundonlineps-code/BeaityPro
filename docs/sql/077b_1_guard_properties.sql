@@ -37,23 +37,31 @@ select
 
   -- ⚠️ The old source must be GONE, not merely joined beside.
   --
-  -- ⚠️ AND THE NEEDLE IS THE FROM CLAUSE, NOT THE BARE NAME. A first version
-  -- counted 'stock_movements', which appears in a COMMENT inside the body —
-  -- «product_balances, not a second sum over stock_movements» — so it would
-  -- have returned 1 and read as a failure on a function that was fixed
-  -- correctly. prosrc is the body with its comments; only the file header sits
-  -- outside $function$.
+  -- ⚠️ THE BARE NAME — AND IT WORKS ONLY BECAUSE 077a's PROSE STOPPED SAYING IT.
   --
-  -- ⚠️ And the repair that leaps to mind is the dangerous one: delete the
-  -- comment — the sentence explaining WHY the view is read — to satisfy a
-  -- counter looking for a word instead of a use.
+  -- This needle oscillated twice. It began as the bare name and caught a COMMENT
+  -- inside the body («…not a second sum over stock_movements»), reporting a
+  -- failure on a correctly fixed function — and the repair that leaps to mind
+  -- there is deleting the sentence that explains the rule, to satisfy a counter
+  -- looking for a word rather than a use.
   --
-  -- 069b_1's header said this one round ago, from the opposite side: "the
-  -- needle is the JOIN, punctuation and all — not the view's bare name, which
-  -- also appears in this function's comments and would count them." Same trap,
-  -- mirrored, one round later.
-  (length(p.prosrc) - length(replace(p.prosrc, 'from public.stock_movements', '')))
-    / length('from public.stock_movements')              as rederives_balance_expect_0,
+  -- So it was narrowed to 'from public.stock_movements'. ⚠️ Which misses
+  -- `from stock_movements` unqualified — and search_path IS pinned to public in
+  -- this function, so the unqualified form works perfectly. A re-derivation
+  -- written that way would have passed with zero.
+  --
+  -- ⚠️ Wide catches the explanation, narrow misses the violation. The needle was
+  -- never the problem: the body was naming the identifier its own check forbids.
+  -- 077a's comment now says "the raw movements table" instead, and the needle
+  -- goes back to the bare name — catching every form, qualified or not.
+  --
+  -- ⇒ THE RULE, worth more than this line: a function's prose does not name the
+  -- identifier its own check forbids. Otherwise the check must choose between
+  -- catching the explanation and catching the violation, and it cannot do both.
+  -- This is 069b_1's needle for the third time, and the first time the fix was
+  -- somewhere other than the needle.
+  (length(p.prosrc) - length(replace(p.prosrc, 'stock_movements', '')))
+    / length('stock_movements')                          as rederives_balance_expect_0,
 
   -- The gate is the transition alone: renaming and un-archiving must still pass.
   (length(p.prosrc) - length(replace(p.prosrc, 'if old.is_active and not new.is_active', '')))

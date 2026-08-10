@@ -91,10 +91,23 @@ begin
   -- storage are all legitimate and untouched.
   if old.is_active and not new.is_active then
 
-    -- ⚠️ product_balances, not a second sum over stock_movements. The view is
-    -- where "how much is here" is defined, and it already applies the
-    -- `<> 0` semantics the old body computed by hand: a product whose
-    -- movements net to zero holds nothing and must not block archiving.
+    -- ⚠️ product_balances — NO SECOND SUM OVER THE RAW MOVEMENTS TABLE. The view
+    -- is where "how much is here" is defined, and it already applies the `<> 0`
+    -- semantics the old body computed by hand: a product whose movements net to
+    -- zero holds nothing and must not block archiving.
+    --
+    -- ⚠️ AND THE PROSE HERE DELIBERATELY DOES NOT SPELL THAT TABLE'S NAME.
+    -- 077b_1 counts it in prosrc to prove the re-derivation is gone, and prosrc
+    -- includes comments — so naming it here would make the check choose between
+    -- catching the explanation and catching the violation. It cannot do both.
+    --
+    -- The needle oscillated twice before this was seen: widened until it caught
+    -- a comment, narrowed until it missed an unqualified `from` (search_path is
+    -- pinned, so the unqualified form works perfectly). The needle was never the
+    -- problem.
+    --
+    -- ⇒ THE RULE: a function's prose does not name the identifier its own check
+    -- forbids. Then the needle can be the bare name and catch every form of it.
     select string_agg(p.name, ' · ' order by p.name)
       into v_products
     from public.product_balances b

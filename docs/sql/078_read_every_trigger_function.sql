@@ -74,11 +74,36 @@ select
   p.proconfig                                 as settings,
   own.rolname                                 as function_owner,
   (obj_description(p.oid, 'pg_proc') is not null) as has_comment,
-  -- Every code it can raise, so the raisedCodes gap is readable without
-  -- hunting through the definition by eye.
-  (select string_agg(m[1], ' · ')
-     from regexp_matches(p.prosrc, $re$raise\s+exception\s+'([a-z_]+)'$re$, 'g') m)
-                                              as raises_codes,
+  -- Every code it can raise, so the raisedCodes gap is readable without hunting
+  -- through the definition by eye.
+  --
+  -- ⚠️ THE FIRST VERSION OF THIS WOULD HAVE SAID NOTHING AND LOOKED LIKE AN
+  -- ANSWER — in the column written to expose silence. Three narrowings, all in
+  -- the same direction:
+  --
+  --   'g' without 'i'  -> Postgres regexes are case sensitive, prosrc keeps the
+  --                       case as typed, and RAISE EXCEPTION in capitals is a
+  --                       very common SQL house style. These ten functions were
+  --                       written by other hands. One raising five codes in
+  --                       capitals would have returned null and read as
+  --                       "raises nothing".
+  --   [a-z_]+          -> misses a code with a digit or a capital.
+  --   `exception` required -> `raise 'code'` is valid plpgsql and defaults to
+  --                       EXCEPTION level.
+  --
+  -- ⚠️ And a non-capturing group for the optional word, so [1] stays the code
+  -- rather than becoming the word "exception ".
+  --
+  -- ⚠️ `as m(arr)` and `arr[1]`, not `m` and `m[1]`: a set-returning function
+  -- aliased with one name gives that name to both the column and the whole row,
+  -- and some forms answer `cannot subscript type record`. Naming the column
+  -- removes the question instead of discovering it at execution.
+  (select string_agg(x.arr[1], ' · ')
+     from regexp_matches(
+            p.prosrc,
+            $re$raise\s+(?:exception\s+)?'([a-zA-Z0-9_]+)'$re$,
+            'gi'
+          ) as x(arr))                        as raises_codes,
   pg_get_functiondef(p.oid)                   as full_definition
 from pg_trigger t
 join pg_class c on c.oid = t.tgrelid
