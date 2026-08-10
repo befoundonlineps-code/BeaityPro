@@ -39,13 +39,59 @@
 -- suspected and would hide a second number nobody has noticed — and the whole
 -- reason this one was found is that a survey read the whole class.
 --
+-- ⚠️ AND units_per_package IS IN THE OUTPUT, BECAUSE THREE OF THE FOUR NUMBERS
+-- CANNOT BE CHECKED AGAINST EACH OTHER.
+--
+-- entered_quantity, entered_uom and quantity_base only become an equation with
+-- the packaging factor beside them:
+--
+--   1910 × 15 = 28650   -> "1910 packages" typed, a plausible slip for 19 or 191
+--   28650 ×  1          -> the whole number typed in pieces, a different mistake
+--
+-- and the difference decides what gets built: the first is caught by a
+-- confirmation on the entry unit, the second is not.
+--
+-- ⚠️ AND IT OPENS A THIRD POSSIBILITY THAT IS INVISIBLE WITHOUT IT: that the
+-- equation does not hold at all — base is not entered × factor under any
+-- reading. That would be far worse than the typo, because it means either the
+-- frame conversion does not produce what we think, or units_per_package CHANGED
+-- after the movement was stamped. Three numbers cannot be verified; four can.
+--
 -- WHAT TO LOOK AT:
---   • the row(s) that add up to 28650, and their document_id and doc_type
+--   • the row(s) that add up to 28650, their document_id and their doc_type
+--   • frame_check — 'ok' means entered × factor = base. Anything else is the
+--     third possibility above and outranks everything else in this file.
 --   • whether one document carries it or several — one reversal or several
---   • ⚠️ reversed_by: a document already reversed needs no second reversal, and
---     a movement whose document is reversed but whose balance persists would be
+--   • ⚠️ reversed_by: an already-reversed document needs no second reversal, and
+--     a movement whose document is reversed while its balance persists would be
 --     a different and much worse finding
---   • and any OTHER movement whose size is out of scale with its neighbours
+--   • and any OTHER movement out of scale with its neighbours
+--
+-- ---------------------------------------------------------------------------
+-- 🔴 AND ONE BRANCH IS ALREADY MEASURED FROM THE REPOSITORY, BEFORE THIS RUNS
+--
+-- If doc_type comes back 'stocktake', reversal is NOT the clean exit:
+--
+--   • reverse_stock_document's newest version is 051c. stock_fines was created
+--     in 056a — five scripts later. Zero mentions of stock_fines in ANY
+--     reversal script (measured across all thirteen that name the function).
+--   • reversal does not delete the original document; it writes a counter
+--     document. stock_fines.document_id keeps pointing at the original, which
+--     is still there.
+--
+-- ⚠️ So a reversed stocktake leaves its FINE STANDING — a deduction against a
+-- person with no live document justifying it, which is worse than the phantom
+-- balance we are trying to leave. If doc_type is 'stocktake', the first
+-- question is not "how do we reverse" but "what happens to the fine", and it is
+-- measured before anything is reversed.
+--
+-- ✅ And if doc_type is 'supply' or 'opening', the reversal is clean as
+-- described — no fine is attached to those.
+--
+-- ✅ AND REVERSAL IS REACHABLE IN THE APP TODAY, measured rather than assumed:
+-- lib/stockIO.js:137 calls rpc('reverse_stock_document', …) and
+-- components/StockDocumentsList.js draws the action. So the honest exit exists
+-- as a screen, not only as a column the schema knows about.
 -- ==========================================================================
 
 select
@@ -55,7 +101,20 @@ select
   p.name                                   as product_name,
   m.entered_quantity,
   m.entered_uom,
+  p.units_per_package,
   m.quantity_base,
+  -- ⚠️ The equation, evaluated rather than left to the eye. 'ok' means the two
+  -- frames agree; anything else is the third possibility named in the header.
+  -- A stocktake adjustment has no entered frame at all — that is by design, not
+  -- a mismatch — so it is named as its own answer instead of reading as a fault.
+  case
+    when m.entered_quantity is null then 'no entered frame (stocktake)'
+    when m.entered_uom = 'package'
+      and abs(m.entered_quantity * p.units_per_package) = abs(m.quantity_base) then 'ok'
+    when m.entered_uom <> 'package'
+      and abs(m.entered_quantity) = abs(m.quantity_base) then 'ok'
+    else '⚠️ MISMATCH'
+  end                                      as frame_check,
   m.unit_cost,
   m.cost_is_estimated,
   m.document_id,
