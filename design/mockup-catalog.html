@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>محاكاة — شاشة كتالوج المنتجات</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#0a0a0a; --muted:#f5f5f5; --muted-fg:#737373;
+    --border:#e5e5e5; --card:#ffffff; --primary:#171717; --primary-10:#17171714;
+    --accent:#f5f5f5; --radius:.75rem; --write:rgb(195,217,248);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI","Noto Sans Arabic",system-ui,sans-serif;font-size:14px}
+  .wrap{max-width:1400px;margin:0 auto;padding:16px}
+  .note{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;
+        padding:10px 14px;margin-bottom:14px;font-size:13px;line-height:1.7}
+  .note b{color:#92400e}
+
+  /* ── الشريط العلوي ── */
+  .topbar{display:flex;align-items:flex-start;gap:20px;border:1px solid var(--border);
+          border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;flex-wrap:wrap}
+  .picker label{display:block;font-size:12px;color:var(--muted-fg);margin-bottom:4px}
+  select{font:inherit;padding:6px 10px;border:1px solid var(--border);border-radius:8px;
+         background:var(--card);color:var(--fg);min-width:230px}
+  .editlink{display:block;width:fit-content;margin-top:7px;font-size:12.5px;color:#2563eb;
+            text-decoration:none;border-bottom:1px dashed #93c5fd}
+  .sep{width:1px;align-self:stretch;background:var(--border);margin:0 2px}
+  .tools{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .tool{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:74px;
+        padding:7px 8px;border:1px solid transparent;border-radius:9px;background:none;
+        font:inherit;font-size:12px;color:var(--fg);cursor:pointer;line-height:1.35;text-align:center}
+  .tool:hover:not(:disabled){background:var(--muted);border-color:var(--border)}
+  .tool .ico{font-size:17px;line-height:1}
+  .tool:disabled{color:#bdbdbd;cursor:not-allowed}
+  .tool:disabled .ico{opacity:.35}
+
+  /* ── اللوحان ── */
+  .panes{display:flex;gap:12px;align-items:stretch;min-height:430px}
+  .pane{border:1px solid var(--border);border-radius:var(--radius);
+        display:flex;flex-direction:column;min-width:0;background:var(--card)}
+  .tree{width:290px;flex:none}
+  .list{flex:1}
+  .panehead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+            border-bottom:1px solid var(--border);padding:6px 8px}
+  .mini{font:inherit;font-size:12.5px;padding:4px 9px;border:1px solid var(--border);
+        border-radius:7px;background:var(--card);cursor:pointer;color:var(--fg)}
+  .mini:hover{background:var(--muted)}
+  .mini:disabled{color:#c2c2c2;cursor:not-allowed}
+  .search{margin-inline-start:auto;position:relative}
+  .search input{font:inherit;font-size:12.5px;padding:5px 10px;border:1px solid var(--border);
+                border-radius:7px;width:190px;background:var(--card)}
+  .panebody{flex:1;overflow:auto;padding:6px}
+
+  .root{font-size:12.5px;color:var(--muted-fg);padding:5px 7px}
+  .node{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;
+        cursor:pointer;font-size:13.5px}
+  .node:hover{background:var(--muted)}
+  .node.on{background:var(--primary-10);font-weight:600}
+  .node .cnt{margin-inline-start:auto;font-size:11.5px;color:var(--muted-fg)}
+
+  table{width:100%;border-collapse:collapse}
+  thead th{position:sticky;top:0;background:var(--card);text-align:start;font-weight:600;
+           font-size:12.5px;color:var(--muted-fg);padding:9px 10px;border-bottom:1px solid var(--border)}
+  tbody td{padding:9px 10px;border-bottom:1px solid #f2f2f2;font-size:13.5px;vertical-align:middle}
+  tbody tr:hover{background:#fafafa}
+  .grp td{background:#fafafa;font-weight:600;font-size:12.5px;color:var(--muted-fg);
+          border-bottom:1px solid var(--border)}
+  .name{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .badge{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--border);
+         color:var(--muted-fg);background:var(--card);white-space:nowrap}
+  .badge.set{border-color:#c7d2fe;color:#4338ca;background:#eef2ff}
+  .badge.cons{border-color:#fed7aa;color:#c2410c;background:#fff7ed}
+  .badge.arch{border-color:#e5e5e5;color:#a3a3a3}
+  .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dash{color:#c2c2c2}
+  .zero{color:var(--muted-fg)}
+  .frames{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .frames .b{color:var(--muted-fg)}
+  .elsewhere{display:inline-block;margin-inline-start:8px;font-size:12px;color:#2563eb;
+             text-decoration:none;border-bottom:1px dashed #93c5fd}
+  .hidden-note{padding:8px 12px;font-size:12.5px;color:#92400e;background:#fffbeb;
+               border-bottom:1px solid #fde68a}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;
+       background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;margin-inline-start:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="note">
+    <b>محاكاة تصميم — مش كودًا ولا شاشة حيّة.</b>
+    بدّل المستودع من القائمة لتشوف <b>التغييرات التلاتة المنسّقة</b>: خمسة أزرار بتنطفي،
+    عمود الرصيد بيتبدّل، وجذر الشجرة بيتغيّر. والبيانات هون تجريبيّة بتحاكي القاعدة.
+  </div>
+
+  <!-- ══ الشريط العلوي ══ -->
+  <div class="topbar">
+    <div class="picker">
+      <label for="st">المستودع</label>
+      <select id="st" onchange="render()">
+        <option value="all">كل المستودعات</option>
+        <option value="cos" selected>مستودع تجريبي (عام) — ما تظبّط بعد</option>
+        <option value="gen">مستودع عام (أخصائيّ)</option>
+      </select>
+      <a class="editlink" href="#">تعديل المستودعات</a>
+    </div>
+
+    <div class="sep"></div>
+
+    <!-- الشريط يُبنى من التعريف، لا يُكتب بيدٍ — انظر OPERATIONS بالأسفل -->
+    <div class="tools" id="tools"></div>
+  </div>
+
+  <!-- ══ اللوحان ══ -->
+  <div class="panes">
+
+    <div class="pane tree">
+      <div class="panehead">
+        <button class="mini">+ إضافة</button>
+        <button class="mini">تعديل</button>
+        <button class="mini">أرشفة</button>
+      </div>
+      <div class="panebody">
+        <div class="root" id="root"></div>
+        <div id="nodes"></div>
+      </div>
+    </div>
+
+    <div class="pane list">
+      <div class="panehead">
+        <button class="mini">+ منتج جديد</button>
+        <button class="mini" disabled>نسخ</button>
+        <button class="mini" disabled>تعديل</button>
+        <label style="font-size:12.5px;color:var(--muted-fg);display:flex;align-items:center;gap:5px">
+          <input type="checkbox" id="hide" onchange="render()"> إخفاء المؤرشف
+        </label>
+        <div class="search"><input placeholder="بحث بالاسم…"></div>
+      </div>
+      <div class="panebody" style="padding:0">
+        <!-- ⚠️ فوق الجدول لا تحته: جملةٌ عن القائمة اللي إنت مقبل تقرأها،
+             لا حاشية بتوصلك بعد ما قريتها كلها وبنيت رأيك. -->
+        <div class="hidden-note" id="hidnote" style="display:none"></div>
+        <table>
+          <thead><tr id="head"></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// بيانات تجريبيّة تحاكي القاعدة: مجلّدات مربوطة بمستودعات عبر storage_categories
+const FOLDERS = [
+  { id:'f1', name:'After Laser products', storages:['cos'],       archived:false },
+  { id:'f2', name:'Hydration Products',   storages:['cos'],       archived:false },
+  { id:'f3', name:'Peeling Products',     storages:['cos'],       archived:false },
+  { id:'f4', name:'bath products',        storages:['gen'],       archived:false },
+  { id:'f5', name:"Cream's section",      storages:['gen'],       archived:true  },
+  { id:'f6', name:'Night Creams',         storages:['gen'],       archived:false },
+]
+
+// المنتجات: الرصيد لكل مستودع. غيابه من المفتاح = صفر، لا مجهول.
+const PRODUCTS = [
+  { f:'f1', ab:'ICP',  name:'InstaCalm Peur',      pack:15, buy:38,  sell:80,  set:false, cons:false, arch:false, bal:{cos:75} },
+  { f:'f1', ab:'ICP2', name:'InstaCalm Peur Plus', pack:15, buy:null,sell:null,set:false, cons:true,  arch:false, bal:{gen:30} },
+  { f:'f2', ab:'IH',   name:'Instacalm hydration', pack:10, buy:130, sell:200, set:false, cons:false, arch:false, bal:{cos:0}  },
+  { f:'f2', ab:'SET1', name:'طقم الترطيب الكامل',   pack:1,  buy:null,sell:450, set:true,  cons:true,  arch:false, bal:{cos:4}  },
+  { f:'f3', ab:'IPL',  name:'Instacalm Peeller',   pack:20, buy:70,  sell:180, set:false, cons:false, arch:true,  bal:{cos:190}},
+  { f:'f4', ab:'MS2',  name:'Medicen Shampoo 250ml',pack:12,buy:20,  sell:45,  set:false, cons:false, arch:false, bal:{gen:40} },
+  { f:'f6', ab:'MNC',  name:'Medskin Night Cream', pack:6,  buy:70,  sell:120, set:false, cons:false, arch:true,  bal:{gen:0}  },
+]
+
+// ══ الشريط: كل عمليّة بتُعلن الجدول اللي بتكتب فيه، والإطفاء بينشتقّ ══
+//
+// ⚠️ ولا قائمة مطفأة مكتوبة بإيد. سُئل "أي الأزرار تنطفي؟" ثلاث مرّات وأُجيب
+// من الذاكرة ثلاث مرّات — والقاعدة كانت صحيحة والقائمة المشتقّة منها لأ.
+// فالقرار انتقل للتعريف: عمود storage_id إلزاميّ بالجدول ⇒ العمليّة بتحتاج
+// مستودعًا ⇒ بتنطفي عند "كل المستودعات". حدا بكرا بيضيف عمودًا لـproduct_orders،
+// فالزرّ بينطفي لحاله بلا ما يعدّل هالسطر — نفس شكل seeded.
+const TABLE_NEEDS_STORAGE = {
+  stock_documents:    true,   // storage_id NOT NULL
+  stocktake_sessions: true,   // storage_id NOT NULL
+  product_orders:     false,  // ولا عمود مستودع إطلاقًا — مقيس بـ053a
+  none:               false,  // شاشات قراءة/إدارة، ما بتكتب حركة
+}
+
+// ⚠️ والترتيب بيعني "شو بيعمل هالزرّ" ثابتًا، لا "هل هو مضيء الآن" متغيّرًا.
+// الطلبيّة عمليّة بتُنشئ شيئًا وأوّل حلقة بالسلسلة (طلبيّة ← توريد)، فمحلّها
+// مع العمليّات مهما كانت حالتها. لو حملت product_orders عمود مستودع بكرا،
+// بتنطفي بمكانها بلا ما يقفز الزرّ.
+const OPERATIONS = [
+  { id:'order',     label:'طلبيّة',        ico:'🧾', table:'product_orders'    },
+  { id:'supply',    label:'توريد',         ico:'📥', table:'stock_documents'   },
+  { id:'writeoff',  label:'شطب',           ico:'🗑️', table:'stock_documents'   },
+  { id:'return',    label:'إرجاع لمورّد',   ico:'📤', table:'stock_documents'   },
+  { id:'transfer',  label:'نقل',           ico:'🔁', table:'stock_documents'   },
+  { id:'stocktake', label:'جرد',           ico:'🧮', table:'stocktake_sessions'},
+  { sep:true },
+  { id:'opening',   label:'رصيد افتتاحي',  ico:'📦', table:'stock_documents'   },
+  { sep:true },
+  { id:'documents', label:'المستندات',     ico:'📄', table:'none'              },
+  { id:'prices',    label:'الأسعار',       ico:'💲', table:'none'              },
+  { id:'suppliers', label:'الموردون',      ico:'🚚', table:'none'              },
+]
+
+const STORAGE_NAME = { cos:'مستودع تجريبي (عام)', gen:'مستودع عام (أخصائيّ)' }
+const money = v => v == null ? '<span class="dash">—</span>' : '<span class="num">' + v.toFixed(2) + ' ₪</span>'
+
+// منزلة واحدة دائمًا، وثانية فقط لمّا تلزم. "5" وحدها ما بتقول إذا كانت
+// مضبوطة أو مقرَّبة؛ "5.0" بتقول إن العمود عشريّ وإن هذا هو الرقم بالضبط.
+const fmtPk = n => { const t = n.toFixed(2); return t.endsWith('0') ? n.toFixed(1) : t }
+
+function render(){
+  const st = document.getElementById('st').value
+  const all = st === 'all'
+  const hide = document.getElementById('hide').checked
+
+  // ① الإطفاء مشتقّ من التعريف، وولا اسم مكتوب هون
+  document.getElementById('tools').innerHTML = OPERATIONS.map(o => {
+    if (o.sep) return '<div class="sep"></div>'
+    const off = all && TABLE_NEEDS_STORAGE[o.table]
+    return '<button class="tool"' + (off ? ' disabled' : '')
+      + ' title="' + o.table + '"><span class="ico">' + o.ico + '</span>' + o.label + '</button>'
+  }).join('')
+
+  // ② جذر الشجرة
+  document.getElementById('root').textContent =
+    all ? 'المنتجات — كل المستودعات' : 'المنتجات — ' + STORAGE_NAME[st]
+
+  // ③ الشجرة مصفّاة بجدول الربط
+  let folders = FOLDERS.filter(f => all || f.storages.includes(st))
+  const hiddenFolders = hide ? folders.filter(f => f.archived).length : 0
+  if (hide) folders = folders.filter(f => !f.archived)
+
+  const visibleFolderIds = new Set(folders.map(f => f.id))
+  let prods = PRODUCTS.filter(p => visibleFolderIds.has(p.f))
+  // الأرشفة تورّث: منتج داخل مجلّد مؤرشف مخفيّ معه
+  const archivedFolderIds = new Set(FOLDERS.filter(f => f.archived).map(f => f.id))
+  let hiddenProducts = 0
+  if (hide) {
+    const before = prods.length
+    prods = prods.filter(p => !p.arch && !archivedFolderIds.has(p.f))
+    hiddenProducts = before - prods.length
+  }
+
+  document.getElementById('nodes').innerHTML = folders.map((f,i) => {
+    const n = prods.filter(p => p.f === f.id).length
+    return '<div class="node' + (i===0?' on':'') + '">📁 <span>' + f.name + '</span>'
+      + (f.archived ? '<span class="badge arch">مؤرشف</span>' : '')
+      + '<span class="cnt">' + n + '</span></div>'
+  }).join('')
+
+  // ④ الأعمدة تتبدّل
+  const balHead = all ? 'المتبقّي بكل المستودعات' : 'المتبقّي هنا'
+  document.getElementById('head').innerHTML =
+    '<th style="width:78px">اختصار</th><th>الاسم</th><th style="width:96px">بالعبوة</th>'
+    + '<th style="width:110px">سعر الشراء</th><th style="width:110px">سعر البيع</th>'
+    + '<th style="width:230px">' + balHead + '</th>'
+
+  let html = '', last = null
+  for (const p of prods){
+    if (p.f !== last){
+      last = p.f
+      html += '<tr class="grp"><td colspan="6">' + FOLDERS.find(f=>f.id===p.f).name + '</td></tr>'
+    }
+    const base = all ? Object.values(p.bal).reduce((a,b)=>a+b,0) : (p.bal[st] || 0)
+    // ⚠️ كسر لا floor، ودائمًا بمنزلة واحدة على الأقلّ.
+    //
+    // floor كان بيكتب "بالعبوة: 9 · بالقطعة: 190" و9×20=180. فالصفّ الأوّل
+    // (5×15=75) بيعلّم القارئ إن الإطارين متكافئان، وصفٌّ تانٍ بنفس التنسيق
+    // بيخلف الوعد بلا ما يقول. مش تقريبًا — ادّعاءٌ صامت.
+    //
+    // والمنزلة بتضلّ ظاهرة حتى لمّا القسمة تامّة (5.0) لأن "5" وحدها ما بتقول
+    // إذا كانت مضبوطة أو مقرَّبة. والمرجعيّة بتكتب 0.0 pkg — عمود عشريّ من الأصل.
+    const pkNum = p.pack > 0 ? base / p.pack : 0
+    const pk = fmtPk(pkNum)
+    const elsewhere = Object.entries(p.bal).some(([k,v]) => k !== st && v > 0)
+
+    // ⚠️ لا شرطة بالرصيد أبدًا — الحركات صارت الدفتر، فالصفر جواب لا جهل.
+    let bal
+    if (base === 0){
+      bal = '<span class="zero">بالعبوة: 0.0 · بالقطعة: 0</span>'
+      if (!all && elsewhere) bal += '<a class="elsewhere" href="#">متوفّر بمستودعٍ آخر</a>'
+    } else {
+      bal = '<span class="frames">بالعبوة: <b>' + pk + '</b> <span class="b">·</span> بالقطعة: <b>' + base + '</b></span>'
+    }
+
+    html += '<tr><td class="num">' + p.ab + '</td>'
+      + '<td><span class="name">' + p.name
+      + (p.set  ? '<span class="badge set">طقم</span>'   : '')
+      + (p.cons ? '<span class="badge cons">أمانة</span>' : '')
+      + (p.arch ? '<span class="badge arch">مؤرشف</span>' : '')
+      + '</span></td>'
+      + '<td class="num">' + p.pack + '</td>'
+      + '<td>' + money(p.buy) + '</td>'
+      + '<td>' + money(p.sell) + '</td>'
+      + '<td>' + bal + '</td></tr>'
+  }
+  document.getElementById('rows').innerHTML = html
+
+  // ⑤ يُكتب ما أُخفي — فلترٌ يشيل بصمتٍ هو غيابٌ يُقرأ كحقيقة.
+  //
+  // ⚠️ والمجلّدات تُعدّ مع المنتجات: القرار كان "يخفي الاثنين"، فمجلّدٌ يختفي
+  // بلا ذكرٍ هو نفس الفلتر الصامت اللي انكتب السطر لمنعه.
+  //
+  // والصيغة ثابتة والرقم بعد نقطتين — نفس عُرف archiveDialog.archiveMessage
+  // ("العدد: {{count}}")، مقيسًا من ملفّ اللغة لا مختارًا. الشاشة بتحكي بطريقة
+  // وحدة، وستّ فئات جمعٍ عربيّة بمفتاحٍ ناقص بترجّعنا لنفس المكان.
+  const note = document.getElementById('hidnote')
+  if (hide && (hiddenProducts || hiddenFolders)){
+    const parts = []
+    if (hiddenProducts) parts.push('منتجات: ' + hiddenProducts)
+    if (hiddenFolders)  parts.push('مجلّدات: ' + hiddenFolders)
+    note.textContent = 'مخفيّ بسبب الأرشفة — ' + parts.join(' · ')
+    note.style.display = ''
+  } else note.style.display = 'none'
+}
+// للّقطات: ?s=all أو ?s=gen، و?hide=1
+const q = new URLSearchParams(location.search)
+if (q.get('s')) document.getElementById('st').value = q.get('s')
+if (q.get('hide')) document.getElementById('hide').checked = true
+render()
+</script>
+</body>
+</html>
