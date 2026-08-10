@@ -1,7 +1,7 @@
 -- ==========================================================================
 -- 068b · QUERY 3 of 3 -- VERIFICATION ONLY. Read-only: NOTHING IS WRITTEN.
 --
--- RUN AFTER 068a.
+-- RUN AFTER 068a AND 069a.
 --
 -- ⚠️ THE ONE WORTH READING TWICE.
 --
@@ -50,19 +50,16 @@
 --     entirely, so it is printed rather than folded into a count.
 -- ==========================================================================
 
--- The same walk the trigger does, as a closure: every folder paired with itself
--- and with everything beneath it. `union` not `union all`, for the same reason —
--- a cycle in parent_id would otherwise never terminate.
-with recursive closure as (
-  select c.id as root_id, c.id as node_id, c.salon_id
-  from public.product_categories c
-  union
-  select cl.root_id, child.id, child.salon_id
-  from public.product_categories child
-  join closure cl
-    on child.parent_id = cl.node_id
-   and child.salon_id  = cl.salon_id
-)
+-- ⚠️ READS product_category_descendants (069a) — IT NO LONGER CARRIES ITS OWN
+-- COPY OF THE WALK.
+--
+-- This file held a second recursive CTE, written to match the trigger's. That
+-- is what drifted: the trigger was corrected to descend and this stayed on the
+-- direct folder. Now both read one view, so "does the dry run match the guard"
+-- stops being a question anybody has to keep answering.
+--
+-- ⚠️ RUN 069a BEFORE THIS. Without the view this file errors — which is the
+-- right failure: loud, immediate, and impossible to mistake for a clean table.
 select
   s.name                                          as storage_name,
   c.name                                          as folder_name,
@@ -78,7 +75,7 @@ select
 from public.storage_categories sc
 join public.storages s           on s.id = sc.storage_id  and s.salon_id = sc.salon_id
 join public.product_categories c on c.id = sc.category_id and c.salon_id = sc.salon_id
-left join closure cl
+left join public.product_category_descendants cl
   on cl.root_id  = sc.category_id
  and cl.salon_id = sc.salon_id
 left join public.products p

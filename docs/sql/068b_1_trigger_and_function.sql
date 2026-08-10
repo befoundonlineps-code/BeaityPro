@@ -51,6 +51,24 @@
 --
 -- ⚠️ If owner_bypasses_rls comes back FALSE, the trigger is a guard that cannot
 -- see what it guards — do not ship the storage window until that is resolved.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ AND THIS READING HAS A SHELF LIFE. RUN IT AGAIN AFTER ANY ROLE CHANGE.
+--
+-- rolbypassrls is a property of a ROLE, not of anything in this repository. It
+-- can be revoked, or the function's owner changed, without a commit, without a
+-- migration, and without a single test going red. Everything here would keep
+-- passing while the trigger quietly stopped being able to see stock.
+--
+-- ⚠️ So this is not a once-in-the-project's-life check. It belongs to the same
+-- class as the run-state log itself: a fact that lives on the owner's side and
+-- that the repository cannot watch. Re-run it whenever database roles or
+-- ownership are touched — and record the result in docs/sql/README.md, because
+-- "it was true when we looked" is the only form this claim can ever take.
+--
+-- No guard is asked for here, because none can be built from inside the
+-- repository. What is asked is that the sentence be written down rather than
+-- the reading be mistaken for a standing promise.
 -- ==========================================================================
 
 select
