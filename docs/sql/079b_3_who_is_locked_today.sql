@@ -36,11 +36,24 @@
 -- each has ONE reversed supply among several live movements:
 --
 --     شامبو 250 مل   supply 100 · supply 20 · supply 7 · stocktake −2   live
---                    + supply 10, reversed
---     مقشر ليزر      supply 5 · supply 10 · return −10 · stocktake +5   live
---                    + supply 10, reversed
+--                    + supply 10, reversed          ⇒ 4 live, balance 125
+--     مقشر ليزر      supply 5 · supply 10 · return −10                  live
+--                    + supply 10, reversed          ⇒ 3 live, balance 5
 --
--- So movements_live = 4 for each, and both stay locked on the flag.
+-- Both stay locked on the flag.
+--
+-- ⚠️ AND THE SECOND ROW ABOVE WAS ITSELF MISCOUNTED HERE FIRST — it listed a
+-- fourth live movement, "stocktake +5", which does not exist. 5 + 10 − 10 = 5
+-- closes exactly against the measured balance; a stocktake of +5 would have
+-- made it 10. The verdict never moved (both products stay locked either way),
+-- but a wrong enumeration must not be carried into another header as a fact.
+--
+-- ⚠️ AND WHAT CAUGHT IT IS WORTH MORE THAN THE FIX: `balance_base` sits in the
+-- same row as `movements_live`, and the two are derived independently — one
+-- from a view over sums, one from a join count. So the row checks itself, and
+-- nobody designed that. It is the cheapest kind of witness there is: two
+-- numbers that must agree, printed side by side, in a query written for
+-- neither purpose.
 --
 -- ⚠️ THE SLIP IS ONE WORD WIDE AND IT HAS NOW HAPPENED TWICE IN TWO FILES: "a
 -- document was reversed" became "the product's movements were reversed". The

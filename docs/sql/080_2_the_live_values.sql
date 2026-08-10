@@ -1,9 +1,12 @@
 -- ==========================================================================
--- 080 -- SURVEY ONLY. Read-only: nothing is written. Safe at any time.
+-- 080_2 -- SURVEY ONLY. Read-only: nothing is written. Safe at any time.
 --
--- ⚠️ THIS PRECEDES BOTH REMAINING SCREENS, and the bigger exposure is the
--- SECOND one. Five text columns in this schema have an OPEN domain — no enum,
--- no CHECK — and only one of them is on products:
+-- ⚠️ RUN 080_1 FIRST. It measures which of these columns is actually open, and
+-- this file's original header got that wrong on the only one we could check.
+--
+-- ---------------------------------------------------------------------------
+-- WHAT THIS ASKS: what is actually stored in five text columns, one on the
+-- catalogue's table and four on the document screen's.
 --
 --     products.accounting_direction          ← the catalogue screen
 --     stock_documents.discount_kind          ← the document screen
@@ -11,31 +14,49 @@
 --     stock_documents.transport_paid_to      ← the document screen
 --     stock_movements.line_discount_kind     ← the document screen
 --
--- ⚠️ AND THE SCHEMA IS NOT NAIVE ABOUT THIS — it uses REAL enums wherever
--- somebody thought about it: doc_type, entered_uom, fine_basis. So these five
--- are not a style; they are the ones that got away. An earlier draft of this
--- file called accounting_direction "the only field with an open domain",
--- which was true of products and false of the schema, and it aimed the whole
--- file at the smaller of the two screens.
+-- ---------------------------------------------------------------------------
+-- 🔴 AND THE HEADER THAT USED TO SIT HERE WAS WRONG TWICE OVER. It is quoted
+-- rather than deleted, because the shape of the error is worth more than the
+-- correction.
+--
+--     "Five text columns have an OPEN domain — no enum, no CHECK"
+--     "accounting_direction is the field a design tool filled with a value
+--      nobody defined. Every other field refused an invented value because its
+--      TYPE or its CHECK refused it, and this one had nothing to refuse with."
+--
+-- ⚠️ FAULT 1 — "open domain" was never measured. It was read off 079b_1, which
+-- lists name · type · nullability · default. A CHECK appears in none of those.
+-- `text · YES` is not weak evidence of an open domain; it is NO evidence, and
+-- the output looks identical either way. 080_1 asks pg_constraint instead.
+--
+-- ⚠️ FAULT 2 — and on the one column checkable by hand, the answer is the
+-- opposite. products.accounting_direction HAS a CHECK, eight values,
+-- DATABASE_DIAGRAM.md:526, verified against the live database at :447 and
+-- explained in ADR-047. So the sentence "nothing to refuse with" describes the
+-- one field in the list that demonstrably does have something to refuse with —
+-- and it would have refused US: the proposed dropdown («مبيعات الصالون /
+-- استهلاك داخليّ») is not in that domain.
+--
+-- ⚠️ AND THE "INVENTED VALUE" WAS NEVER IN THE COLUMN EITHER. «مبيعات الصالون»
+-- appears in no row. The invention happened in a design tool; the sentence was
+-- phrased as though the database had accepted it. The REASON to be careful
+-- with an open domain stands on its own. The evidence offered for it did not
+-- exist.
 --
 -- ---------------------------------------------------------------------------
--- 🔴 WHY IT MATTERS, AND IT IS ALREADY EVIDENCED ONCE.
+-- ✅ SO WHAT THIS FILE IS FOR, STATED HONESTLY:
 --
--- accounting_direction is the exact field a design tool filled with a value
--- nobody defined («مبيعات الصالون»). That is not a coincidence to shrug at:
--- every other field refused an invented value because its TYPE or its CHECK
--- refused it, and this one had nothing to refuse with.
+-- Closing a domain requires knowing what is IN it — a constraint added blind
+-- either rejects live rows or enshrines a typo. That is true of whichever of
+-- the four remaining columns 080_1 shows to be genuinely unconstrained.
 --
--- A dropdown over an open text column produces the whole class this module has
--- paid for: two spellings of one meaning · a value from an old build that
--- appears in no current list · a report that groups by it and quietly splits a
--- total in half.
---
--- ⇒ Each of the five gets an enum or a CHECK before a screen writes it. Those
--- scripts cannot be written yet, because closing a domain requires knowing
--- what is IN it — a constraint added blind either rejects live rows or
--- enshrines a typo. THIS FILE IS THAT PREREQUISITE, and that is the whole
--- reason it runs first.
+-- ⚠️ AND A CONSTRAINT IS NOT WRITTEN FROM THE DATA ALONE. Four of eight
+-- products carry a value and four are null, and that may not be chance: six
+-- seed triggers fire on salons. Before any constraint, the question is WHO
+-- WROTE these values. If they came from seeding, the column has never been
+-- written by an application, and the decision might be to rename it or drop it
+-- rather than constrain it. A constraint copied from the data enshrines what
+-- happens to be there and refuses a legitimate value not yet used.
 --
 -- ---------------------------------------------------------------------------
 -- ⚠️ FOUR THINGS THIS QUERY DOES THAT THE FIRST DRAFT DID NOT, AND THE LAST
