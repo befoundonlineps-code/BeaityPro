@@ -32,12 +32,26 @@
 -- parentheses is the thing being verified; a name ending in _fkey proves
 -- nothing about how many columns it covers.
 --
--- ⚠️ AND EXPECT MORE ROWS THAN THE LIST ABOVE, ON POSTGRESQL 17. NOT NULL is
--- recorded in pg_constraint there with contype = 'n', so the six NOT NULL
--- columns can each appear as their own Postgres-named row. That is covered by
--- "plus whatever Postgres added" and is not a fault — it is said here so it
--- arrives as something expected rather than as a surprise mid-verification,
--- which is when a correct result is most likely to be read as a problem.
+-- ⚠️ WHETHER NOT NULL SHOWS UP HERE AT ALL DEPENDS ON THE SERVER VERSION, AND
+-- NO COUNT IS WRITTEN FOR IT ON PURPOSE.
+--
+-- Table NOT NULL constraints are catalogued in pg_constraint only from
+-- PostgreSQL 18. On 17 and earlier contype = 'n' exists but the documentation
+-- qualifies it "(domains only)" — a table's NOT NULL lives in
+-- pg_attribute.attnotnull and produces NO row here at all.
+--
+-- Supabase is on the 17 line, so the expected reading is ZERO contype = 'n'
+-- rows. If any appear, the server is 18 or later. Both are correct, and this
+-- query is its own answer to the question — no separate version read needed.
+--
+-- ⚠️ AND NO NUMBER IS GIVEN, DELIBERATELY. An earlier draft of this note said
+-- "the six NOT NULL columns can each appear as their own row". Wrong twice:
+-- wrong version, and a count nobody measured — including whether a PRIMARY KEY
+-- column's implicit NOT NULL gets a row of its own on 18. It came from the same
+-- review that had just caught 066c_1's hand-written list going stale, which is
+-- the lesson rather than the embarrassment: a hand-written expectation is not
+-- safer for having been written by the person warning about hand-written
+-- expectations.
 -- ==========================================================================
 
 select
