@@ -29,7 +29,8 @@
 --   body_reads_view_expect_1                1
 --   body_has_own_walk_expect_0              0
 --   view_comment_expect_true                true
---   function_comment_survived_expect_true   true
+--   function_comment_expect_true            true
+--   hint_expect_true                        true
 -- ==========================================================================
 
 select
@@ -76,18 +77,45 @@ select
   )                                                          as view_comment_expect_true,
 
   -- ⚠️ AND THE FUNCTION'S OWN COMMENT, which 068b_2 verified BEFORE 069a
-  -- rewrote the function.
+  -- rewrote the function. CREATE OR REPLACE keeps the OID so the comment
+  -- survives — an assumption, and 068b_2's green result describes the previous
+  -- version. Absorbed here so no ordering has to be remembered.
   --
-  -- CREATE OR REPLACE keeps the OID so the comment survives — but that is an
-  -- assumption, and 068b_2's green result is a reading of the previous version.
-  -- A verification run before the last change verifies the state before it.
-  -- Absorbed here rather than left to a re-run somebody has to remember, which
-  -- also removes the ordering trap of putting 068b_2 first.
+  -- ⚠️ COMPARED WHOLE, not by a prefix. A first version of this line used
+  -- position() on six words from the start, while the view's comment beside it
+  -- was compared entire — two standards for one rule inside one query, and the
+  -- stricter of them was the one 068b_2 already had (f.description = e.sentence).
+  -- So the replacement was weaker than what it replaced, in the rule that says
+  -- "not whether it contains Arabic characters". A comment with its tail cut —
+  -- the clause that names the way out — would have passed.
   coalesce(
-    obj_description(p.oid, 'pg_proc') is not null
-    and position('بيرفض إزالة مجلّد من مستودع' in obj_description(p.oid, 'pg_proc')) > 0,
+    obj_description(p.oid, 'pg_proc')
+    = 'بيرفض إزالة مجلّد من مستودع لسّه فيه رصيد من منتجات هذا المجلّد. السبب إن الإزالة بتخفي المنتجات من شجرة المستودع وبتترك حركاتها مكانها، فبيصير رصيد ما حدا بيشوفه — والنقل ما بينقذه لأنه بدّه مجلّدًا مشتركًا وهو انشال. الرفض بيسمّي الأصناف والمخرج، والفعل بيرجع مشروعًا بعد تفريغ الرفّ.',
     false
-  )                                                          as function_comment_survived_expect_true
+  )                                                          as function_comment_expect_true,
+
+  -- 🔴 AND THE HINT — THE READ THAT WAS DROPPED, AND THE ONLY ONE THAT WAS
+  -- RETYPED BY HAND.
+  --
+  -- 068b_2 checked two things: the comment and the sentence inside the body.
+  -- Absorbing only the comment left the hint unread anywhere after 069a, and
+  -- 068b_2 left the run order.
+  --
+  -- ⚠️ The one dropped is the worse of the two, by the argument written into
+  -- this very file: the COMMENT survived untouched because CREATE OR REPLACE
+  -- keeps the OID — nobody retyped it. The HINT was reprinted character by
+  -- character inside 069a's new body. So the thing that survived by itself is
+  -- checked and the thing copied by hand is not, and one lost character passes
+  -- in silence. That is what 046 and 066c_5 exist for.
+  --
+  -- Fixed part only: the sentence ends with a runtime list of product names.
+  coalesce(
+    position(
+      'ما بينفع تشيل هذا المجلّد من المستودع وفيه بضاعة منه. نقل البضاعة لمستودع تاني أو شطبها، وبعدها إزالة التأشير. الأصناف اللي لسّه فيها رصيد: '
+      in p.prosrc
+    ) > 0,
+    false
+  )                                                          as hint_expect_true
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public'
