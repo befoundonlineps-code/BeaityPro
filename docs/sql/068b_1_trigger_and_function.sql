@@ -12,15 +12,18 @@
 -- property not restated is exposed. A function that lost `set search_path` still
 -- works and still passes every behavioural test.
 --
--- ⚠️ AND security INVOKER is deliberate here, unlike most of this schema. The
--- trigger must see exactly what the caller sees: if it ran as definer it would
--- read balances across salons and could refuse a deletion because of stock in a
--- salon the caller cannot see — a refusal with no explanation available to the
--- person reading it.
+-- ⚠️ AND security DEFINER is deliberate here. A first draft said invoker and
+-- justified it with a cross-salon leak that `b.salon_id = old.salon_id` already
+-- refuses. The deciding argument is the direction of failure: invoker fails
+-- toward PERMITTING — narrow the SELECT policy on stock_movements and the
+-- guard sees nothing, so it allows the one deletion it exists to refuse.
 --
 -- EXPECTED: one trigger row, BEFORE DELETE, FOR EACH ROW, on
--- storage_categories; and prosecdef = false with search_path=public in
--- proconfig.
+-- storage_categories; prosecdef = TRUE; and search_path=public in proconfig.
+--
+-- ⚠️ Both properties are read rather than assumed because CREATE OR REPLACE
+-- rewrites the function whole and resets everything not restated — a body that
+-- lost `set search_path` behaves identically until the day it does not.
 -- ==========================================================================
 
 select

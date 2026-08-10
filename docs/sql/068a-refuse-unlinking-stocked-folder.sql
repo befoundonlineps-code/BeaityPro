@@ -46,6 +46,23 @@
 -- shape as fine_policy_missing, which was the first guard in this module to
 -- name its own remedy and is the reason that pattern is now the house style.
 --
+-- ⚠️ BUT THE PRODUCT LIST BELOW DOES NOT REACH THE SCREEN, AND AN EARLIER
+-- HEADER HERE PROMISED THAT IT DOES.
+--
+-- dbErrorSentence takes the raised code FIRST — "A raised code first, because
+-- it is the more specific of the two" — so a code with a named key in
+-- raisedCodes.js wins and the hint is dropped. folder_still_stocked has one. So
+-- the user reads the named sentence, and `v_products` is read by whoever opens
+-- the logs.
+--
+-- That is the right ladder and the right key: a translatable sentence beats
+-- Arabic frozen in the database, and the key deliberately does not promise a
+-- list it cannot deliver. ⚠️ What it makes is a REQUIREMENT ON THE SCREEN, not
+-- a nice-to-have: the storage window knows the folder and the storage, so it
+-- must name the stocked products itself — 068b_3 is that query. Without it the
+-- person is told "no" and left to find out which shelf on their own, which is
+-- the half of the design that carried the value.
+--
 -- And the action stays perfectly legitimate once the shelf is empty. That is
 -- the real-world order anyway: you move the goods out, THEN you say the item is
 -- no longer kept here. The rule does not forbid the intent, it forbids doing it
@@ -58,27 +75,74 @@
 -- than any other.
 -- ==========================================================================
 
+-- ⚠️ SECURITY DEFINER, AND THE FIRST DRAFT SAID INVOKER FOR A REASON THAT DOES
+-- NOT EXIST.
+--
+-- It claimed definer "would read balances across salons and refuse because of
+-- stock the caller cannot see". The query is confined by `b.salon_id =
+-- old.salon_id` — and `old` is a row that already passed the delete policy, so
+-- its salon IS the caller's. The danger the choice was justified by is refused
+-- by a line written above it.
+--
+-- ⚠️ AND THE TWO FAIL IN OPPOSITE DIRECTIONS, WHICH IS THE REAL ARGUMENT.
+-- Definer fails toward a refusal that is hard to explain. Invoker fails toward
+-- PERMISSION: narrow the SELECT policy on stock_movements one day — to the
+-- storage's responsible rather than the whole salon — and v_products comes back
+-- empty, the delete passes, and the goods are stranded. That is the single
+-- state this trigger exists to prevent. A guard that cannot see what it guards
+-- says yes.
+--
+-- So it reads as definer and is confined by the salon filter instead. The
+-- filter is load-bearing, not decoration: remove it and this does become the
+-- cross-salon leak the first draft imagined.
 create or replace function public.refuse_unlinking_stocked_folder()
 returns trigger
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $function$
 declare
   v_products text;
 begin
-  -- The products of the folder being unlinked that still have a balance in the
-  -- storage being unlinked from. Named, not counted: the message has to tell
-  -- the person which shelf to clear, and a number would send them looking.
+  -- The products of the folder being unlinked — AND OF EVERY FOLDER BENEATH IT —
+  -- that still have a balance in the storage being unlinked from. Named, not
+  -- counted: the message has to say which shelf to clear, and a number would
+  -- send somebody looking.
+  --
+  -- ⚠️ THE DESCENDANTS ARE NOT OPTIONAL, and checking only old.category_id left
+  -- the same hole open through the children's door.
+  --
+  -- buildCategoryTree descends from folders with NO PARENT. So if F is unlinked
+  -- while its child G stays linked, G is not a root and F is no longer there to
+  -- descend from — G is simply absent from the tree. Its link is intact, its
+  -- stock is in place, and nothing draws it. Stranding, arrived at from below.
+  --
+  -- The walk is the one archiving already uses (descendantIds / isCategoryArchived
+  -- climb the same edges): membership of a storage is inherited exactly as
+  -- archiving is, and the two behaving differently is what would surprise
+  -- somebody, not the two matching.
+  with recursive descendants as (
+    select c.id, c.salon_id
+    from public.product_categories c
+    where c.id = old.category_id and c.salon_id = old.salon_id
+    union all
+    select child.id, child.salon_id
+    from public.product_categories child
+    join descendants d
+      on child.parent_id = d.id
+     and child.salon_id  = d.salon_id
+  )
   select string_agg(p.name, ' · ' order by p.name)
     into v_products
   from public.product_balances b
   join public.products p
     on p.id = b.product_id
    and p.salon_id = b.salon_id
+  join descendants d
+    on d.id = p.category_id
+   and d.salon_id = p.salon_id
   where b.salon_id   = old.salon_id
     and b.storage_id = old.storage_id
-    and p.category_id = old.category_id
     and b.balance_base <> 0;
 
   if v_products is not null then
