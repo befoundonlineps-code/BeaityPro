@@ -28,6 +28,20 @@
 -- Which is the same reason 070 was not filtered to one product: the number was
 -- found at all because a survey read the whole class.
 --
+-- ---------------------------------------------------------------------------
+-- ⚠️ EVERY COLUMN NAME HERE CHECKED AGAINST A MEASUREMENT, NAMED:
+--
+--   stock_fine_lines  056a's create block — six columns, no line_charged. The
+--                     amount is shortage_base × unit_value, computed below.
+--   stock_fines       056a — resolution, role_at_resolution, fine_percent,
+--                     fine_basis, attribution, employee_id, document_id.
+--   employees.name    ✅ measured in this thread: check3 returned to_jsonb(e)
+--                     whole — {id, name, role, salon_id, created_at,
+--                     profile_id, is_assistant, phone_number}. `name`, not
+--                     full_name. That row is the reason to_jsonb was used
+--                     instead of a hand-picked column list.
+--   stock_documents   doc_type · doc_date · reverses_document_id (DIAGRAM:572)
+--
 -- WHAT TO LOOK AT:
 --   • lines — a header with 0 lines answers "does posting write a fine for
 --     every stocktake". Zero rows overall answers it differently, and both are
@@ -50,7 +64,19 @@ select
   f.fine_basis,
   count(l.id)                                 as lines,
   coalesce(sum(l.shortage_base), 0)           as shortage_total,
-  coalesce(sum(l.line_charged), 0)            as charged_total,
+  -- ⚠️ THE MONEY IS A PRODUCT, NOT A STORED COLUMN. A first version selected
+  -- `l.line_charged`, which does not exist — stock_fine_lines has exactly six
+  -- columns (056a): id · salon_id · fine_id · product_id · shortage_base ·
+  -- unit_value. The query would have failed at execution.
+  --
+  -- ⚠️ And the fault is in the method, not the line. The column name entered
+  -- this work from a review message reporting the first fine field by field,
+  -- and the creation script — in this repository, authoritative, three commands
+  -- away — was never opened. A measurement in hand that was not consulted, which
+  -- is the same fault as claiming a present from an old copy.
+  coalesce(sum(l.shortage_base * l.unit_value), 0)             as shortage_value,
+  coalesce(sum(l.shortage_base * l.unit_value), 0)
+    * coalesce(f.fine_percent, 0) / 100                        as charged_total,
   -- ⚠️ The column that matters most. A fine whose document has been reversed is
   -- a charge outliving its cause.
   (select r.id from public.stock_documents r
