@@ -56,6 +56,25 @@
 -- So the filter is gone and `p.kind` is a COLUMN. The survey now says how many
 -- sets exist and whether any of them has ever moved, which together are the
 -- answer.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ AND IT DOES NOT JOIN storage_categories — DELIBERATELY, AND THIS BECOMES
+-- ITS SECOND JOB.
+--
+-- Every product is listed against every storage whether its folder is linked
+-- there or not. That is correct for a survey: it reads the whole class rather
+-- than the part somebody expects, which is the rule this folder keeps arriving
+-- at from a different direction each time.
+--
+-- Today that only means some rows are zero and uninteresting. ⚠️ From the first
+-- un-ticking onward it is the ONLY query that can see stranded stock — goods
+-- sitting in a storage whose folder was unlinked, invisible to the tree and
+-- unreachable by transfer. A version that joined storage_categories would show
+-- exactly the rows the screen already shows and would be blind to precisely the
+-- case worth finding.
+--
+-- 068a refuses to create that state; 068b_3 lists which un-ticks it would
+-- refuse. This one reads the damage if any ever gets past them.
 -- ==========================================================================
 
 select
