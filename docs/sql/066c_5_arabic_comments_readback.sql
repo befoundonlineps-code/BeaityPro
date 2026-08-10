@@ -23,7 +23,7 @@
 -- guard is enforced and the prose is not, so the split wins — the same one
 -- 056c/056d already made. The divergence is worth reconciling in the docs.
 --
--- EXPECTED: three rows, present_expect_true = true on all three.
+-- EXPECTED: four rows, present_expect_true = true on all four.
 -- ==========================================================================
 
 with expected (object_name, sentence) as (values
@@ -32,7 +32,9 @@ with expected (object_name, sentence) as (values
   ('storage_id',
    'المستودع. بيتحدّد من نافذة تعديل المستودع، بلوح «المنتجات بالمستودع».'),
   ('category_id',
-   'مجلّد المنتجات. حذف السطر معناه إن المجلّد ما عاد بهذا المستودع — ما بينحذف المجلّد نفسه ولا منتجاته.')
+   'مجلّد المنتجات. حذف السطر معناه إن المجلّد ما عاد بهذا المستودع — ما بينحذف المجلّد نفسه ولا منتجاته.'),
+  ('seeded',
+   'صحيح = السطر من البذرة الأولى وما قرّره حدا، وغلط = حدا أشّره بنافذة المستودع. الفرق مهم لأن السطر بحدّ ذاته بيدّعي إن المجلّد بهالمستودع، وبلا هالعمود ما بينفرق الافتراضي عن القرار. والافتراضي غلط، فأي إدراج عادي من الشاشة بيطلع قرارًا بلا ما تعرف الشاشة بالعمود.')
 ),
 actual (object_name, stored) as (
   select 'storage_categories',
@@ -49,11 +51,23 @@ actual (object_name, stored) as (
            (select attnum from pg_attribute
              where attrelid = 'public.storage_categories'::regclass
                and attname = 'category_id'))
+  union all
+  select 'seeded',
+         col_description('public.storage_categories'::regclass,
+           (select attnum from pg_attribute
+             where attrelid = 'public.storage_categories'::regclass
+               and attname = 'seeded'))
 )
 select
   e.object_name,
   a.stored,
-  (a.stored = e.sentence) as present_expect_true
+  -- ⚠️ coalesce, AND IT IS OUR OWN TRAP CAUGHT INSIDE THE CHECK WRITTEN TO
+  -- AVOID IT. A missing comment makes `stored` null, and `null = 'text'` is
+  -- UNKNOWN — not false. A column named expect_true would then answer neither
+  -- true nor false for the one case it exists to catch, in exactly the way a
+  -- CHECK constraint lets a NULL through and fine_policy_missing had to be
+  -- written by hand. Raised in review.
+  coalesce(a.stored = e.sentence, false) as present_expect_true
 from expected e
 join actual a on a.object_name = e.object_name
 order by e.object_name;

@@ -31,7 +31,15 @@ select
   s.kind,
   count(sc.id)                                    as linked_folders,
   (select count(*) from public.product_categories c
-    where c.salon_id = s.salon_id)                as folders_in_salon
+    where c.salon_id = s.salon_id)                as folders_in_salon,
+  -- ⚠️ THE COLUMN THE `seeded` FLAG EXISTS FOR, ASKED HERE SO IT IS ASKED AT
+  -- ALL. still_default = linked_folders means nobody has opened this storage's
+  -- window and decided anything; every tick it shows is the seed talking.
+  --
+  -- Without it, "set three storages and forget four" is invisible — all seven
+  -- look configured, which is fine_percent = 100 wearing a checkbox. This is
+  -- the query that names the four.
+  count(sc.id) filter (where sc.seeded)           as still_default
 from public.storages s
 left join public.storage_categories sc
   on sc.storage_id = s.id and sc.salon_id = s.salon_id

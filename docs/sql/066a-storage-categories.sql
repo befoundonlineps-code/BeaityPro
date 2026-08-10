@@ -80,6 +80,31 @@ create table if not exists public.storage_categories (
   category_id uuid        not null,
   created_at  timestamptz not null default now(),
 
+  -- ⚠️ WITHOUT THIS COLUMN THE SEED WRITES A CLAIM NOBODY MADE.
+  --
+  -- The table's own description says "which product folders are in which
+  -- storage", so every row asserts that this folder IS in this storage. Seeding
+  -- every pair therefore asserts that After Laser is in General Storage, which
+  -- is not true — and nothing in the row distinguishes it from a tick somebody
+  -- meant.
+  --
+  -- That is fine_percent = 100 exactly: a default that saves, and two weeks
+  -- later nobody can tell it from a decision. It cost this project a round
+  -- already, and the fix there was the same shape — make "not decided yet"
+  -- representable instead of manufacturing an answer.
+  --
+  -- ⚠️ And the damage is arithmetic, not theoretical: seven storages by eight
+  -- folders is about fifty checkboxes. Set three, forget four, and no query can
+  -- name the four — they all look set.
+  --
+  -- ⚠️ THE DEFAULT DOES THE WORK, WHICH IS WHY THE SCREEN NEVER MENTIONS THIS
+  -- COLUMN. 066b writes `true` explicitly; every ordinary insert — the storage
+  -- window saving its checkboxes — takes the default and is false for free. So
+  -- there is no rule for anyone to remember and no code path that can forget
+  -- it, which is the same reason NEXT_BUILD_DIR and reloadOnPrerender are
+  -- settings rather than instructions.
+  seeded      boolean     not null default false,
+
   -- Composite, both of them, and this is the fifth table to learn it: a plain
   -- reference to (id) lets a row point at a storage in one salon and a folder
   -- in another, and nothing would ever say so.
@@ -151,3 +176,6 @@ comment on column public.storage_categories.storage_id is
 
 comment on column public.storage_categories.category_id is
   'مجلّد المنتجات. حذف السطر معناه إن المجلّد ما عاد بهذا المستودع — ما بينحذف المجلّد نفسه ولا منتجاته.';
+
+comment on column public.storage_categories.seeded is
+  'صحيح = السطر من البذرة الأولى وما قرّره حدا، وغلط = حدا أشّره بنافذة المستودع. الفرق مهم لأن السطر بحدّ ذاته بيدّعي إن المجلّد بهالمستودع، وبلا هالعمود ما بينفرق الافتراضي عن القرار. والافتراضي غلط، فأي إدراج عادي من الشاشة بيطلع قرارًا بلا ما تعرف الشاشة بالعمود.';

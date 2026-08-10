@@ -27,21 +27,43 @@
 -- time, in the window built for it.
 --
 -- ---------------------------------------------------------------------------
--- RE-RUNNABLE. `on conflict do nothing` against the pair constraint, so running
--- it twice adds nothing and running it after some un-ticking RE-ADDS what was
--- un-ticked. That second one matters and is not obvious: this file is a seed,
--- not a repair. Once the owner has narrowed anything, running it again undoes
--- that narrowing without an error and without a row count that looks wrong.
+-- ⚠️ SEEDS ONCE PER SALON, AND THE GUARD IS THE `not exists`, NOT THE WARNING
+--
+-- An earlier draft relied on `on conflict do nothing` and a paragraph saying
+-- "re-running this after narrowing RE-ADDS what was un-ticked, silently". That
+-- was true, which is exactly why it was not enough: this project chooses the
+-- model that CANNOT represent the bad state over the one that documents it.
+--
+-- With the `not exists`, a second run against a salon that already has rows
+-- inserts ZERO. Not "restores what you deleted" — nothing. The hazard stops
+-- being a note somebody has to read at the right moment.
+--
+-- ⚠️ PER SALON RATHER THAN GLOBAL, and the difference shows up later: a
+-- salon-wide check would let salon one's rows block salon two from ever being
+-- seeded, so the second salon would open to empty trees — the precise failure
+-- this file exists to prevent, moved one tenant along.
+--
+-- `on conflict` stays as the second line of defence. Two independent guards
+-- against one hazard, in the house style: the `not exists` decides whether to
+-- seed at all, the constraint decides that no pair lands twice.
 --
 -- ⚠️ Cross-salon safety is in the join, not in a WHERE: folders are matched to
 -- storages ON salon_id, so a second salon can never be handed another salon's
--- folders. The composite foreign keys in 066a would refuse it anyway — this is
--- the same claim made twice, which is the point.
+-- folders. The composite foreign keys in 066a would refuse it anyway — the same
+-- claim made twice, which is the point.
+--
+-- ⚠️ AND `seeded = true` IS WRITTEN EXPLICITLY HERE. The column defaults to
+-- false so the storage window's own inserts are decisions for free; this file
+-- is the one place that says "nobody chose this", and it has to say it out loud.
 -- ==========================================================================
 
-insert into public.storage_categories (salon_id, storage_id, category_id)
-select s.salon_id, s.id, c.id
+insert into public.storage_categories (salon_id, storage_id, category_id, seeded)
+select s.salon_id, s.id, c.id, true
 from public.storages s
 join public.product_categories c
   on c.salon_id = s.salon_id
+where not exists (
+  select 1 from public.storage_categories sc
+  where sc.salon_id = s.salon_id
+)
 on conflict (storage_id, category_id) do nothing;

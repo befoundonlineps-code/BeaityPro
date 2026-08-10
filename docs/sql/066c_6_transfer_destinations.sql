@@ -34,6 +34,11 @@
 --     dropdown with no explanation.
 -- ==========================================================================
 
+-- ⚠️ GROUPED BY id, DISPLAYED BY name. Raised in review: two storages sharing a
+-- name would collapse into one row and their destination lists would merge
+-- invisibly. Nothing stops two storages being called the same thing, and the
+-- failure would look like a correct answer — which is the whole class this file
+-- was written to avoid. Same reason item 4 refuses name matching in checks.
 select
   src.name                          as from_storage,
   dst.name                          as to_storage,
@@ -47,5 +52,5 @@ join public.storage_categories b
 join public.storages src on src.id = a.storage_id
 join public.storages dst on dst.id = b.storage_id
 join public.product_categories c on c.id = a.category_id
-group by src.name, dst.name
+group by src.id, src.name, dst.id, dst.name
 order by src.name, dst.name;
