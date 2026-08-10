@@ -34,7 +34,33 @@
 select
   to_jsonb(s)                                        as storage_row,
   count(*) filter (where b.balance_base <> 0)        as products_with_stock,
-  coalesce(sum(b.balance_base) filter (where b.balance_base <> 0), 0) as total_base,
+
+  -- ⚠️ PER UNIT, BECAUSE A SINGLE SUM ADDS WHAT CANNOT BE ADDED.
+  --
+  -- A first version wrote sum(b.balance_base) across all products, and
+  -- product_unit is pcs · ml · g. So it added millilitres to pieces to grams and
+  -- printed one number. Every product is pcs today, so the total is homogeneous
+  -- BY ACCIDENT — and nothing in the column said it was an accident. The first
+  -- product measured in millilitres would have made it a false number that
+  -- looks precise.
+  --
+  -- ⚠️ And it is this project's own rule, broken by the file that keeps quoting
+  -- it: no number in front of a person without its unit. Four honest figures
+  -- beat one comfortable one, and the signal was never in the total anyway — it
+  -- is in products_with_stock and which_products.
+  (
+    select string_agg(x.unit || ': ' || x.total, ' · ' order by x.unit)
+    from (
+      select p2.base_unit as unit, sum(b2.balance_base) as total
+      from public.product_balances b2
+      join public.products p2 on p2.id = b2.product_id and p2.salon_id = b2.salon_id
+      where b2.storage_id = s.id
+        and b2.salon_id   = s.salon_id
+        and b2.balance_base <> 0
+      group by p2.base_unit
+    ) x
+  )                                                   as totals_by_unit,
+
   string_agg(p.name, ' · ' order by p.name)
     filter (where b.balance_base <> 0)                as which_products,
   -- The pairing that makes it one glance instead of two columns compared by eye.
@@ -49,5 +75,10 @@ left join public.product_balances b
   on b.storage_id = s.id and b.salon_id = s.salon_id
 left join public.products p
   on p.id = b.product_id and p.salon_id = b.salon_id
-group by s.id, s.is_active, s.salon_id, s.*
+-- ⚠️ s.id ALONE. Postgres's functional dependency covers every column of s —
+-- including to_jsonb(s) — once the primary key is grouped by, so the extra
+-- names bought nothing. And `s.*` beside `to_jsonb(s)` on the same statement is
+-- an unusual shape whose behaviour would have been discovered at execution.
+-- This thread has paid that price twice; the narrow form removes the question.
+group by s.id
 order by verdict, s.name;
