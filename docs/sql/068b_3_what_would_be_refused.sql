@@ -43,11 +43,23 @@
 --
 -- WHAT TO LOOK AT:
 --   • rows where would_be_refused = true — links that cannot be removed until
---     the shelf is cleared. Right after the seed most links have no stock
---     behind them, so a short list is expected.
---   • ⚠️ `via` names WHERE the stock is: the folder itself or a descendant. A
---     refusal explained by a child is the case the direct-folder version missed
---     entirely, so it is printed rather than folded into a count.
+--     the shelf is cleared.
+--   • ⚠️ `via_descendant` names WHERE the stock is. A refusal explained by a
+--     child is the case the direct-folder version missed entirely, so it is
+--     printed rather than folded into a count.
+--
+-- ⚠️ AN EARLIER HEADER SAID "a short list is expected". IT MEASURED SIX OF SIX.
+-- And the sentence that used to sit beside it — "a long one is information
+-- rather than a problem" — had been dropped in an edit, leaving the wrong
+-- expectation without the clause that contained it. So a reader met everything
+-- refused and a header calling that unexpected.
+--
+-- 🔴 SIX OF SIX IS NOT A TIDINESS PROBLEM, IT IS A LOCK. See PROJECT_HANDOFF
+-- §3.13ج: the seed linked every folder to every storage without anybody
+-- deciding it, movements were then recorded against those undecided links, and
+-- this guard now refuses to undo them. Every checkbox in the storage window is
+-- untickable, and the route we described for narrowing them does not exist on
+-- this data.
 -- ==========================================================================
 
 -- ⚠️ READS product_category_descendants (069a) — IT NO LONGER CARRIES ITS OWN

@@ -16,16 +16,25 @@
 --     which is what lets a caller write one join condition instead of "this
 --     folder OR anything under it" — and writing that by hand at each call site
 --     is where the direct-folder version came from.
---   • depth_below — 0 everywhere means the tree is flat TODAY. That is a fact
---     about the data, not about the walk, and it is worth knowing before
---     reading any result of 068b_3: with a flat tree the descendant version and
---     the old direct-folder version agree on every row, so 068b_3 CANNOT
---     currently demonstrate the difference it was corrected for.
+--   • strict_descendants — how deep the tree actually goes.
 --
--- ⚠️ That last line is the point of this query. A green 068b_3 today proves the
--- condition runs; it does not prove the descendant walk works, because there is
--- nothing beneath anything to walk to. Reading them together is what stops a
--- flat-tree result being taken for a working walk.
+-- ⚠️ AN EARLIER HEADER HERE PREDICTED A FLAT TREE, AND THE MEASUREMENT HAD
+-- ALREADY ARRIVED BEFORE THE QUERY THAT MEASURES IT.
+--
+-- 068b_3 returned via_descendant = 1 on two rows: «تجريبي» is a child of
+-- «عناية بالشعر». So this query confirms a number that is already known, and
+-- the prediction it was written around was wrong.
+--
+-- ⚠️ AND THAT CHANGES WHAT THE DESCENDANT FIX WAS. It was not a precaution
+-- against a tree somebody might build one day — it was repairing something
+-- already broken in the live data. Read the first row: «عناية بالشعر» in the
+-- test storage holds two blocking products, one directly (مبرد ومهدئ ليزر) and
+-- one in the child. The direct-folder version WOULD ALSO HAVE REFUSED — on the
+-- direct product — but would have named ONE. The owner moves it, tries again,
+-- and is refused by a product never mentioned.
+--
+-- That is the exact scenario written up as a future hazard when the walk was
+-- deposited once. It is in the data now, in two rows.
 -- ==========================================================================
 
 select
