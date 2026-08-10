@@ -49,5 +49,10 @@ join pg_class c on c.oid = t.tgrelid
 join pg_namespace n on n.oid = c.relnamespace
 left join pg_proc p on p.oid = t.tgfoid
 where n.nspname = 'public'
-  and c.relname in ('stock_documents', 'stock_movements', 'stocktake_sessions', 'stock_fines')
+  -- ⚠️ stock_fine_lines IS IN THE LIST, and its absence from a first draft was
+  -- the same narrowing this file exists to undo. The lines carry the AMOUNTS; a
+  -- trigger on them does to the money what a trigger on stock_fines does to the
+  -- header, and reading only the header would have missed it.
+  and c.relname in ('stock_documents', 'stock_movements', 'stocktake_sessions',
+                    'stock_fines', 'stock_fine_lines')
 order by c.relname, t.tgname;
