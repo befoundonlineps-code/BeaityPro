@@ -212,6 +212,10 @@ const OPERATIONS = [
   { id:'suppliers', label:'الموردون',      ico:'🚚', table:'none'              },
 ]
 
+// ⚠️ اللاحقة قرارٌ مفتوح لا افتراض. المرجعيّة بتكتب `Main storage (sale)` —
+// أي sale_enabled؛ والمواصفة اختارت kind وهي ما بتعلم إن sale_enabled عمود
+// قائم أصلًا. ظهر بـ073_1 مع أربعة أعمدةٍ أخرى ما سأل عنها حدا.
+// المحاكاة بتعرض kind لأنه اللي انصمّمت عليه، والقرار للمالك.
 const STORAGE_NAME = { cos:'مستودع تجريبي (عام)', gen:'مستودع عام (أخصائيّ)' }
 const money = v => v == null ? '<span class="dash">—</span>' : '<span class="num">' + v.toFixed(2) + ' ₪</span>'
 
