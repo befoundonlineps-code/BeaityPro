@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabaseClient'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { saveProduct, saveSetComponents } from '../lib/productAdminIO'
 import {
-  validateProductForm, productFormPayload, productSaveAction, componentChoices,
+  validateProductForm, productFormPayload, productSaveAction, componentChoices, missingSalePrice,
   ACCOUNTING_DIRECTIONS, PRODUCT_UNITS,
 } from '../lib/productForm'
 import { supplierChoices } from '../lib/supplierForm'
@@ -113,6 +113,8 @@ export default function ProductFormDialog({
     confirmed: confirmDrop,
     sellByPackages,
     packagePrice,
+    sellByPortions,
+    portionPrice,
     priceConfirmed: confirmNoPrice,
   })
   // The answer has been given and the delete is waiting on one more press.
@@ -592,9 +594,16 @@ export default function ProductFormDialog({
           </div>
         )}
 
+        {/* ⚠️ الرسالةُ بتسمّي الطريقةَ اللي وقعت، لا الصنفَ اللي بتنتمي إله —
+            نفس درسِ خانتَي الغرامة، حيث رسالةٌ واحدة شرحت «نسبة بلا أساس»
+            والمالكُ عمل العكس، فكان الرفضُ صحيحًا والسببُ المعروض مش سببَه. */}
         {askingNoPrice && (
           <div className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm">
-            {t('products:productDialog.noPackagePriceConfirm')}
+            {t(`products:productDialog.${{
+              package: 'noPackagePriceConfirm',
+              portion: 'noPortionPriceConfirm',
+              both: 'noSalePriceConfirm',
+            }[missingSalePrice({ sellByPackages, packagePrice, sellByPortions, portionPrice })]}`)}
           </div>
         )}
 
