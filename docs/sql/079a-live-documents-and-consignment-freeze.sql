@@ -208,6 +208,19 @@ begin
   -- wrongly and then REVERSED leaves the product untouched in every accounting
   -- sense, and must not leave it frozen.
   --
+  -- 🔴 AND THE MECHANISM IS NETTING, NOT THIS VIEW — a distinction that only
+  -- appeared when somebody ran it. product_balances sums EVERY movement, dead
+  -- ones included; it equals the live balance solely because a reversal writes
+  -- an exact negation of its original (7, then −7, contributing zero). So
+  -- stock_document_liveness serves TEST ONE alone, and TEST TWO rides on an
+  -- invariant nothing here states. 081_1 reads the view's body and 081_2
+  -- measures the netting; until they run, this line is a claim.
+  --
+  -- ⚠️ Two ordinary futures break it with no error anywhere: a PARTIAL
+  -- reversal becoming possible, or somebody "improving" product_balances to
+  -- exclude reversed documents — which reads like a cleanup and silently
+  -- changes what this test means.
+  --
   -- ⚠️ AND THE EXAMPLE THIS COMMENT USED TO GIVE WAS WRONG. It said «شامبو
   -- 250 مل» and «مقشر ليزر» are locked today BY that reversal. They are not:
   -- 070 shows each of them has ONE reversed supply among four live movements,
