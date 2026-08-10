@@ -169,14 +169,35 @@ const FOLDERS = [
 ]
 
 // المنتجات: الرصيد لكل مستودع. غيابه من المفتاح = صفر، لا مجهول.
+//
+// ⚠️ `unit` كلّهن `pcs`، وهاد مقيسٌ لا اختيارًا: منتجات المالك التمانية كلّها
+// `pcs`، **وما في ولا منتج `ml` ولا `g` بالقاعدة إطلاقًا** (بند ٣٦، ومسجَّلٌ
+// بـ`test-utils/stockFixtures.js` بنفس الفصل).
+//
+// 🔴 والإغراء كان تخلية «Medicen Shampoo 250ml» بالملّي — واسمُه بيغري فعلًا.
+// **وهاد بيخترع شكلَ بياناتٍ ما عند المالك:** عند المالك «شامبو 250 مل»
+// وحدتُه الأساسيّة **قطعة** — القنّينة هي القطعة، والـ250 مل جزءٌ من الاسم.
+// ولو انكتب `ml` هون لصار `units_per_package: 12` معناه «عبوةٌ فيها ١٢ ملّي».
+//
+// ⚠️ وخلطُ المفترَض بالمقيس هو بالضبط اللي طبع «تكلفة المل: 0.05 ₪» بلقطةٍ
+// سابقة. فالصفُّ المفترَض تحت **مفصولٌ ومعلَّم**، وهو وحدَه اللي بيوري
+// اشتقاقَ الوحدة شغّالًا — لأن سبعةَ صفوفٍ بـ`pcs` ما بتقدر تُظهر عطلَ
+// وحدةٍ ثابتة.
 const PRODUCTS = [
-  { f:'f1', ab:'ICP',  name:'InstaCalm Peur',      pack:15, buy:38,  sell:80,  set:false, cons:false, arch:false, bal:{cos:75} },
-  { f:'f1', ab:'ICP2', name:'InstaCalm Peur Plus', pack:15, buy:null,sell:null,set:false, cons:true,  arch:false, bal:{gen:30} },
-  { f:'f2', ab:'IH',   name:'Instacalm hydration', pack:10, buy:130, sell:200, set:false, cons:false, arch:false, bal:{cos:0}  },
-  { f:'f2', ab:'SET1', name:'طقم الترطيب الكامل',   pack:1,  buy:null,sell:450, set:true,  cons:true,  arch:false, bal:{cos:4}  },
-  { f:'f3', ab:'IPL',  name:'Instacalm Peeller',   pack:20, buy:70,  sell:180, set:false, cons:false, arch:true,  bal:{cos:190}},
-  { f:'f4', ab:'MS2',  name:'Medicen Shampoo 250ml',pack:12,buy:20,  sell:45,  set:false, cons:false, arch:false, bal:{gen:40} },
-  { f:'f6', ab:'MNC',  name:'Medskin Night Cream', pack:6,  buy:70,  sell:120, set:false, cons:false, arch:true,  bal:{gen:0}  },
+  { f:'f1', ab:'ICP',  name:'InstaCalm Peur',      unit:'pcs', pack:15, buy:38,  sell:80,  set:false, cons:false, arch:false, bal:{cos:75} },
+  { f:'f1', ab:'ICP2', name:'InstaCalm Peur Plus', unit:'pcs', pack:15, buy:null,sell:null,set:false, cons:true,  arch:false, bal:{gen:30} },
+  { f:'f2', ab:'IH',   name:'Instacalm hydration', unit:'pcs', pack:10, buy:130, sell:200, set:false, cons:false, arch:false, bal:{cos:0}  },
+  { f:'f2', ab:'SET1', name:'طقم الترطيب الكامل',   unit:'pcs', pack:1,  buy:null,sell:450, set:true,  cons:true,  arch:false, bal:{cos:4}  },
+  { f:'f3', ab:'IPL',  name:'Instacalm Peeller',   unit:'pcs', pack:20, buy:70,  sell:180, set:false, cons:false, arch:true,  bal:{cos:190}},
+  { f:'f4', ab:'MS2',  name:'Medicen Shampoo 250ml',unit:'pcs',pack:12,buy:20,  sell:45,  set:false, cons:false, arch:false, bal:{gen:40} },
+  { f:'f6', ab:'MNC',  name:'Medskin Night Cream', unit:'pcs', pack:6,  buy:70,  sell:120, set:false, cons:false, arch:true,  bal:{gen:0}  },
+
+  // ── مفترَضٌ، لا مقيس ────────────────────────────────────────────────────
+  // ⚠️ ما في نظيرٌ له بقاعدة المالك اليوم. موجودٌ لسببٍ واحد: اشتقاقُ الوحدة
+  // من `base_unit` ما بينشاف شغّالًا إلا على صفٍّ وحدتُه مش `pcs`، وحارسٌ ما
+  // بيعضّ مش حارسًا. اسمُه بيقول إنه مفترَض حتى ما يُقرأ بياناتٍ حقيقيّة.
+  { f:'f4', ab:'—',    name:'صبغة سائلة (صفّ مفترَض — لا نظير له بالقاعدة)',
+                                                   unit:'ml',  pack:500,buy:null,sell:null,set:false, cons:false, arch:false, bal:{gen:1250} },
 ]
 
 // ══ الشريط: كل عمليّة بتُعلن الجدول اللي بتكتب فيه، والإطفاء بينشتقّ ══
@@ -300,16 +321,40 @@ function render(){
     // لمّا يكون إلهم معنى، وعندها بينلاحظوا.
     const oneToOne = p.pack === 1
 
+    // 🔴 الوحدة تُقرأ من `base_unit`، وما بتنكتب ثابتة — والنسخة الأولى من
+    // هالمحاكاة كتبت «بالقطعة» سبع مرّات بالنصّ.
+    //
+    // ⚠️ و`base_unit` إينَم بتلات قيم مقيسة بالكتالوج: pcs · ml · g. فمنتجٌ
+    // محسوبٌ بالملّي كان بينقرأ عددَ قطع — والسخرية إن المحاكاة نفسها فيها
+    // «Medicen Shampoo 250ml»، وعند المالك «شامبو 250 مل». يعني الصفّ اللي
+    // بيكسر القاعدة كان مكتوبًا بالتجهيزة من قبل ما تنكتب القاعدة.
+    //
+    // 🔴 والإطار مخزَّنٌ كاملًا، ما بينتركّب من سابقةٍ زائدَ اسم — والنسخةُ
+    // الأولى من هالإصلاح ركّبته فطبعت «بـالقطعة» على أوّل رسم.
+    //
+    // ⚠️ وهي نفس علّة «بالـعبوة» المسجَّلة بـCLAUDE.md حرفيًّا: التطويل صحيحٌ
+    // قبل اسمٍ أو رقمٍ أو مقتبس، **وغلطٌ قبل كلمةٍ عربيّة** — وحرفٌ ممطوطٌ
+    // بينقرأ خاصيّةَ خطٍّ لا عطلًا، فبينجو من مراجعةِ لقطات. انكشف هون بقراءة
+    // نصّ الصفحة من محرّكٍ حقيقيّ، تمامًا كما انكشف أوّل مرّة.
+    //
+    // ⇒ **والدرسُ للشاشة الحقيقيّة لا للمحاكاة:** «بال» + اسمٌ عمليّةُ نصٍّ
+    // بتبان سليمةً بالمصدر وبتنكسر بالرسم. فملفُّ اللغة بيحمل الإطارَ مركَّبًا
+    // لكلّ وحدة، لا سابقةً تُلصَق باسمٍ من `products:units.*`.
+    const UNIT_FRAME = { pcs: 'بالقطعة', ml: 'بالمل', g: 'بالغرام' }
+    const unit = UNIT_FRAME[p.unit] || UNIT_FRAME.pcs
+
+    // ⚠️ و«بالعبوة» بتضلّ «بالعبوة» مهما كانت الوحدة الأساسيّة — العبوةُ عبوةٌ
+    // سواءٌ جوّاها قطعٌ أو ملّي. الإطارُ التاني وحدَه هو اللي بيسمّي الوحدة.
     let bal
     if (base === 0){
       bal = oneToOne
-        ? '<span class="zero">بالقطعة: 0</span>'
-        : '<span class="zero">بالعبوة: 0.0 · بالقطعة: 0</span>'
+        ? '<span class="zero">' + unit + ': 0</span>'
+        : '<span class="zero">بالعبوة: 0.0 · ' + unit + ': 0</span>'
       if (!all && elsewhere) bal += '<a class="elsewhere" href="#">متوفّر بمستودعٍ آخر</a>'
     } else if (oneToOne) {
-      bal = '<span class="frames">بالقطعة: <b>' + base + '</b></span>'
+      bal = '<span class="frames">' + unit + ': <b>' + base + '</b></span>'
     } else {
-      bal = '<span class="frames">بالعبوة: <b>' + pk + '</b> <span class="b">·</span> بالقطعة: <b>' + base + '</b></span>'
+      bal = '<span class="frames">بالعبوة: <b>' + pk + '</b> <span class="b">·</span> ' + unit + ': <b>' + base + '</b></span>'
     }
 
     html += '<tr><td class="num">' + p.ab + '</td>'

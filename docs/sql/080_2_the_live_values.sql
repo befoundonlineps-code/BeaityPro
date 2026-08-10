@@ -68,9 +68,27 @@
 --    Number('') === 0. Four states now, not two: null · '' · whitespace only ·
 --    a real value.
 --
--- 2. low_supply_units is numeric WITH NO CHECK, so a NEGATIVE threshold is
---    storable — and a negative threshold is not a threshold. It is an alert
---    that can never fire, and it looks configured. Its own branch.
+-- 2. low_supply_units gets its own branch for a NEGATIVE threshold — which is
+--    not a threshold at all but an alert that can never fire while looking
+--    configured.
+--
+--    🔴 AND THE REASON GIVEN FOR IT WAS WRONG, IN THIS FILE, ONE BRANCH BELOW
+--    THE PARAGRAPH ABOUT THAT EXACT BLINDNESS. It said "numeric WITH NO CHECK,
+--    so a negative threshold is storable". Measured:
+--
+--        products_low_supply_check
+--          CHECK ((low_supply_units IS NULL) OR (low_supply_units >= 0))
+--
+--    "No CHECK" came from 079b_1 — the same query that cannot see constraints,
+--    in the file whose whole subject is that it cannot. So the negative branch
+--    is MEASURED DEAD and stays as insurance, on the same footing as the ''
+--    branches and the coalesce in 079a.
+--
+--    ✅ And the constraint settles a design question from a direction nobody
+--    expected: `IS NULL OR >= 0` means the schema PERMITS zero, PERMITS
+--    absence, and REFUSES negative. The three states the catalogue's
+--    "below threshold" column needs are written in the database — not in our
+--    judgement about how to draw them.
 --
 -- 3. ⚠️ THE WITNESS WAS THE WRONG KIND. The draft said the blocks "must sum to
 --    eight, because 067_1 measured eight products". But 067_1's eight came out

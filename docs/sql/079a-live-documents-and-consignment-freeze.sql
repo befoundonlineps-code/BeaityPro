@@ -106,10 +106,31 @@
 -- never happened"). A filter would have sent the list to re-derive the
 -- condition itself, which is the third copy arriving by another door.
 --
+-- ✅ AND HALF OF THE VIEW'S FIRST CONDITION IS ENFORCED BY THE SCHEMA, not
+-- computed by us — measured in 080_1:
+--
+--     stock_documents_reversal_shape_check
+--       CHECK ((doc_type = 'reversal') = (reverses_document_id IS NOT NULL))
+--
+-- ⇒ So `reverses_document_id is null` is LITERALLY EQUIVALENT to
+-- `doc_type <> 'reversal'`, and cannot drift from doc_type even deliberately.
+-- The view is reading a fact the database maintains, not deriving one.
+--
+-- (Its sibling, stock_documents_transfer_shape_check, exempts reversals from
+-- to_storage_id — which is what shapes the transfer rows in 081_2.)
+--
 -- ⚠️ AND ONE COUPLING IS NAMED BECAUSE IT IS INVISIBLE: the left join cannot
 -- fan out only because 045 put a UNIQUE index on stock_documents
 -- (reverses_document_id), single column. Drop that index and this view starts
 -- returning a document twice with no error anywhere.
+--
+-- ⚠️ DO NOT "RECONCILE" TWO RESULTS THAT DISAGREE HERE — THEY DO NOT.
+-- 080_1 lists NO unique CONSTRAINT on reverses_document_id, and 079b_2
+-- returned TRUE for a unique single-column INDEX on it. Both are correct:
+-- `create unique index` makes an index and not a constraint, so it has no row
+-- in pg_constraint at all. Written down because whoever compares the two
+-- outputs will "find" a contradiction, and the tidy resolution is to delete
+-- the protection this view depends on.
 --
 -- ⚠️ AND THAT SENTENCE IS A CLAIM FROM A SCRIPT, NOT A MEASUREMENT FROM THE
 -- CATALOGUE — which is the distinction this project keeps paying for. 079b_2
@@ -203,6 +224,17 @@ begin
   -- is the owner of the goods sitting in the storage. On an ordinary product
   -- it is a default for the next receipt, and each receipt already recorded
   -- its own supplier on its document.
+  --
+  -- ✅ AND A CONSTRAINT NOBODY HAD CITED COMPLETES IT — measured in 080_1:
+  --
+  --     products_consignment_supplier_check
+  --       CHECK ((NOT is_consignment) OR (supplier_id IS NOT NULL))
+  --
+  -- ⇒ THAT IS WHY THIS TEST ONLY HAS TO CONCERN ITSELF WITH SWAPPING. CLEARING
+  -- the supplier on a consignment product is refused by the CHECK; SWAPPING it
+  -- while a live balance exists is refused here. The two cover the two cases
+  -- between them — and until this was read, the guard's narrow scope looked
+  -- like a choice we had made rather than a division of labour.
   --
   -- ⚠️ A LIVE balance, not "has anything ever happened". A supply entered
   -- wrongly and then REVERSED leaves the product untouched in every accounting
