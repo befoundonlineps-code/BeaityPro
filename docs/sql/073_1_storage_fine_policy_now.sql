@@ -56,6 +56,17 @@
 select
   to_jsonb(s)                                 as storage_row,
   (s.fine_percent is null and s.fine_basis is null) as policy_not_decided,
-  (s.fine_percent = 0)                        as policy_is_zero
+  -- ⚠️ coalesce, AND ITS ABSENCE HERE WAS 066c_5 REPEATED WORD FOR WORD.
+  --
+  -- `null = 0` is UNKNOWN, not false. So a column named "policy is zero"
+  -- answered NEITHER in the one case it exists to tell apart from zero — the
+  -- undecided policy.
+  --
+  -- ⚠️ And the fix was invented in this repository, by us, with the argument
+  -- spelled out: "null = 'text' is UNKNOWN not false, in a column named
+  -- expect_true". It did not carry into a file written after it — the same way
+  -- 072's provenance block did not carry into 073_1. The rule keeps being
+  -- applied only where it has already broken.
+  coalesce(s.fine_percent = 0, false)         as policy_is_zero
 from public.storages s
 order by s.kind, s.name;

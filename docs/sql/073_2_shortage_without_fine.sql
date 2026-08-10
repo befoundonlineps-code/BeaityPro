@@ -79,9 +79,18 @@ select
   -- history; anything after it cannot.
   --
   -- Same move as reading the formula out of 056c instead of inventing one.
-  (d.created_at >= (select min(f2.created_at) from public.stock_fines f2
-                     where f2.salon_id = d.salon_id))
-                                              as after_fines_were_live
+  -- ⚠️ AND coalesce HERE TOO, for the sibling of the same fault: with no fines
+  -- at all min() is null, so every row would answer null and "before the line"
+  -- would be indistinguishable from "there is no line". It works today because
+  -- fines exist; on a fresh salon it would go quiet with perfect composure.
+  coalesce(
+    d.created_at >= (select min(f2.created_at) from public.stock_fines f2
+                      where f2.salon_id = d.salon_id),
+    false
+  )                                           as after_fines_were_live,
+  -- And the distinction the coalesce would otherwise hide, said out loud.
+  (select count(*) from public.stock_fines f3 where f3.salon_id = d.salon_id) = 0
+                                              as no_fines_exist_at_all
 from public.stock_documents d
 join public.storages s        on s.id = d.storage_id and s.salon_id = d.salon_id
 left join public.stock_movements m on m.document_id = d.id and m.salon_id = d.salon_id
