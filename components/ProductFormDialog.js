@@ -94,6 +94,10 @@ export default function ProductFormDialog({
   // dialog holds the id of what it just inserted.
   const [createdId, setCreatedId] = useState(null)
   const [confirmDrop, setConfirmDrop] = useState(false)
+  // Stored separately from confirmDrop on purpose: one flag for both questions
+  // would let a yes about deleting components stand as a yes about saving with
+  // no price.
+  const [confirmNoPrice, setConfirmNoPrice] = useState(false)
   const effectiveId = product ? product.id : createdId
   const isEdit = !!product
   const isSet = kind === 'set'
@@ -107,15 +111,22 @@ export default function ProductFormDialog({
     savedKind: product ? product.kind : null,
     componentCount: existingComponentRows.length,
     confirmed: confirmDrop,
+    sellByPackages,
+    packagePrice,
+    priceConfirmed: confirmNoPrice,
   })
   // The answer has been given and the delete is waiting on one more press.
   const needsDropConfirm = saveAction === 'dropThenSave'
+  // Waiting on an answer about a price nobody typed. Derived like the one
+  // above, so typing a price withdraws the question without a second press.
+  const askingNoPrice = saveAction === 'confirmNoPrice'
 
   useEffect(() => {
     if (!open) return
     setError('')
     setCreatedId(null)
     setConfirmDrop(false)
+    setConfirmNoPrice(false)
     setName(product ? product.name || '' : '')
     setKind(product ? product.kind || 'product' : 'product')
     setAccountingDirection(product ? product.accounting_direction || '' : '')
@@ -224,6 +235,16 @@ export default function ProductFormDialog({
     // and pressed save. The count is named, and the second press is the answer.
     if (saveAction === 'confirmDrop') {
       setConfirmDrop(true)
+      setError('')
+      return
+    }
+
+    // Ticked for sale by the package with the price box empty. The save is not
+    // refused — the owner's decision was to ask, because "I will put the price
+    // in later" is a real way of working. What it must not do is go through in
+    // silence and surface a week later in front of a customer.
+    if (saveAction === 'confirmNoPrice') {
+      setConfirmNoPrice(true)
       setError('')
       return
     }
@@ -571,16 +592,35 @@ export default function ProductFormDialog({
           </div>
         )}
 
+        {askingNoPrice && (
+          <div className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm">
+            {t('products:productDialog.noPackagePriceConfirm')}
+          </div>
+        )}
+
         {error && <div className="shrink-0 text-sm text-destructive">{error}</div>}
 
         <DialogFooter className="shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>
+          {/* ⚠️ «تراجع» يرجّع للنموذج ولا يسكّر النافذة — وهاد نصُّ طلب المالك:
+              «إذا ضغط تراجع بيضلّه بنفس شاشة المنتج». وزرُّ «تجاهل» جنبه
+              بيسكّر كلّ شي، فالاتنان مش نفس الفعل ولا بينفع واحد ينوب عن
+              التاني: اللي بدّه يكمّل تعبئة السعر لازم يلاقي طريقًا يرجّعه
+              للحقول لا يرميه برّا وما حدا حفظ إشي. */}
+          {askingNoPrice
+            ? (
+              <Button variant="outline" onClick={() => { setConfirmNoPrice(false); setError('') }}>
+                {t('products:productDialog.backToForm')}
+              </Button>
+            )
+            : <Button variant="outline" onClick={() => onOpenChange(false)}>{t('common:discard')}</Button>}
           <Button disabled={saving} variant={needsDropConfirm ? 'destructive' : 'default'} onClick={handleSave}>
             {saving
               ? t('common:saving')
               : needsDropConfirm
                 ? t('products:productDialog.dropComponentsButton')
-                : t('common:save')}
+                : askingNoPrice
+                  ? t('products:productDialog.noPackagePriceButton')
+                  : t('common:save')}
           </Button>
         </DialogFooter>
       </DialogContent>
