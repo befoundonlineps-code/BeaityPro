@@ -102,18 +102,51 @@ select
   m.entered_quantity,
   m.entered_uom,
   p.units_per_package,
+  p.units_per_portion,
   m.quantity_base,
   -- ⚠️ The equation, evaluated rather than left to the eye. 'ok' means the two
   -- frames agree; anything else is the third possibility named in the header.
   -- A stocktake adjustment has no entered frame at all — that is by design, not
   -- a mismatch — so it is named as its own answer instead of reading as a fault.
+  -- ⚠️ THREE UNITS, NOT TWO. entry_uom is package · portion · unit — measured,
+  -- and measured by us. A first version split it into "package" and "not
+  -- package", so a legitimate portion movement would read ⚠️ MISMATCH: the
+  -- loudest label in this file, fired at a normal case. And with
+  -- units_per_portion = 1 by chance it would read ok while checking nothing.
+  --
+  -- ⚠️ And the irony is worth keeping: portion was ruled an ENTRY unit rather
+  -- than a display frame three rounds ago — correctly, and about the balance
+  -- column. This is a check about entry, the one place it matters, and it is
+  -- where it got dropped. A closed list of three read as two, by the people who
+  -- had measured it.
+  --
+  -- ⚠️ AND abs() ON BOTH SIDES MEANS THIS COMPARES MAGNITUDES AND NEVER SEES
+  -- DIRECTION. The entered quantity is a magnitude and the sign comes from
+  -- doc_type, so that is right here — but a supply recorded with a negative
+  -- sign reads ok, and the sign is the difference between goods arriving and
+  -- goods leaving. Checking it needs a doc_type → sign map, which is a
+  -- different question; what this file owes is to say that it does not.
   case
-    when m.entered_quantity is null then 'no entered frame (stocktake)'
+    -- Named by what the document IS, not by the one type somebody assumed.
+    -- entered_quantity is also null for sale, service_consumption and reversal,
+    -- and none of those is a fault either — a label that guessed 'stocktake'
+    -- would be claiming to know a source the condition does not carry.
+    when m.entered_quantity is null
+      then 'no entered frame (' || d.doc_type || ')'
     when m.entered_uom = 'package'
-      and abs(m.entered_quantity * p.units_per_package) = abs(m.quantity_base) then 'ok'
-    when m.entered_uom <> 'package'
-      and abs(m.entered_quantity) = abs(m.quantity_base) then 'ok'
-    else '⚠️ MISMATCH'
+      then case when abs(m.entered_quantity * p.units_per_package) = abs(m.quantity_base)
+                then 'ok' else '⚠️ MISMATCH' end
+    when m.entered_uom = 'portion'
+      then case
+             when p.units_per_portion is null then '⚠️ portion entry, no portion size'
+             when abs(m.entered_quantity * p.units_per_portion) = abs(m.quantity_base)
+               then 'ok' else '⚠️ MISMATCH'
+           end
+    when m.entered_uom = 'unit'
+      then case when abs(m.entered_quantity) = abs(m.quantity_base)
+                then 'ok' else '⚠️ MISMATCH' end
+    -- A fourth value would mean entry_uom grew and this check did not.
+    else '⚠️ unknown entered_uom: ' || coalesce(m.entered_uom::text, 'null')
   end                                      as frame_check,
   m.unit_cost,
   m.cost_is_estimated,
