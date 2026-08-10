@@ -23,18 +23,46 @@
 --                       for the supplier
 --
 -- ---------------------------------------------------------------------------
--- ⚠️ TWO PRODUCTS ARE PREDICTED BY NAME, AND THE PREDICTION CAN FAIL.
+-- 🔴 THE PREDICTION, AND IT IS THE OPPOSITE OF WHAT AN EARLIER DRAFT SAID.
 --
--- «شامبو 250 مل» and «مقشر ليزر» each had a supply entered and then REVERSED.
--- Both must come back with movements_ever > 0 and movements_live = 0, and both
--- must therefore read 🔓 on the flag column: locked before, open now. They are
--- the two products this database froze permanently by way of a correction
--- working exactly as designed.
+--     flag_before_after      "مقفول ← مقفول" ON EVERY PRODUCT THAT MOVED.
+--                            Not one release. Read on, this is the answer.
+--     supplier_before_after  "🔓 مقفول ← مفتوح" on every non-consignment
+--                            product that moved. This is where the release is,
+--                            and it is broad.
 --
--- If either one shows movements_live > 0, the view is wrong or the reversal is
--- not what we think it is — and 079a must not be trusted until that is
--- explained. A named prediction that can be falsified is the only kind worth
--- writing down.
+-- ⚠️ THE DRAFT PREDICTED «شامبو 250 مل» and «مقشر ليزر» would come back with
+-- movements_live = 0 and release. They will not, and 070 already said so —
+-- each has ONE reversed supply among several live movements:
+--
+--     شامبو 250 مل   supply 100 · supply 20 · supply 7 · stocktake −2   live
+--                    + supply 10, reversed
+--     مقشر ليزر      supply 5 · supply 10 · return −10 · stocktake +5   live
+--                    + supply 10, reversed
+--
+-- So movements_live = 4 for each, and both stay locked on the flag.
+--
+-- ⚠️ THE SLIP IS ONE WORD WIDE AND IT HAS NOW HAPPENED TWICE IN TWO FILES: "a
+-- document was reversed" became "the product's movements were reversed". The
+-- condition for release is that EVERYTHING the product moved is dead, not that
+-- one reversal exists among them. Stated as a false prediction it would have
+-- done the precise damage described for 079b_4's false witness: every row
+-- reading "مقفول ← مقفول" against a header promising releases, and the reader
+-- concluding the view is broken.
+--
+-- ⇒ NO PRODUCT IN THIS DATABASE QUALIFIES. Every product that moved has at
+-- least one live movement.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ AND THAT IS A FINDING TO RECORD RATHER THAN A DISAPPOINTMENT: TEST ONE'S
+-- CHANGE — from `exists` to "a live movement" — IS CORRECT AND THIS DATA
+-- CANNOT DEMONSTRATE IT. Nothing here exercises it, so it ships UNTESTED IN
+-- THE FIELD, on the same footing as 066b's per-salon guard, and it is written
+-- into docs/sql/README.md as such rather than counted among what 079b proved.
+--
+-- The supplier column is what this run actually demonstrates, and it
+-- demonstrates a lot: every ordinary product that ever moved was frozen by a
+-- rule that had no reason to apply to it.
 --
 -- ⚠️ AND WITNESS OF TRUTH — item 1ج, structural rather than numeric: the query
 -- walks FROM products with left joins, so every product appears whether it

@@ -66,16 +66,16 @@
 --     is_consignment  ⇒ any live movement          ← history
 --     supplier_id     ⇒ a live balance             ← current ownership
 --
--- ⚠️ AND THAT SECOND ROW IS AN INFERENCE, NOT A MEASUREMENT — deliberately.
--- The column lists above come from the FUNCTION TEXTS, and DATABASE_DIAGRAM.md
--- says the limit out loud at line 576: a function's text reveals the columns it
--- TOUCHES, not the table's columns. So "stock_documents has no is_consignment"
--- is the strongest thing this file could read, and it is not proof.
+-- ✅ AND IT IS NOW MEASURED, NOT INFERRED — 079b_1 RAN AND THE PREMISE HOLDS.
+-- The catalogue was asked for the whole column list of both tables, unfiltered:
+-- stock_documents has TWENTY columns and stock_movements SIXTEEN, and neither
+-- carries a consignment flag. So is_consignment really is the only record, and
+-- the two tests are separate by right rather than by argument.
 --
--- ⇒ 079b_1 asks the catalogue for the whole column list of both tables and it
--- is the FIRST question there, because the entire split rests on it. If
--- stock_documents turns out to carry a consignment flag, the flag is mirrored
--- too, this file's TEST ONE is over-strict, and it comes back here.
+-- (It was written here as an inference on purpose, and 079b_1 was ordered
+-- BEFORE 079a for it: the column lists available to this file came from the
+-- FUNCTION TEXTS, and DATABASE_DIAGRAM.md states that limit at line 576 — a
+-- function's text reveals the columns it TOUCHES, never the table's columns.)
 --
 -- ---------------------------------------------------------------------------
 -- 🔴 CORRECTED — security definer. The draft left it invoker, on a guard with
@@ -171,11 +171,14 @@ begin
   -- anything here now". A product that received 100 on consignment and sold
   -- all 100 has a balance of zero and a history that must not be rewritten.
   --
-  -- ⚠️ coalesce on BOTH sides rather than `is distinct from` on the raw
-  -- columns: if the column turns out to accept null, a null→false update
-  -- carries no change in meaning and must not be refused. 079b_1 measures the
-  -- nullability; if it comes back NOT NULL this is dead code kept as
-  -- insurance, exactly like nullif(units_per_package, 0) in 056c.
+  -- ⚠️ coalesce on BOTH sides is PROVABLY DEAD CODE, MEASURED — and it stays.
+  -- 079b_1 answered: is_consignment is `boolean NOT NULL default false`, so no
+  -- null can reach either side and this can never change an outcome. It was
+  -- written for the case where the column accepted null, where a null→false
+  -- update carries no change of meaning and must not be refused. Same standing
+  -- as nullif(units_per_package, 0) in 056c: kept as insurance against a later
+  -- ALTER, and labelled so nobody "simplifies" it out on the grounds that it
+  -- never fires — which is exactly what it is designed to do.
   if coalesce(new.is_consignment, false) is distinct from coalesce(old.is_consignment, false)
   then
     select exists (
@@ -203,8 +206,17 @@ begin
   --
   -- ⚠️ A LIVE balance, not "has anything ever happened". A supply entered
   -- wrongly and then REVERSED leaves the product untouched in every accounting
-  -- sense — and «شامبو 250 مل» and «مقشر ليزر» are both locked in this
-  -- database today by that correction working exactly as designed.
+  -- sense, and must not leave it frozen.
+  --
+  -- ⚠️ AND THE EXAMPLE THIS COMMENT USED TO GIVE WAS WRONG. It said «شامبو
+  -- 250 مل» and «مقشر ليزر» are locked today BY that reversal. They are not:
+  -- 070 shows each of them has ONE reversed supply among four live movements,
+  -- so what locks them is ordinary live stock, not the correction. "A document
+  -- was reversed" had become "the product's movements were reversed" — the
+  -- same slip that put a false witness in 079b_4, made again one file later.
+  --
+  -- The scenario the live-balance test protects is REAL and this database has
+  -- no instance of it: it needs a product whose every movement is dead.
   if coalesce(old.is_consignment, false)
      and new.supplier_id is distinct from old.supplier_id
   then
