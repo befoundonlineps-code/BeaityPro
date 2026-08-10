@@ -75,8 +75,31 @@ select
   -- away — was never opened. A measurement in hand that was not consulted, which
   -- is the same fault as claiming a present from an old copy.
   coalesce(sum(l.shortage_base * l.unit_value), 0)             as shortage_value,
+
+  -- 🔴 NAMED FOR WHAT IT IS: A RECONSTRUCTION, NOT A READING. Do not treat this
+  -- as "the amount deducted".
+  --
+  -- ⚠️ MEASURED: the amount is computed NOWHERE. post_stocktake_session reads
+  -- fine_percent off the storage and stores it on the fine header (056c:382,
+  -- 477) and never multiplies by it. stock_fine_lines has six columns and none
+  -- of them is a total. So no reference formula exists to compare against — and
+  -- a first version of this line invented one silently, which is the second
+  -- definition of a money number that 069a was written to stop.
+  --
+  -- ⚠️ AND THAT MAKES THIS THE FIRST PLACE THE MONEY IS EVER CALCULATED. A
+  -- survey file would become the de facto reference by default, and everything
+  -- after it would inherit three decisions nobody has taken:
+  --
+  --   • is the percentage applied per LINE and then summed, or to the total?
+  --     (they differ once rounding exists)
+  --   • rounded to how many places, and at which step?
+  --   • is there a cap — a fine larger than a wage is a question, not a number
+  --
+  -- Whoever builds the fine screen decides those. Until then this column is an
+  -- order-of-magnitude reading, and it is named so that it cannot be quoted as
+  -- anything else.
   coalesce(sum(l.shortage_base * l.unit_value), 0)
-    * coalesce(f.fine_percent, 0) / 100                        as charged_total,
+    * coalesce(f.fine_percent, 0) / 100        as reconstructed_not_authoritative,
   -- ⚠️ The column that matters most. A fine whose document has been reversed is
   -- a charge outliving its cause.
   (select r.id from public.stock_documents r
