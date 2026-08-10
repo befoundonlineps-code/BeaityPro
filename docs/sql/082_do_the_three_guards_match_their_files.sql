@@ -3,7 +3,13 @@
 --
 -- Four columns. It confirms that what is STORED matches what was SENT — it
 -- does not discover anything, and it was nearly written to discover something
--- already answered.
+-- already answered. (Then it discovered twice, which is its own joke.)
+--
+-- ⚠️ AND ONE RUN OF THIS FILE USED THE PREVIOUS VERSION ON PURPOSE. The
+-- excerpt column's anchor fault (below) affects ONE column; that run existed
+-- for definition_md5, which was sound. The fix is here and enters at the next
+-- run — a KNOWN divergence between the deposited file and one execution, which
+-- is the whole difference from the silent kind this file was written to catch.
 --
 -- ---------------------------------------------------------------------------
 -- WHAT WAS NOT WORTH A FILE, AND WHY:
