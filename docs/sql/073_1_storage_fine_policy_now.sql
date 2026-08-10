@@ -36,13 +36,26 @@
 --     wrote it, which is its own finding
 -- ==========================================================================
 
+-- ⚠️ to_jsonb(s) — THE WHOLE ROW, AND A FIRST DRAFT DID NOT DO THIS.
+--
+-- It named s.owner_employee_id, which has never been read in this thread:
+-- check5 returned id · name · kind · fine_percent · fine_basis, and
+-- storage_responsibles is a table of its own. The responsible may be a column
+-- on storages or may not exist there at all — nobody has looked.
+--
+-- ⚠️ That is line_charged again, one round later. And worse: 072's header
+-- carries a block naming the measurement behind every column in it, written
+-- last round precisely to stop this — and the practice did not survive into the
+-- next file. An invention that prevents one fault and is not applied to the
+-- first file after it.
+--
+-- The cure is in this thread too: check3 escaped full_name because it read
+-- to_jsonb(e) whole instead of picking columns, and that same row is what
+-- surfaced profile_id and opened the identity question. storages is TWO rows.
+-- A picked list buys nothing here and risks everything.
 select
-  s.name                     as storage_name,
-  s.kind,
-  s.fine_percent,
-  s.fine_basis,
-  (s.fine_percent is null)   as policy_not_decided,
-  s.owner_employee_id,
-  s.created_at
+  to_jsonb(s)                                 as storage_row,
+  (s.fine_percent is null and s.fine_basis is null) as policy_not_decided,
+  (s.fine_percent = 0)                        as policy_is_zero
 from public.storages s
 order by s.kind, s.name;
