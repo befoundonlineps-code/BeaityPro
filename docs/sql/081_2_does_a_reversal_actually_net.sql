@@ -117,11 +117,16 @@ sums as (
     and m.salon_id = p.salon_id
   group by p.original_id, p.reversal_id, m.product_id, m.storage_id
 )
+-- ⚠️ doc_type AND THE STORAGE NAME ARE HERE ON PURPOSE. Without them the
+-- transfer row does not look like a transfer — and the transfer row is the one
+-- this entire correction exists for. A survey that cannot show WHY a row is
+-- interesting makes the reader re-derive it from the ids.
 select
+  d.doc_type,
   s.original_id,
   s.reversal_id,
   coalesce(pr.name, '⚠️ (منتج غير موجود)') as product,
-  s.storage_id,
+  coalesce(st.name, '⚠️ (مستودع غير موجود)') as storage,
   s.lines_original,
   s.lines_reversal,
   s.original_qty,
@@ -143,4 +148,8 @@ select
 from sums s
 left join public.products pr
   on pr.id = s.product_id
-order by verdict, product, s.storage_id;
+left join public.storages st
+  on st.id = s.storage_id
+left join public.stock_documents d
+  on d.id = s.original_id
+order by verdict, product, storage;

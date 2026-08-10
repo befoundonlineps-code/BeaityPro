@@ -101,6 +101,32 @@
 -- abort the WHOLE query and this file would report nothing about the other
 -- four. The cast costs nothing and makes a wrong premise produce a tidy closed
 -- set instead of an error.
+--
+-- ---------------------------------------------------------------------------
+-- ✅ RESULT, AND TWO THINGS IT SETTLED.
+--
+-- All six witnesses balanced — 8 = 4+2+1+1 · 26 = 20+6 = 23+3 = 20+6 ·
+-- 31 = 25+6 — and the data is clean: NOT ONE empty string and NOT ONE trailing
+-- space in any of the five columns.
+--
+-- ⚠️ So the '' and whitespace branches are MEASURED DEAD, and they stay. Same
+-- standing as the coalesce in 079a: written for a case that does not occur,
+-- kept as insurance against the day it does, and labelled here so nobody
+-- "simplifies" them out on the grounds that they never fire — which is
+-- precisely what they are for.
+--
+-- 🔴 AND A FACT FOR THE DOCUMENT SCREEN THAT NOBODY WENT LOOKING FOR:
+--
+--     payment_method       null on 23 of 26
+--     discount_kind        null on 20 of 26
+--     transport_paid_to    null on 20 of 26
+--     line_discount_kind   null on 25 of 31
+--
+-- ⇒ Making any of these REQUIRED on the document screen makes twenty-three
+-- existing documents impossible to save. A required field is a constraint on
+-- the PAST, not only on new input — the person opening an old document to fix
+-- its note is stopped by a box that was not there when it was written. The
+-- data says the past does not satisfy it.
 -- ==========================================================================
 
 select '0 · إجمالي products — شاهدٌ داخليّ، البلوكان تحته لازم يجمعا عليه'

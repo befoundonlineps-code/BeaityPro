@@ -208,18 +208,26 @@ begin
   -- wrongly and then REVERSED leaves the product untouched in every accounting
   -- sense, and must not leave it frozen.
   --
-  -- 🔴 AND THE MECHANISM IS NETTING, NOT THIS VIEW — a distinction that only
-  -- appeared when somebody ran it. product_balances sums EVERY movement, dead
-  -- ones included; it equals the live balance solely because a reversal writes
-  -- an exact negation of its original (7, then −7, contributing zero). So
-  -- stock_document_liveness serves TEST ONE alone, and TEST TWO rides on an
-  -- invariant nothing here states. 081_1 reads the view's body and 081_2
-  -- measures the netting; until they run, this line is a claim.
+  -- 🔴 AND THE MECHANISM IS NETTING, NOT THIS VIEW — measured, both halves.
+  -- 081_1 read product_balances and it is `sum(quantity_base) … from
+  -- stock_movements … group by salon_id, storage_id, product_id` WITH NO
+  -- LIVENESS FILTER: it sums dead movements too. It equals the live balance
+  -- solely because a reversal writes an exact negation of its original (7,
+  -- then −7, contributing zero). 081_2 measured that on four rows, transfers
+  -- included, ✅ by quantity and by value.
   --
-  -- ⚠️ Two ordinary futures break it with no error anywhere: a PARTIAL
-  -- reversal becoming possible, or somebody "improving" product_balances to
-  -- exclude reversed documents — which reads like a cleanup and silently
-  -- changes what this test means.
+  -- ⇒ So stock_document_liveness serves TEST ONE alone.
+  --
+  -- ⚠️ AND FOUR ROWS ARE A FACT ABOUT TODAY'S DATA, NOT A PROPERTY OF
+  -- reverse_stock_document — a sentence here records that somebody checked
+  -- once, and nothing re-checks it. The property is in the function and is
+  -- deposited (051c: `-m.quantity_base, m.unit_cost` over every movement of
+  -- the source, no narrowing), and lib/reversalNegation.test.js now guards it
+  -- on every run. That is where this belongs; this comment only points at it.
+  --
+  -- ⚠️ The remaining break is the other one: somebody "improving"
+  -- product_balances to exclude reversed documents. It reads like a cleanup
+  -- and it silently changes what this test means.
   --
   -- ⚠️ AND THE EXAMPLE THIS COMMENT USED TO GIVE WAS WRONG. It said «شامبو
   -- 250 مل» and «مقشر ليزر» are locked today BY that reversal. They are not:
