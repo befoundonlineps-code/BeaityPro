@@ -110,6 +110,22 @@
 -- fan out only because 045 put a UNIQUE index on stock_documents
 -- (reverses_document_id), single column. Drop that index and this view starts
 -- returning a document twice with no error anywhere.
+--
+-- ⚠️ AND THAT SENTENCE IS A CLAIM FROM A SCRIPT, NOT A MEASUREMENT FROM THE
+-- CATALOGUE — which is the distinction this project keeps paying for. 079b_2
+-- now reads pg_index for it, so the dependency is measured rather than
+-- inherited from a file that says what it intended to do.
+--
+-- ⚠️ AND THE DAMAGE FROM FAN-OUT IS NOT SYMMETRIC, so the view's own comment
+-- says which use is safe:
+--
+--     is_live · exists (…)   a logical answer — duplicates change nothing
+--     count(*) · sum(…)      a total — duplicates DOUBLE IT IN SILENCE
+--
+-- The guard below uses `exists`, so it is safe under either state of that
+-- index. 079b_3 counts, so it counts `distinct m.id` and cannot be inflated.
+-- Whoever writes the next total is the one at risk, and the only place they
+-- will look is the comment on the view.
 -- ==========================================================================
 
 create or replace view public.stock_document_liveness
@@ -129,7 +145,7 @@ left join public.stock_documents r
   and r.salon_id             = d.salon_id;
 
 comment on view public.stock_document_liveness is
-  'لكل مستند: هل هو حيّ — يعني لا هو عكسٌ لغيره ولا حدا عكسه. انوجد لأن نفس السؤال كان رح ينكتب بحارس وبقائمة المستندات وبالتقارير، ونفس الصنف انحرف قبل هيك بين نسختين بجولة وحدة. وبيحمل الجواب عمودًا لا بيصفّي صفوفًا، لأن قائمة المستندات لازم تضلّ تعرض المعكوس وعاكسه.';
+  'لكل مستند: هل هو حيّ — يعني لا هو عكسٌ لغيره ولا حدا عكسه. انوجد لأن نفس السؤال كان رح ينكتب بحارس وبقائمة المستندات وبالتقارير، ونفس الصنف انحرف قبل هيك بين نسختين بجولة وحدة. وبيحمل الجواب عمودًا لا بيصفّي صفوفًا، لأن قائمة المستندات لازم تضلّ تعرض المعكوس وعاكسه. ⚠️ وبينقرأ منه الجواب المنطقيّ (is_live أو exists) وما بينجمع عليه عدد: الوصلة اليسرى ما بتتفرّع إلا لأن في فهرس تفرّد على reverses_document_id مصدرُه ملفّ تاني، ولو راح الفهرس بيرجع المستند مرّتين بلا خطأ بأي مكان — والمنطق ما بيتأثّر والعدّ بيتضاعف بصمت. فالعدّ عليه بـcount(distinct …) أو ما بينعمل.';
 
 -- ---------------------------------------------------------------------------
 -- The trigger function, rewritten whole.

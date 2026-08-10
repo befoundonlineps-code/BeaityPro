@@ -49,15 +49,35 @@
 --                                FILE. This row reads the DATABASE, which is
 --                                the only place the two can disagree.
 --
+-- the unique index               ⚠️ NOT ORNAMENT. The view's left join cannot
+--                                fan out only because 045 put a single-column
+--                                UNIQUE index on reverses_document_id — and
+--                                until this row runs, that is a claim made by
+--                                a script about what it intended, not a fact
+--                                read from the catalogue. Exactly the class
+--                                CLAUDE.md item 4ب names: ask the catalogue,
+--                                not the memory. Expected: TRUE.
+--
 -- the Arabic                     CLAUDE.md: any script depositing Arabic reads
---                                it back. `comment on` and `using hint` both
---                                leave the repository and land in front of a
---                                person — the hint IS the second rung of the
---                                message ladder. Eighteen sentences were
---                                silently TRANSLATED once when an encoding fix
---                                overreached; nothing in our test suite can
---                                see that, because our tests read files and
---                                this text lives in the database.
+--                                it back, because it lives somewhere our test
+--                                suite cannot see — our tests read files, and
+--                                this text is in the database. Eighteen
+--                                sentences were silently TRANSLATED once when
+--                                an encoding fix overreached, and nothing here
+--                                could have noticed.
+--
+--                                ⚠️ AND THE HINTS DO NOT REACH A USER — an
+--                                earlier draft of this file said they did, and
+--                                our own measurement says otherwise.
+--                                dbErrorSentence takes the named key FIRST and
+--                                throws the hint away (068a). Both new codes
+--                                have keys, so the hints now reach whoever
+--                                opens the logs or reads the function — which
+--                                is a real audience and a different one. It
+--                                matters because somebody who believes the
+--                                hint is the user-facing sentence will spend
+--                                on it the care the locale file deserves, and
+--                                under-write the sentence that actually shows.
 --
 -- ⚠️ ONE QUERY, NOT SEVEN. The Supabase editor returns only the LAST result
 -- set of a multi-statement script, so seven statements would print one answer
@@ -119,6 +139,15 @@ join pg_class c on c.oid = t.tgrelid
 where c.relname = 'products'
   and not t.tgisinternal
   and t.tgname = 'freeze_consignment_after_use'
+
+union all
+select 'index · stock_documents (reverses_document_id)',
+       'is it UNIQUE and single-column? — the view''s left join depends on it',
+       (i.indisunique and i.indnatts = 1)::text
+from pg_index i
+join pg_class c on c.oid = i.indrelid
+where c.relname = 'stock_documents'
+  and pg_get_indexdef(i.indexrelid) like '%(reverses_document_id)%'
 
 union all
 select '🔤 arabic · view comment',

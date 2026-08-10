@@ -36,12 +36,26 @@
 -- explained. A named prediction that can be falsified is the only kind worth
 -- writing down.
 --
--- ⚠️ AND WITNESS OF TRUTH — item 1ج: the query walks FROM products with left
--- joins, so every product appears whether it ever moved or not. An empty
--- result is therefore impossible unless something is wrong; at least three
--- products exist (test-utils/stockFixtures.js records the owner's three, all
--- pcs, factors 15 · 1 · 1). Zero rows means the query failed, never "no
--- products are locked".
+-- ⚠️ AND WITNESS OF TRUTH — item 1ج, structural rather than numeric: the query
+-- walks FROM products with left joins, so every product appears whether it
+-- ever moved or not. Zero rows means the query failed, never "no products are
+-- locked".
+--
+-- ⚠️ AN EARLIER DRAFT PROPPED THAT UP WITH "at least three products exist
+-- (test-utils/stockFixtures.js records the owner's three)". Both halves were
+-- wrong to write. The count is EIGHT, measured in 067_1 — and more to the
+-- point, a fixtures file is a record of what we built a test out of, not a
+-- measurement of this database. Citing one as evidence about the other is the
+-- same substitution corrected twice already in this thread. The structural
+-- witness above needs no number at all, which is why it replaces it.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ AND movements_live COUNTS `distinct m.id` DELIBERATELY. The view's left
+-- join cannot fan out only while a UNIQUE index sits on reverses_document_id,
+-- and that index lives in another file (045, measured by 079b_2). A logical
+-- read of the view — is_live, exists — is unharmed either way. A COUNT is not:
+-- it would double in silence. So this file does not lean on the index it
+-- cannot see.
 -- ==========================================================================
 
 with any_movement as (
@@ -50,7 +64,7 @@ with any_movement as (
   group by m.product_id, m.salon_id
 ),
 live_movement as (
-  select m.product_id, m.salon_id, count(*) as movements_live
+  select m.product_id, m.salon_id, count(distinct m.id) as movements_live
   from public.stock_movements m
   join public.stock_document_liveness l
     on  l.document_id = m.document_id
