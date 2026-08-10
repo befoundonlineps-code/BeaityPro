@@ -63,13 +63,39 @@
 -- ⇒ A needle that errs in the direction that screams AND in the direction that
 -- stays silent is not a check, and does not get to wear a ✅.
 --
--- ✅ WHAT SURVIVES IS THE USEFUL HALF: print the five lines around the
--- product_balances read. The reader still decides — but over five lines
--- instead of a hundred and twenty, and that is the difference between a check
--- that happens and one that is skipped.
+-- ✅ WHAT SURVIVES IS THE USEFUL HALF: print the lines around the
+-- product_balances read. The reader still decides — but over a handful of
+-- lines instead of a hundred and twenty, and that is the difference between a
+-- check that happens and one that is skipped.
 --
 -- ⚠️ And a guard that does NOT read product_balances at all prints so, which
 -- would itself be the finding.
+--
+-- ---------------------------------------------------------------------------
+-- 🔴 AND THE FIRST VERSION OF THAT COLUMN REPRODUCED THE FAULT THAT KILLED THE
+-- NEEDLE — same property, same round, in the replacement itself.
+--
+-- prosrc carries COMMENTS. So `b.line ilike '%product_balances%'` anchors on
+-- the PROSE, and the window returns the neighbourhood of every MENTION rather
+-- than of the read. On freeze_consignment_after_use that is three blocks and
+-- fifteen lines, with the code LAST — measured on a real run: the owner's
+-- excerpt ended mid-word inside a comment, and
+-- `select coalesce(sum(b.balance_base), 0)` never appeared at all.
+--
+-- ⇒ The column written to put the reader on the five decisive lines put them
+-- on an explanation about those lines instead.
+--
+-- ✅ Two fixes, and the second is not cosmetic:
+--
+--   `btrim(b.line) not like '--%'`   the anchor must be CODE, not prose.
+--
+--   `between b.n - 2 and b.n + 6`    ⚠️ ASYMMETRIC ON PURPOSE. The question is
+--                                    "does it compare a balance or test that a
+--                                    row exists", and the answer is the `if`
+--                                    AFTER the select. Measured: at ±2,
+--                                    `if v_balance <> 0` fell outside the
+--                                    window — the comparison itself, which is
+--                                    the entire question, was not shown.
 --
 -- ---------------------------------------------------------------------------
 -- ⚠️ identity_args — BECAUSE THE WITNESS COUNTS ROWS AND HAS NO READING FOR
@@ -108,7 +134,13 @@ select
         select 1
           from regexp_split_to_table(p.prosrc, E'\n') with ordinality as b(line, n)
          where b.line ilike '%product_balances%'
-           and abs(a.n - b.n) <= 2
+           -- The anchor is code, not prose. prosrc carries the comments too,
+           -- and anchoring on a mention returns the neighbourhood of the
+           -- explanation instead of the neighbourhood of the read.
+           and btrim(b.line) not like '--%'
+           -- Asymmetric: the answer — `if v_balance <> 0` — comes AFTER the
+           -- select, and at ±2 it fell outside the window.
+           and a.n between b.n - 2 and b.n + 6
       )),
     '🔴 (ما بيقرأ product_balances إطلاقًا — وهاد هو الاكتشاف)')  as around_the_balance_read
 from pg_proc p
