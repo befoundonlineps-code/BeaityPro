@@ -31,6 +31,13 @@
 -- ⚠️ Read the definitions, not the names. Two columns inside the FOREIGN KEY
 -- parentheses is the thing being verified; a name ending in _fkey proves
 -- nothing about how many columns it covers.
+--
+-- ⚠️ AND EXPECT MORE ROWS THAN THE LIST ABOVE, ON POSTGRESQL 17. NOT NULL is
+-- recorded in pg_constraint there with contype = 'n', so the six NOT NULL
+-- columns can each appear as their own Postgres-named row. That is covered by
+-- "plus whatever Postgres added" and is not a fault — it is said here so it
+-- arrives as something expected rather than as a surprise mid-verification,
+-- which is when a correct result is most likely to be read as a problem.
 -- ==========================================================================
 
 select
