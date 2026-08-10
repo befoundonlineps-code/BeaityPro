@@ -36,8 +36,24 @@ select
     / length('from public.product_balances b')          as reads_view_expect_1,
 
   -- ⚠️ The old source must be GONE, not merely joined beside.
-  (length(p.prosrc) - length(replace(p.prosrc, 'stock_movements', '')))
-    / length('stock_movements')                          as rederives_balance_expect_0,
+  --
+  -- ⚠️ AND THE NEEDLE IS THE FROM CLAUSE, NOT THE BARE NAME. A first version
+  -- counted 'stock_movements', which appears in a COMMENT inside the body —
+  -- «product_balances, not a second sum over stock_movements» — so it would
+  -- have returned 1 and read as a failure on a function that was fixed
+  -- correctly. prosrc is the body with its comments; only the file header sits
+  -- outside $function$.
+  --
+  -- ⚠️ And the repair that leaps to mind is the dangerous one: delete the
+  -- comment — the sentence explaining WHY the view is read — to satisfy a
+  -- counter looking for a word instead of a use.
+  --
+  -- 069b_1's header said this one round ago, from the opposite side: "the
+  -- needle is the JOIN, punctuation and all — not the view's bare name, which
+  -- also appears in this function's comments and would count them." Same trap,
+  -- mirrored, one round later.
+  (length(p.prosrc) - length(replace(p.prosrc, 'from public.stock_movements', '')))
+    / length('from public.stock_movements')              as rederives_balance_expect_0,
 
   -- The gate is the transition alone: renaming and un-archiving must still pass.
   (length(p.prosrc) - length(replace(p.prosrc, 'if old.is_active and not new.is_active', '')))
