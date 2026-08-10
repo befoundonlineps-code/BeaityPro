@@ -73,6 +73,19 @@
 -- trigger re-deriving it would be a second definition of "how much is here",
 -- and two definitions of one number is the fault this module has paid for more
 -- than any other.
+--
+-- ⚠️ WHICH LEAVES ONE DEPENDENCY, NAMED HERE BECAUSE definer ONLY MOVED IT.
+--
+-- An invoker view inside a definer function is evaluated with THE FUNCTION
+-- OWNER'S rights. So this guard sees what its owner can see: if that role does
+-- not bypass RLS, product_balances returns nothing, v_products is empty, and
+-- the delete passes. The same fail-toward-permitting, with an owner standing
+-- where a policy stood.
+--
+-- 068b_1 reads pg_roles.rolbypassrls for the owner, so the assumption is
+-- measured rather than carried. ⚠️ If it comes back false, this trigger is a
+-- guard that cannot see what it guards, and the storage window must not ship
+-- until that is resolved.
 -- ==========================================================================
 
 -- ⚠️ SECURITY DEFINER, AND THE FIRST DRAFT SAID INVOKER FOR A REASON THAT DOES
@@ -121,11 +134,25 @@ begin
   -- climb the same edges): membership of a storage is inherited exactly as
   -- archiving is, and the two behaving differently is what would surprise
   -- somebody, not the two matching.
+  -- ⚠️ `union`, NOT `union all`, AND THE DIFFERENCE IS TERMINATION.
+  --
+  -- A cycle in parent_id — A <- B <- A — makes `union all` loop forever, so the
+  -- delete HANGS instead of being refused. `union` discards the duplicate and
+  -- the cycle ends itself.
+  --
+  -- ⚠️ And the JS walk this was written to match is SAFER than the first draft
+  -- of this was: descendantIds walks an in-memory structure and finishes.
+  -- Copying its behaviour while losing its termination is the kind of
+  -- resemblance that reads as fidelity.
+  --
+  -- Nothing here is known to prevent a cycle in product_categories, and that is
+  -- itself the argument: `union` costs nothing, and assuming costs a hung
+  -- transaction on the table the tree is edited from.
   with recursive descendants as (
     select c.id, c.salon_id
     from public.product_categories c
     where c.id = old.category_id and c.salon_id = old.salon_id
-    union all
+    union
     select child.id, child.salon_id
     from public.product_categories child
     join descendants d

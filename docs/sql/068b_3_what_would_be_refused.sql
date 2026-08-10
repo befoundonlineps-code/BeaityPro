@@ -16,6 +16,19 @@
 -- rows — the same split as 056d_6, which ran the fine's resolution without
 -- writing a fine.
 --
+-- ⚠️ AND THERE IS A SECOND THING IT CANNOT PROVE, WHICH MATTERS MORE.
+--
+-- This runs in the SQL editor as a role that bypasses RLS, so it sees every
+-- movement in the database. The trigger does not: it reads product_balances,
+-- an invoker view, evaluated with the FUNCTION OWNER'S rights. If that owner
+-- does not bypass RLS, the trigger sees nothing where this query sees
+-- everything — and this file would still print a confident, correct-looking
+-- list about a path the trigger never takes.
+--
+-- ⚠️ So a green result here says the CONDITION is right. It says nothing about
+-- whether the trigger can see the rows the condition selects. That is
+-- 068b_1's owner_bypasses_rls column, and neither file covers the other.
+--
 -- WHAT TO LOOK AT:
 --   • rows where would_be_refused = true — these are links that cannot be
 --     removed until the shelf is cleared. Right after the seed most links have
