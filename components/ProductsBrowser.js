@@ -10,7 +10,9 @@ import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { catalogueRows, catalogueGroups } from '../lib/catalogueView'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
-import { stockedStorages } from '../lib/balanceView'
+import { stockedStorages, BALANCE_STATE } from '../lib/balanceView'
+import { catalogueBalanceRows, ALL_STORAGES } from '../lib/catalogueBalance'
+import { packageFraction, showsPackageFrame } from '../lib/catalogueFrames'
 import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +34,48 @@ import { Button } from '@/components/ui/button'
 // so a product created here never appeared on the document screens until the
 // page was reloaded, and the most ordinary path in the module (new item arrives
 // → create the product → go and receive it) ended with it missing.
+
+// ── The balance cell ──────────────────────────────────────────────────────
+//
+// One cell, and three states rather than two.
+//
+// ⚠️ «ما تحرّك بعد» is NOT «0», and both cases are live in this database —
+// «بلسم 250 مل» has no movement at all and «سيروم علاجي 100 مل» has two live
+// movements and a balance of exactly zero. Drawing both as 0 tells the second
+// story about the first: "it ran out" about something that was never supplied.
+// balanceView.js decides which is which; this only draws it.
+//
+// ⚠️ And no dash, ever. The movements are the ledger now, so zero is an ANSWER
+// and not an absence — a dash would put them back on the same footing.
+function balanceCell(row, product, t) {
+  if (!row) return null
+  if (row.balanceState === BALANCE_STATE.NEVER_MOVED) {
+    return (
+      <span className="text-muted-foreground" title={t('products:balances.neverMovedHint')}>
+        {t('products:balances.neverMoved')}
+      </span>
+    )
+  }
+
+  const base = Number(row.balanceBase)
+  const unit = t(`products:units.${product.base_unit}`)
+  const inBase = t('products:balances.inBase', { unit, n: base })
+
+  // ⚠️ Grey, not red, for zero — and negative is the one that earns colour.
+  // Zero is an ordinary answer; a negative balance is the ledger disagreeing
+  // with itself, which is the only state here nobody can explain away.
+  const tone = base < 0 ? 'text-destructive' : base === 0 ? 'text-muted-foreground' : ''
+
+  if (!showsPackageFrame(product)) return <span className={tone}>{inBase}</span>
+
+  const packages = packageFraction(base, product.units_per_package)
+  return (
+    <span className={tone}>
+      {packages === null ? inBase : `${t('products:columns.inPackages', { n: packages })} · ${inBase}`}
+    </span>
+  )
+}
+
 export default function ProductsBrowser({ salonId, suppliers, catalogue, balances, storages }) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = catalogue
@@ -39,6 +83,14 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
   // Shown after archiving a product that still has stock. Not a confirmation —
   // see toggleProductArchived for why it asks nothing.
   const [archiveNotice, setArchiveNotice] = useState(null)
+
+  // null is "all storages", and it is the default rather than a first storage.
+  //
+  // ⚠️ A balance belongs to a storage, so the column cannot exist without one
+  // — but opening on an arbitrary storage would show a partial catalogue and
+  // call it the catalogue. "All" is the only starting position that is true
+  // before anybody has chosen.
+  const [storageId, setStorageId] = useState(ALL_STORAGES)
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedProductId, setSelectedProductId] = useState(null)
@@ -69,6 +121,15 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
     [categories, products, hideArchived]
   )
   const byId = useMemo(() => indexCategoriesById(categories), [categories])
+
+  // ⚠️ Keyed by product id and derived, never stored. Changing the storage
+  // recomputes it; nothing has to be cleared, so nothing can be left behind
+  // describing a storage that is no longer selected — the same reason
+  // visibleSelectedId is derived rather than reset.
+  const balanceByProduct = useMemo(
+    () => catalogueBalanceRows({ balances, products, storageId }),
+    [balances, products, storageId]
+  )
 
   // A selection that survived the folder leaving the tree points at something
   // nobody can see: the right pane would keep listing its products while the
@@ -282,6 +343,25 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
               />
               {t('products:hideArchived')}
             </label>
+
+            {/* ⚠️ The picker changes what ONE COLUMN says, and nothing else —
+                the catalogue is the catalogue whichever storage is chosen. A
+                filter that also removed rows would make "all products" mean
+                "the products this storage has touched", which is the reading
+                the balance column exists to prevent. */}
+            <label className="flex items-center gap-2 px-2 text-sm">
+              <span className="text-muted-foreground">{t('products:balances.storageLabel')}</span>
+              <select
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                value={storageId || ''}
+                onChange={(e) => setStorageId(e.target.value || ALL_STORAGES)}
+              >
+                <option value="">{t('products:columns.allStorages')}</option>
+                {(storages || []).map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
           </>
         }
       >
@@ -293,12 +373,21 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
               <th className="w-28 px-3 py-2 text-start font-medium">{t('products:columns.inContainer')}</th>
               <th className="w-28 px-3 py-2 text-start font-medium">{t('products:columns.purchasePrice')}</th>
               <th className="w-28 px-3 py-2 text-start font-medium">{t('products:columns.retailPrice')}</th>
+              {/* The heading names the grain, because the number changes with
+                  the picker and a reader who missed the picker would otherwise
+                  read a storage's figure as the product's — the exact
+                  substitution that made 28650 look like ten missing units. */}
+              <th className="w-40 px-3 py-2 text-start font-medium">
+                {t(storageId ? 'products:columns.remainingHere' : 'products:columns.remainingEverywhere')}
+              </th>
             </tr>
           </thead>
-          {/* No "Remaining" columns yet, in packages or in units. A balance is
-              the sum of stock movements and there are none — so the honest
-              answer today is "unknown", and a column of zeros would say
-              "nothing left" instead. They arrive with the movements. */}
+          {/* ⚠️ This used to say there were no movements yet and so no balance
+              column. There are, and the comment outlived them — the class this
+              project keeps paying for, on a comment that read as a decision.
+              The column is here now and it keeps the distinction the old
+              comment was reaching for: a product that never moved says so
+              instead of showing a zero. */}
           <tbody>
             {groups.map((group) => (
               <Fragment key={group.categoryId || 'none'}>
@@ -309,7 +398,7 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
                     a product whose folder is unknown keeps its row and says so
                     rather than vanishing. */}
                 <tr className="bg-muted/40">
-                  <td colSpan={5} className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                  <td colSpan={6} className="px-3 py-1 text-xs font-medium text-muted-foreground">
                     {group.category ? group.category.name : t('products:noCategoryGroup')}
                   </td>
                 </tr>
@@ -339,13 +428,14 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
                 </td>
                 <td className="px-3 py-1.5">{money(p.nominal_purchase_price)}</td>
                 <td className="px-3 py-1.5">{money(p.package_price)}</td>
+                <td className="px-3 py-1.5">{balanceCell(balanceByProduct.get(p.id), p, t)}</td>
               </tr>
                 ))}
               </Fragment>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
                   {search.trim() ? t('common:noResults') : t('products:emptyCatalogue')}
                 </td>
               </tr>

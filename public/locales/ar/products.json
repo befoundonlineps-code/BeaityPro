@@ -18,6 +18,10 @@
     "g": "غرام"
   },
   "columns": {
+    "remainingHere": "المتبقّي هنا",
+    "remainingEverywhere": "المتبقّي بالكل",
+    "inPackages": "بالعبوة: {{n}}",
+    "allStorages": "كل المستودعات",
     "abbreviation": "الاختصار",
     "name": "الاسم",
     "inContainer": "بالعبوة",
