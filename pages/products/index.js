@@ -200,6 +200,8 @@ export default function ProductsPage() {
                 suppliers={directories.suppliers}
                 catalogue={catalogue}
                 balances={balances.balances}
+                balancesLoading={balances.loading}
+                balancesError={balances.error}
                 storages={directories.storages}
               />
             )}

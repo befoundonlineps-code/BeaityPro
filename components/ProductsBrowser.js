@@ -47,7 +47,39 @@ import { Button } from '@/components/ui/button'
 //
 // ⚠️ And no dash, ever. The movements are the ledger now, so zero is an ANSWER
 // and not an absence — a dash would put them back on the same footing.
-function balanceCell(row, product, t) {
+//
+// 🔴 FOUR STATES, NOT THREE — AND THE FOURTH WAS A LIE BEFORE THIS ARGUMENT
+// EXISTED. The seed that makes every product read «ما تحرّك بعد» when no
+// balance rows are present is TRUE for a salon that has moved nothing, and
+// FALSE for a page whose balances are still in flight. Both were drawn the
+// same way.
+//
+// ⚠️ And it is false in the REASSURING direction, which is the worse one: the
+// data is on its way, the screen says "never moved", and the reader takes that
+// for "nothing in stock" and walks off. The blank cell it replaced was merely
+// useless; this would be wrong.
+//
+// ⚠️ AND IT IS REACHABLE, measured rather than assumed: the page passes
+// `balances.balances` — the array alone — and useProductBalances starts at
+// `useState([])` with `loading: true`. The catalogue tab has no gate on it
+// (the balances view does, pages/products/index.js). So the first paint of
+// every session hits this.
+//
+//   loading  the fetch is out and nothing can be said yet
+//   error    it failed, and the column must say so rather than say "zero"
+//   loaded   the three real states balanceView decides between
+//
+// The rest of the screen does not wait: the catalogue is readable without a
+// balance, so only the column holds.
+function balanceCell(row, product, t, { loading, error }) {
+  if (error) {
+    return (
+      <span className="text-muted-foreground" title={t('products:columns.balanceUnavailableHint')}>
+        {t('products:columns.balanceUnavailable')}
+      </span>
+    )
+  }
+  if (loading) return <span className="text-muted-foreground">{t('products:columns.balanceLoading')}</span>
   if (!row) return null
   if (row.balanceState === BALANCE_STATE.NEVER_MOVED) {
     return (
@@ -76,7 +108,15 @@ function balanceCell(row, product, t) {
   )
 }
 
-export default function ProductsBrowser({ salonId, suppliers, catalogue, balances, storages }) {
+export default function ProductsBrowser({
+  salonId, suppliers, catalogue, balances, storages,
+  // ⚠️ Separate props rather than folded into `balances`, because the array is
+  // already the shape three other screens take. And they default to "loaded",
+  // which fails OPEN — a caller that forgets them gets the lie back. There is
+  // one call site and lib/cataloguePickerScope.test.js reads it, which is the
+  // cheap way to keep the one honest.
+  balancesLoading = false, balancesError = null,
+}) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = catalogue
 
@@ -428,7 +468,7 @@ export default function ProductsBrowser({ salonId, suppliers, catalogue, balance
                 </td>
                 <td className="px-3 py-1.5">{money(p.nominal_purchase_price)}</td>
                 <td className="px-3 py-1.5">{money(p.package_price)}</td>
-                <td className="px-3 py-1.5">{balanceCell(balanceByProduct.get(p.id), p, t)}</td>
+                <td className="px-3 py-1.5">{balanceCell(balanceByProduct.get(p.id), p, t, { loading: balancesLoading, error: balancesError })}</td>
               </tr>
                 ))}
               </Fragment>

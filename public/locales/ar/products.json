@@ -18,6 +18,9 @@
     "g": "غرام"
   },
   "columns": {
+    "balanceLoading": "…",
+    "balanceUnavailable": "ما وصل الرصيد",
+    "balanceUnavailableHint": "تعذّر جلب الأرصدة، فهذا العمود ما بيقدر يقول إشي — لا إنه صفر ولا إنه ما تحرّك. تحديث الصفحة بيعيد المحاولة.",
     "remainingHere": "المتبقّي هنا",
     "remainingEverywhere": "المتبقّي بالكل",
     "inPackages": "بالعبوة: {{n}}",

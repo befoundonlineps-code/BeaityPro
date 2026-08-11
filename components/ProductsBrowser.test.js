@@ -117,6 +117,32 @@ describe('the table draws every row it was given', () => {
     expect(html).toContain('products:balances.inBase')
   })
 
+  it('does not claim «never moved» while the balances are still in flight', () => {
+    // 🔴 The fourth state, and the reason it needed one: the seed that draws
+    // «ما تحرّك بعد» for every product when no balance rows are present is TRUE
+    // for a salon that has moved nothing and FALSE for a page whose fetch is
+    // still out. Both looked identical.
+    //
+    // ⚠️ False in the REASSURING direction, which is the worse one — the reader
+    // takes "never moved" for "nothing in stock" and walks off. And reachable
+    // on every first paint: the page hands over `balances.balances` alone,
+    // while useProductBalances starts at [] with loading true.
+    const html = render({ balances: [], balancesLoading: true })
+    expect(html).not.toContain('products:balances.neverMoved')
+    expect(html).toContain('products:columns.balanceLoading')
+    // And the catalogue does not wait on it — the rows are readable meanwhile.
+    expect(drawnRows(html)).toBe(PRODUCTS.length)
+  })
+
+  it('says the balance is unavailable rather than saying zero', () => {
+    // A failed fetch is the same lie as the one above, except permanent. It has
+    // to name itself: not zero, not never-moved, not blank.
+    const html = render({ balances: [], balancesError: new Error('boom') })
+    expect(html).not.toContain('products:balances.neverMoved')
+    expect(html).toContain('products:columns.balanceUnavailable')
+    expect(drawnRows(html)).toBe(PRODUCTS.length)
+  })
+
   it('draws exactly what the scope says, folder by folder', () => {
     // ⚠️ Compared against catalogueRows rather than against a number typed here.
     // A literal would have to be updated whenever the fixture moves, and the
