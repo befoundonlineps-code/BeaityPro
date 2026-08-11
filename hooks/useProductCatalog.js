@@ -3,10 +3,25 @@ import { supabase } from '../lib/supabaseClient'
 
 // The products catalogue: the folders and the products in them.
 //
-// Storages are deliberately not fetched here yet. The screen has nothing to
-// do with them until there are stock movements to filter by storage, and a
-// query whose result nothing reads is exactly the waste already noted against
-// this screen's neighbour in the handoff priorities.
+// ⚠️ THIS QUERY CARRIES NO STORAGE FILTER, AND THAT IS THE INVARIANT — not an
+// omission waiting to be completed.
+//
+// The catalogue is the catalogue whichever storage is picked. The picker on the
+// products screen changes ONE COLUMN, and if the narrowing moved up here — to
+// "the products of this storage" — the screen would receive six products,
+// display all six with a clear conscience, and every guard downstream would
+// stay green. That is the escape route this module has watched a fault take
+// four times in one day: WHERE to JOIN to GROUP BY, and now component to
+// loader. The fault does not get fixed; it moves outside the boundary of the
+// last guard built.
+//
+// Guarded in lib/cataloguePickerScope.test.js, against this file's own text.
+//
+// (The sentence that used to sit here — "storages are deliberately not fetched
+// here yet, the screen has nothing to do with them until there are stock
+// movements" — is spent. There are movements, and the screen does read a
+// storage now; it takes the list as a prop from the page rather than fetching
+// it. What survives is the query above, unchanged and for a better reason.)
 //
 // ⚠️ This reads `error`, which no other hook in this project does — every one
 // of them takes `data || []` and drops the rest. That was survivable on the

@@ -82,6 +82,41 @@ describe('the table draws every row it was given', () => {
     expect(render()).toContain('منتج f')
   })
 
+  it('draws every row even when only some products have a balance', () => {
+    // 🔴 THE STORAGE PICKER CHANGES ONE COLUMN. It does not change which rows
+    // exist — and that sentence is what the whole design stands on.
+    //
+    // ⚠️ The leak that needs no mention of "storage" to happen: narrowing the
+    // catalogue to products the balance data knows about. It reads as a
+    // tidy-up, and «بلسم 250 مل» — zero movements in every storage (079b_3) —
+    // is the first row it takes. Here that row is «منتج f», and every product
+    // except two has no balance row at all.
+    //
+    // ⚠️ AND THIS IS THE SAME RESIDUAL THIS FILE WAS OPENED FOR: nobody looking
+    // at a long list can tell ALL from MOST. A picker that quietly drops two
+    // rows is exactly that, arriving through a new door.
+    const balances = [
+      { product_id: 'a', storage_id: 's1', balance_base: 75, avg_cost: 10, cost_has_estimate: false },
+      { product_id: 'c', storage_id: 's2', balance_base: 0, avg_cost: null, cost_has_estimate: false },
+    ]
+    const storages = [{ id: 's1', name: 'عام' }, { id: 's2', name: 'تجريبي' }]
+    expect(drawnRows(render({ balances, storages }))).toBe(PRODUCTS.length)
+  })
+
+  it('says «never moved» and «zero» in the same column and not the same way', () => {
+    // 🔴 Both cases are live in the owner's data: «بلسم 250 مل» has no movement
+    // at all and «سيروم علاجي 100 مل» has two live movements and a balance of
+    // exactly zero. Drawing both as 0 tells the second story about the first.
+    //
+    // Product 'c' has a balance row reading zero; every other product has none.
+    const balances = [
+      { product_id: 'c', storage_id: 's2', balance_base: 0, avg_cost: null, cost_has_estimate: false },
+    ]
+    const html = render({ balances, storages: [{ id: 's2', name: 'تجريبي' }] })
+    expect(html).toContain('products:balances.neverMoved')
+    expect(html).toContain('products:balances.inBase')
+  })
+
   it('draws exactly what the scope says, folder by folder', () => {
     // ⚠️ Compared against catalogueRows rather than against a number typed here.
     // A literal would have to be updated whenever the fixture moves, and the
