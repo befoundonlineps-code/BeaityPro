@@ -66,7 +66,6 @@ export default function StockDocumentsList({
   // unmounts each view, which destroyed work in the stocktake and is right here:
   // the difference is whether the state is WORK SOMEBODY DID or A VIEW THEY
   // CHOSE. A count is the first; "show me everywhere for a moment" is the second.
-  const [allStorages, setAllStorages] = useState(false)
   const setFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
 
   // ⚠️ NARROWED HERE, IN MEMORY — never in the query, and this is a safety
@@ -78,7 +77,7 @@ export default function StockDocumentsList({
   // expected. Measured in lib/documentFilters.test.js.
   // One object, so the table, the empty-state reason and the toolbar cannot
   // disagree about which storage is in force.
-  const inForce = { ...filters, storageId: storageInForce(storageId, allStorages) }
+  const inForce = { ...filters, storageId: storageInForce(storageId) }
 
   const rows = sortDocuments(filterDocuments(documents, inForce))
   const emptyKind = filterEmptyReason({ documents, filtered: rows, filters: inForce })
@@ -220,19 +219,8 @@ export default function StockDocumentsList({
             {(suppliers || []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </select>
         </label>
-        {/* The lens already names the storage above; this only says whether to
-            look past it. Two controls answering "which storage" on one screen is
-            what this replaced. */}
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={allStorages}
-            onChange={(e) => setAllStorages(e.target.checked)}
-          />
-          {t('products:documents.filterAllStorages')}
-        </label>
         <Button type="button" variant="outline" size="sm"
-          onClick={() => { setFilters(EMPTY_FILTERS); setAllStorages(false) }}>
+          onClick={() => setFilters(EMPTY_FILTERS)}>
           {t('products:documents.filterClear')}
         </Button>
       </div>

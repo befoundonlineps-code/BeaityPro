@@ -158,7 +158,7 @@ export default function ProductsPage() {
     <AuthGate>
       {({ session, salonId, logout }) => (
         <AppShell userEmail={session.user.email} onLogout={logout}>
-          <ProductsSecondaryBar view={view} onSelect={setView} />
+          <ProductsSecondaryBar view={view} onSelect={setView} lensStorageId={lensId} />
 
           <div className="flex items-center justify-between border-b border-border bg-card px-5 py-3">
             <div className="text-sm text-muted-foreground">
