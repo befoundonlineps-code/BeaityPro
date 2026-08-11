@@ -21,7 +21,7 @@ import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
 import { useProductOrders } from '../../hooks/useProductOrders'
 import { productsView, productsQuery, isDocumentView } from '../../lib/productsView'
-import { currentLens, lensChoices } from '../../lib/storageLens'
+import { currentLens, lensChoices, lensMayWiden, ALL_STORAGES } from '../../lib/storageLens'
 import { useStocktakeSession } from '../../hooks/useStocktakeSession'
 import { useStocktakeCoverage } from '../../hooks/useStocktakeCoverage'
 
@@ -33,10 +33,20 @@ export async function getServerSideProps({ locale }) {
   }
 }
 
-// Which views are asking "where am I working". The catalogue, the storages
-// manager and the suppliers list are not — they are about the salon, not about
-// a place inside it, and a lens above them would be a control that does nothing.
-const LENS_VIEWS = new Set(['stocktake', 'balances', 'documents'])
+// Which views are asking "where am I working".
+//
+// ⚠️ The catalogue used to be excluded, on the grounds that it is about the
+// salon rather than a place inside it — «a lens above it would be a control
+// that does nothing». That was true until it grew a balance column, which is
+// the first thing on it that a storage changes. The storages manager and the
+// suppliers list are still out, and for the reason the catalogue no longer
+// qualifies under.
+//
+// ⚠️ And it is in here rather than holding a picker of its own. It briefly had
+// one, which is two controls for one concept: set the lens to تجريبي, move to
+// the catalogue, and the catalogue said "all storages". A screen answering one
+// question twice.
+const LENS_VIEWS = new Set(['catalog', 'stocktake', 'balances', 'documents'])
 const usesLens = (view) => LENS_VIEWS.has(view) || isDocumentView(view)
 
 const BREADCRUMB = {
@@ -138,7 +148,7 @@ export default function ProductsPage() {
   // not follow the lens and must not reload when the lens moves.
   const coverage = useStocktakeCoverage()
 
-  const lensId = currentLens(directories.storages, chosenStorage)
+  const lensId = currentLens(directories.storages, chosenStorage, view)
 
   // Keyed on the lens, so the sheet for each storage is read from its own
   // session. Switching back and forth costs a read and loses nothing.
@@ -172,6 +182,14 @@ export default function ProductsPage() {
                   value={lensId}
                   onChange={(e) => setChosenStorage(e.target.value)}
                 >
+                  {/* ⚠️ Only where widening answers the screen's question —
+                      «what do I have» and «what happened» can be asked of the
+                      whole salon; a stocktake and a supply cannot. lensMayWiden
+                      fails closed, so a view it has not heard of never sees
+                      this option. */}
+                  {lensMayWiden(view) && (
+                    <option value={ALL_STORAGES}>{t('products:columns.allStorages')}</option>
+                  )}
                   {lensChoices(directories.storages, lensId).length === 0 && (
                     <option value="">{t('products:docs.storageNone')}</option>
                   )}
@@ -202,6 +220,7 @@ export default function ProductsPage() {
                 balances={balances.balances}
                 balancesLoading={balances.loading}
                 balancesError={balances.error}
+                storageId={lensId}
                 storages={directories.storages}
               />
             )}

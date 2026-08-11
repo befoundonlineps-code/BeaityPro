@@ -11,7 +11,8 @@ import { catalogueRows, catalogueGroups } from '../lib/catalogueView'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { stockedStorages, BALANCE_STATE } from '../lib/balanceView'
-import { catalogueBalanceRows, ALL_STORAGES } from '../lib/catalogueBalance'
+import { catalogueBalanceRows } from '../lib/catalogueBalance'
+import { ALL_STORAGES } from '../lib/storageLens'
 import { packageFraction, showsPackageFrame } from '../lib/catalogueFrames'
 import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -116,6 +117,17 @@ export default function ProductsBrowser({
   // one call site and lib/cataloguePickerScope.test.js reads it, which is the
   // cheap way to keep the one honest.
   balancesLoading = false, balancesError = null,
+  // 🔴 THE LENS, AND THIS SCREEN DOES NOT OWN IT.
+  //
+  // It briefly did: a picker of its own, with its own useState. That is two
+  // controls for one concept — set the page lens to تجريبي, come here, and this
+  // said "all storages". One screen answering one question twice.
+  //
+  // ⇒ The lens moved up to the page, where it already was for six other views,
+  // and this reads it. There is no local state to disagree with it, which is
+  // the difference between a rule to remember and a shape that cannot come
+  // apart. Guarded in lib/cataloguePickerScope.test.js.
+  storageId = ALL_STORAGES,
 }) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = catalogue
@@ -123,14 +135,6 @@ export default function ProductsBrowser({
   // Shown after archiving a product that still has stock. Not a confirmation —
   // see toggleProductArchived for why it asks nothing.
   const [archiveNotice, setArchiveNotice] = useState(null)
-
-  // null is "all storages", and it is the default rather than a first storage.
-  //
-  // ⚠️ A balance belongs to a storage, so the column cannot exist without one
-  // — but opening on an arbitrary storage would show a partial catalogue and
-  // call it the catalogue. "All" is the only starting position that is true
-  // before anybody has chosen.
-  const [storageId, setStorageId] = useState(ALL_STORAGES)
 
   const [selectedCategoryId, setSelectedCategoryId] = useState(null)
   const [selectedProductId, setSelectedProductId] = useState(null)
@@ -167,7 +171,7 @@ export default function ProductsBrowser({
   // describing a storage that is no longer selected — the same reason
   // visibleSelectedId is derived rather than reset.
   const balanceByProduct = useMemo(
-    () => catalogueBalanceRows({ balances, products, storageId }),
+    () => catalogueBalanceRows({ balances, products, storageId: storageId === ALL_STORAGES ? null : storageId }),
     [balances, products, storageId]
   )
 
@@ -384,24 +388,6 @@ export default function ProductsBrowser({
               {t('products:hideArchived')}
             </label>
 
-            {/* ⚠️ The picker changes what ONE COLUMN says, and nothing else —
-                the catalogue is the catalogue whichever storage is chosen. A
-                filter that also removed rows would make "all products" mean
-                "the products this storage has touched", which is the reading
-                the balance column exists to prevent. */}
-            <label className="flex items-center gap-2 px-2 text-sm">
-              <span className="text-muted-foreground">{t('products:balances.storageLabel')}</span>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-                value={storageId || ''}
-                onChange={(e) => setStorageId(e.target.value || ALL_STORAGES)}
-              >
-                <option value="">{t('products:columns.allStorages')}</option>
-                {(storages || []).map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </label>
           </>
         }
       >
@@ -418,7 +404,7 @@ export default function ProductsBrowser({
                   read a storage's figure as the product's — the exact
                   substitution that made 28650 look like ten missing units. */}
               <th className="w-40 px-3 py-2 text-start font-medium">
-                {t(storageId ? 'products:columns.remainingHere' : 'products:columns.remainingEverywhere')}
+                {t(storageId === ALL_STORAGES ? 'products:columns.remainingEverywhere' : 'products:columns.remainingHere')}
               </th>
             </tr>
           </thead>
