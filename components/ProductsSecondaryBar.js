@@ -1,6 +1,6 @@
 import { useTranslation } from 'next-i18next'
 import { navigationBlocked } from '../lib/storageScope'
-import { Warehouse, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ClipboardList, ListChecks, ScrollText, Boxes } from 'lucide-react'
+import { Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ClipboardList, ListChecks, ScrollText, Boxes } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
@@ -50,8 +50,24 @@ function SecondaryItem({ icon: IconComp, label, active, disabled, blockedTitle, 
 // The directories first, then the documents that write movements. The bar
 // scrolls sideways when it has to (overflow-x-auto), which is why six entries
 // is a layout question rather than a design one.
+// 🔴 `storages` IS NOT HERE, AND IT HAS MOVED IN BOTH DIRECTIONS IN ONE DAY.
+//
+// It was taken out to sit beside the storage picker as «تعديل المستودعات»,
+// following the reference. Then it came back, because the reference has no
+// authority over a bar that is not being copied. Then the owner named «طريقة
+// الوصول لإدارة المستودعات» explicitly among the things that take the
+// reference's form — the CONTENT AREA is a complete replacement, and the way
+// you reach the storages editor is part of it.
+//
+// ⇒ Out again, for a different reason than the first time: not «the reference
+// puts it there» but «the owner put the content area, including this path,
+// under the reference». The shape is the same and the authority is not, and
+// that distinction is why it is written down instead of just done.
+//
+// ⚠️ AND ONLY ONE OF THE TWO, EVER. A button here AND a link in the box is two
+// controls for one concept — the fault this module already paid for with the
+// duplicate storage picker.
 const ITEMS = [
-  { view: 'storages', icon: Warehouse, key: 'storages' },
   { view: 'suppliers', icon: Truck, key: 'suppliers' },
   // ⚠️ BEFORE the supply and not after it, because that is the order the work
   // happens in: the order is written, the goods come, the supply is filled from

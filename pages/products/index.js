@@ -6,6 +6,7 @@ import AuthGate from '../../components/AuthGate'
 import AppShell from '../../components/AppShell'
 import ProductsSecondaryBar from '../../components/ProductsSecondaryBar'
 import ProvisionalPaletteBadge from '../../components/ref/ProvisionalPaletteBadge'
+import RefStorageBox from '../../components/ref/RefStorageBox'
 import RefModal from '../../components/ref/RefModal'
 import ProductsBrowser from '../../components/ProductsBrowser'
 import StoragesManager from '../../components/StoragesManager'
@@ -24,7 +25,7 @@ import { useProductBalances } from '../../hooks/useProductBalances'
 import { useProductOrders } from '../../hooks/useProductOrders'
 import { productsQuery, isDocumentView } from '../../lib/productsView'
 import { OPERATION_LABEL_KEY, productsOperationFromQuery } from '../../lib/productsOperations'
-import { currentLens, lensChoices, lensMayWiden, ALL_STORAGES } from '../../lib/storageLens'
+import { currentLens, lensChoices, lensMayWiden } from '../../lib/storageLens'
 import { useStocktakeSession } from '../../hooks/useStocktakeSession'
 import { useStocktakeCoverage } from '../../hooks/useStocktakeCoverage'
 
@@ -156,44 +157,29 @@ export default function ProductsPage() {
           <div className="flex h-full min-h-0 flex-col">
             <ProductsSecondaryBar op={op} onSelect={openOperation} lensStorageId={lensId} />
 
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-5 py-2">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span>
-                  <span className="font-semibold text-primary">{t('products:breadcrumbProducts')}</span>
-                  {' / '}
-                  <span>{t('products:breadcrumbCatalog')}</span>
-                </span>
-                {/* ⚠️ It sits here rather than in the top bar, because the
-                    colours it is about are all in the content area now — the
-                    grid head, the group row, the write cell, the modal. */}
-                <ProvisionalPaletteBadge />
-              </div>
-
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">{t('products:lens.label')}</span>
-                <select
-                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
-                  value={lensId}
-                  onChange={(e) => setChosenStorage(e.target.value)}
-                >
-                  {/* ⚠️ Only where widening answers the screen's question. The
-                      catalogue and the document list can be asked of the whole
-                      salon; a stocktake and a supply cannot — and those are
-                      refused from the bar rather than resolved quietly. */}
-                  {lensMayWiden('catalog') && (
-                    <option value={ALL_STORAGES}>{t('products:columns.allStorages')}</option>
-                  )}
-                  {lensChoices(directories.storages, lensId).length === 0 && (
-                    <option value="">{t('products:docs.storageNone')}</option>
-                  )}
-                  {lensChoices(directories.storages, lensId).map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.is_active === false ? t('products:archivedOption', { name: s.name }) : s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            {/* 🔴 THE BREADCRUMB ROW THAT WAS HERE IS GONE, AND KEEPING IT WAS
+                THE MISTAKE THE OWNER NAMED. «المنتجات / كتالوج المنتجات» with a
+                rounded select on the other side survived the conversion because
+                it sits high on the screen and looked like chrome. It is not:
+                everything under the two bars is the content area, and the
+                content area is a complete replacement with no piece of the old
+                look kept for being minor.
+                ⚠️ And the breadcrumb was redundant even on its own terms — the
+                tree's root row says the same thing AND names the storage the
+                numbers belong to, which the breadcrumb never did. */}
+            <div data-content-area className="flex min-h-0 flex-1 flex-col">
+            <RefStorageBox
+              value={lensId}
+              onChange={setChosenStorage}
+              choices={lensChoices(directories.storages, lensId)}
+              mayWiden={lensMayWiden('catalog')}
+              allLabel={t('products:columns.allStorages')}
+              noneLabel={t('products:docs.storageNone')}
+              archivedLabel={(name) => t('products:archivedOption', { name })}
+              onEditStorages={() => openOperation('storages')}
+            >
+              <ProvisionalPaletteBadge />
+            </RefStorageBox>
 
             {/* ── The catalogue is the screen, permanently ────────────────
                 Not a tab any more. Every operation opens over it and it stays
@@ -211,6 +197,7 @@ export default function ProductsPage() {
               storageName={lensStorage?.name || null}
               storages={directories.storages}
             />
+            </div>
           </div>
 
           {/* ── The operations ─────────────────────────────────────────── */}

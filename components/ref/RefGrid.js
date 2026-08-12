@@ -134,6 +134,21 @@ export function RefGroupRow({ columns, children, ...rest }) {
   )
 }
 
+// A small square label beside a name — «طقم», «مؤرشف», «بمستودع كذا: ٩».
+//
+// ⚠️ NOT components/ui/badge. That one is a rounded pill, which is the
+// product's look everywhere outside this region — and the content area is a
+// complete replacement rather than a selective one. Same information, drawn the
+// way everything else in here is drawn: square, flat, on the grid's own rule
+// colour.
+export function RefTag({ children }) {
+  return (
+    <span className="shrink-0 whitespace-nowrap border border-[var(--rule)] px-1 py-px text-[10px] leading-none text-muted-foreground">
+      {children}
+    </span>
+  )
+}
+
 // 🔴 THE EMPTY AREA KEEPS ITS COLUMNS, and this row is the whole mechanism.
 //
 // In the reference the column rules run to the bottom of the pane whether there

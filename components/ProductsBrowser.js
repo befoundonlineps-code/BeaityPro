@@ -2,7 +2,7 @@ import { Fragment, useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, Plus, Pencil, Archive, Search } from 'lucide-react'
 import RefTwoPane, { RefPaneButton } from './ref/RefTwoPane'
-import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow } from './ref/RefGrid'
+import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from './ref/RefGrid'
 import ProductFormDialog from './ProductFormDialog'
 import ProductCategoryFormDialog from './ProductCategoryFormDialog'
 import { buildProductTree, countProducts } from '../lib/productTree'
@@ -16,9 +16,7 @@ import { catalogueBalanceRows, otherStorageTotals } from '../lib/catalogueBalanc
 import { ALL_STORAGES } from '../lib/storageLens'
 import { packageFraction, showsPackageFrame } from '../lib/catalogueFrames'
 import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import RefModal, { RefActionButton, RefCancelButton } from './ref/RefModal'
 
 // The products screen.
 //
@@ -350,19 +348,26 @@ export default function ProductsBrowser({
           failure is the ADR-048 mistake with a different trigger: a refresh
           that fails after somebody picked a folder would throw the folder,
           the open branches and the search away on its way to saying so. */}
+      {/* ⚠️ Flat and square, like everything else in this region. It used to be
+          a rounded card with a shadcn button, which is the product's look
+          outside here — and the content area is a complete replacement. */}
       {error && (
-        <div className="flex flex-wrap items-center gap-3 border-b border-destructive/40 bg-destructive/5 px-4 py-2">
-          <AlertTriangle className="size-4 shrink-0 text-destructive" />
-          <span className="text-sm font-medium text-destructive">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--rule)] bg-destructive/5 px-3 py-1.5">
+          <AlertTriangle className="size-3.5 shrink-0 text-destructive" />
+          <span className="text-xs font-semibold text-destructive">
             {t('products:loadFailedTitle')}
           </span>
           <span className="text-xs text-muted-foreground">
             {dbErrorSentence(error, t, 'ProductsBrowser.load')}
           </span>
           <span className="text-xs text-muted-foreground">{t('products:loadFailedHint')}</span>
-          <Button type="button" variant="outline" size="sm" className="ms-auto" onClick={reload}>
+          <button
+            type="button"
+            onClick={reload}
+            className="ms-auto h-6 border border-[var(--rule)] bg-white px-2 text-xs hover:bg-black/5"
+          >
             {t('products:retry')}
-          </Button>
+          </button>
         </div>
       )}
 
@@ -516,8 +521,11 @@ export default function ProductsBrowser({
                         <span className={p.is_active === false ? 'text-muted-foreground line-through' : ''}>
                           {p.name}
                         </span>
-                        {p.kind === 'set' && <Badge variant="outline">{t('products:setBadge')}</Badge>}
-                        {p.is_active === false && <Badge variant="outline">{t('products:archivedBadge')}</Badge>}
+                        {/* ⚠️ Flat squares, not rounded pills. The pill is the
+                            product's look and it does not live in here; the
+                            information does, and it is the same information. */}
+                        {p.kind === 'set' && <RefTag>{t('products:setBadge')}</RefTag>}
+                        {p.is_active === false && <RefTag>{t('products:archivedBadge')}</RefTag>}
                       </span>
                     </RefTd>
                     <RefTd className="text-muted-foreground">{Number(p.units_per_package)}</RefTd>
@@ -559,28 +567,29 @@ export default function ProductsBrowser({
           that the goods stay on the shelf, stay countable by the stocktake,
           and stay on the balance screen until they run out. */}
       {archiveNotice && (
-        <div className="flex flex-col gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm">
-          <span className="font-medium">
+        <div className="flex shrink-0 flex-col gap-1.5 border-t border-[var(--rule)] bg-black/[0.03] px-3 py-2 text-xs">
+          <span className="font-semibold">
             {t('products:archiveNotice.title', { name: archiveNotice.product.name })}
           </span>
           <div className="flex flex-wrap items-center gap-1.5">
             {archiveNotice.storages.map((row) => (
-              <Badge key={row.storage_id} variant="outline">
+              <RefTag key={row.storage_id}>
                 {t('products:archiveNotice.atStorage', {
                   storage: (storages || []).find((s) => s.id === row.storage_id)?.name || '—',
                   unit: t(`products:units.${archiveNotice.product.base_unit || 'pcs'}`),
                   n: Number(row.balance_base).toLocaleString('ar', { maximumFractionDigits: 3 }),
                 })}
-              </Badge>
+              </RefTag>
             ))}
           </div>
           <span className="text-muted-foreground">{t('products:archiveNotice.explain')}</span>
-          <Button
-            type="button" variant="outline" size="sm" className="self-start"
+          <button
+            type="button"
             onClick={() => setArchiveNotice(null)}
+            className="h-6 self-start border border-[var(--rule)] bg-white px-2 text-xs hover:bg-black/5"
           >
             {t('products:archiveNotice.dismiss')}
-          </Button>
+          </button>
         </div>
       )}
 
@@ -607,37 +616,39 @@ export default function ProductsBrowser({
       />
 
       {/* Archiving a folder is asked about rather than done. It reaches
-          further than this screen, and the count says how far. */}
-      <Dialog open={!!archiveTarget} onOpenChange={(o) => { if (!o) { setArchiveTarget(null); setActionError('') } }}>
-        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              {t(archiveTarget?.is_active === false
-                ? 'products:archiveDialog.restoreTitle'
-                : 'products:archiveDialog.archiveTitle')}
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-2 text-sm">
-            <p className="font-medium">{archiveTarget?.name}</p>
-            <p className="text-muted-foreground">
-              {t(archiveTarget?.is_active === false
-                ? 'products:archiveDialog.restoreMessage'
-                : 'products:archiveDialog.archiveMessage', { count: affectedCount })}
-            </p>
-            {actionError && <div className="text-destructive">{actionError}</div>}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setArchiveTarget(null); setActionError('') }}>
+          further than this screen, and the count says how far.
+          ⚠️ A RefModal like every other window opened from here — it was the
+          product's rounded Dialog, which is a piece of the old look kept in the
+          content area because it is small and rarely seen. Neither is a
+          reason. */}
+      <RefModal
+        open={!!archiveTarget}
+        onClose={() => { setArchiveTarget(null); setActionError('') }}
+        width="max-w-[460px]"
+        title={t(archiveTarget?.is_active === false
+          ? 'products:archiveDialog.restoreTitle'
+          : 'products:archiveDialog.archiveTitle')}
+        footer={
+          <>
+            <RefCancelButton onClick={() => { setArchiveTarget(null); setActionError('') }}>
               {t('common:discard')}
-            </Button>
-            <Button disabled={busy} onClick={confirmArchiveCategory}>
+            </RefCancelButton>
+            <RefActionButton disabled={busy} onClick={confirmArchiveCategory}>
               {busy ? t('common:saving') : t('common:done')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </RefActionButton>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-2 text-xs">
+          <p className="font-semibold">{archiveTarget?.name}</p>
+          <p className="text-muted-foreground">
+            {t(archiveTarget?.is_active === false
+              ? 'products:archiveDialog.restoreMessage'
+              : 'products:archiveDialog.archiveMessage', { count: affectedCount })}
+          </p>
+          {actionError && <div className="text-destructive">{actionError}</div>}
+        </div>
+      </RefModal>
     </>
   )
 }
