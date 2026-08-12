@@ -23,7 +23,7 @@ import { Folder, FolderOpen, Minus, Plus } from 'lucide-react'
 // tree says out loud which storage the numbers belong to. That is the grain
 // riding along with the number, in the one place a reader cannot miss it.
 
-function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archived, archivedLabel }) {
+function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archived, archivedLabel, isUnassigned, unassignedLabel }) {
   const hasChildren = (node.children || []).length > 0
   const open = expanded.has(node.id)
   const selected = selectedId === node.id
@@ -59,6 +59,14 @@ function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archiv
           {open ? <FolderOpen className="size-3.5 shrink-0" /> : <Folder className="size-3.5 shrink-0" />}
           <span className="truncate">{node.name}</span>
           {archived && <span className="shrink-0 opacity-70">({archivedLabel})</span>}
+          {/* ⚠️ Said rather than left to be noticed. A folder that appears
+              under «all storages» and under no single storage looks like a bug
+              until something names the state. */}
+          {unassignedLabel && isUnassigned && isUnassigned(node) && (
+            <span className="shrink-0 border border-[var(--rule)] px-1 text-[10px] leading-none opacity-70">
+              {unassignedLabel}
+            </span>
+          )}
         </button>
       </div>
 
@@ -73,6 +81,8 @@ function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archiv
           onSelect={onSelect}
           archived={archived || sub.is_active === false}
           archivedLabel={archivedLabel}
+          isUnassigned={isUnassigned}
+          unassignedLabel={unassignedLabel}
         />
       ))}
     </div>
@@ -90,6 +100,8 @@ export default function RefTwoPane({
   treeToolbar,
   treeEmpty,
   itemsToolbar,
+  isUnassigned,
+  unassignedLabel,
   children,
 }) {
   const { t } = useTranslation('common')
@@ -130,16 +142,21 @@ export default function RefTwoPane({
         <div className="min-h-0 flex-1 overflow-auto py-1">
           {/* The root: «everything», named, and carrying the storage the
               numbers below belong to. */}
-          <button
-            type="button"
-            onClick={() => onSelectCategory(null)}
-            data-tree-node="__root__"
-            className="flex w-full items-center gap-1.5 px-2 py-[3px] text-start text-xs"
-            style={selectedCategoryId ? undefined : { background: 'var(--chrome)', color: 'var(--chrome-ink)' }}
+          {/* 🔴 A HEADING, NOT A BUTTON — AND IT WAS A BUTTON UNTIL THE FOLDER
+              RULE CHANGED. It used to be selectable and highlighted whenever
+              nothing else was, because «nothing selected» meant «every product»
+              and that was a real view worth naming.
+              «Nothing selected» now means an EMPTY GRID. A highlighted root
+              above an empty grid reads as «this selection returned nothing» —
+              the screen accusing itself. So the root names the tree and the
+              storage, and selection is only ever a folder. */}
+          <div
+            data-tree-root
+            className="flex w-full items-center gap-1.5 px-2 py-[3px] text-start text-xs font-semibold"
           >
             <FolderOpen className="size-3.5 shrink-0" />
             <span className="truncate">{rootLabel}</span>
-          </button>
+          </div>
 
           {roots.length === 0 && treeEmpty
             ? treeEmpty
@@ -154,6 +171,8 @@ export default function RefTwoPane({
                   onSelect={onSelectCategory}
                   archived={isArchived ? isArchived(root) : root.is_active === false}
                   archivedLabel={archivedLabel}
+                  isUnassigned={isUnassigned}
+                  unassignedLabel={unassignedLabel}
                 />
               ))}
         </div>

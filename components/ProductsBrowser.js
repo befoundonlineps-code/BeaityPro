@@ -9,6 +9,7 @@ import { buildProductTree, countProducts } from '../lib/productTree'
 import { treeContains } from '../lib/categoryTree'
 import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { catalogueRows, catalogueGroups } from '../lib/catalogueView'
+import { foldersForStorage, isUnassignedFolder } from '../lib/folderStorageScope'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { stockedStorages, BALANCE_STATE } from '../lib/balanceView'
@@ -152,6 +153,10 @@ export default function ProductsBrowser({
   // needs the name rather than the id. Optional: the tests render without one
   // and get the bare «المنتجات».
   storageName = null,
+  // What the screen opens on. See the state declarations below for why these
+  // are props rather than always empty.
+  initialCategoryId = null,
+  initialSearch = '',
 }) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = catalogue
@@ -160,9 +165,29 @@ export default function ProductsBrowser({
   // see toggleProductArchived for why it asks nothing.
   const [archiveNotice, setArchiveNotice] = useState(null)
 
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
+  // 🔴 THE FOLDER IS A SEAM NOW, NOT ONLY INTERNAL STATE — and the reason is a
+  // guard that would otherwise have died with the rule change.
+  //
+  // «No folder chosen» used to mean every product, so a rendered page showed
+  // the whole catalogue and components/ProductsBrowser.test.js could count it.
+  // That test exists for a case the owner named himself: «nobody looking at a
+  // long list can tell ALL from MOST». With the new rule the first render is
+  // empty by design, and the selection is internal — so the only reachable
+  // render had nothing to count and the guard had no case left.
+  //
+  // ⇒ The opening folder AND the opening search come in as props. They are not
+  // test hooks: they are the same seam `?op=` uses, and «which folder» and
+  // «what was typed» are exactly what a link to this screen would have to
+  // carry. The page does not pass either yet, and saying so is the point — this
+  // is a seam that exists before its caller.
+  //
+  // ⚠️ And two rather than one, because the states are not the same: a folder
+  // narrows, a search widens to the storage. A render that can only reach the
+  // first cannot check the row set that includes a product whose folder was
+  // deleted — the row a grouping is likeliest to drop.
+  const [selectedCategoryId, setSelectedCategoryId] = useState(initialCategoryId)
   const [selectedProductId, setSelectedProductId] = useState(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch)
   const [dialog, setDialog] = useState(null)              // { product }
   const [categoryDialog, setCategoryDialog] = useState(null) // { category }
   const [archiveTarget, setArchiveTarget] = useState(null)
@@ -181,14 +206,31 @@ export default function ProductsBrowser({
   // it applies to both panes rather than to one of them.
   const [hideArchived, setHideArchived] = useState(false)
 
+  // 🔴 THE FOLDERS THIS STORAGE SHOWS — AND EVERYTHING BELOW READS THIS LIST,
+  // NOT `categories`.
+  //
+  // A folder belongs to a storage now (085). The tree narrows with the picker;
+  // the BALANCE does not, and lib/treeVsBalanceScope.test.js asserts the two
+  // apart — because the tempting next step, «so the balance should follow the
+  // folder too», breaks nothing visible and quietly makes a product's number
+  // mean something narrower than it says.
+  //
+  // ⚠️ Passed on to catalogueRows as well, so a folder from another storage
+  // cannot be reached by a stale selection: catalogueScope fails closed on a
+  // folder it cannot find.
+  const visibleCategories = useMemo(
+    () => foldersForStorage(categories, storageId),
+    [categories, storageId]
+  )
+
   // The hiding rule is in lib/productTree.js, not spelled out here: it thins
   // the flat list before the walk so archiving stays inherited, and that is a
   // claim worth a test rather than a reading.
   const tree = useMemo(
-    () => buildProductTree(categories, products, { hideArchived }),
-    [categories, products, hideArchived]
+    () => buildProductTree(visibleCategories, products, { hideArchived }),
+    [visibleCategories, products, hideArchived]
   )
-  const byId = useMemo(() => indexCategoriesById(categories), [categories])
+  const byId = useMemo(() => indexCategoriesById(visibleCategories), [visibleCategories])
 
   // ⚠️ Keyed by product id and derived, never stored. Changing the storage
   // recomputes it; nothing has to be cleared, so nothing can be left behind
@@ -225,27 +267,54 @@ export default function ProductsBrowser({
   // written wrongly.
   const visibleSelectedId = treeContains(tree, selectedCategoryId) ? selectedCategoryId : null
 
-  // ⚠️ NO FOLDER CHOSEN MEANS EVERY PRODUCT, not an empty table.
+  // 🔴 NO FOLDER CHOSEN MEANS NO ROWS — AND THE COMMENT HERE USED TO SAY THE
+  // EXACT OPPOSITE, CORRECTLY, ABOUT AN EARLIER RULE.
   //
-  // This returned [] until somebody clicked a folder, while the search box was
-  // drawn the whole time — so a person looking for a product whose folder they
-  // did not know, which is the only reason to search, was told «ما في نتائج»
-  // about a product that exists. Not silent: a confident wrong answer.
+  // It read: «NO FOLDER CHOSEN MEANS EVERY PRODUCT, not an empty table. This
+  // returned [] until somebody clicked a folder, while the search box was drawn
+  // the whole time — so a person looking for a product whose folder they did
+  // not know, which is the only reason to search, was told ما في نتائج about a
+  // product that exists. Not silent: a confident wrong answer.»
   //
-  // And the folder now includes its subfolders, by the SAME walk the counting
-  // sheet and the archive dialog use. It filtered on direct children alone, so
-  // «شعر» meant one set here and another set there — one question with two
-  // answers, which is the class the storage lens closed one stage ago.
+  // Every word of that was true. The owner has since set the reference's rule —
+  // the grid stays empty until a folder is picked — and the fault it caused is
+  // closed by the OTHER half of the same decision rather than by this
+  // behaviour: A SEARCH OVERRIDES THE EMPTY STATE and looks through the whole
+  // storage. So the search box never lies, and it is `searchScope` below that
+  // keeps that promise.
+  //
+  // ⚠️ And the empty state is SAID, not merely shown. A blank grid alone cannot
+  // tell «no folder chosen» from «this folder is empty» — measured in the
+  // reference, where the second screenshot's blank grid was only readable
+  // because the toolbar showed nothing selected. Both panels are below.
+  //
+  // The folder includes its subfolders, by the SAME walk the counting sheet and
+  // the archive dialog use.
+  const searchScope = useMemo(
+    // ⚠️ null on «all storages» — «do not narrow», which is a different
+    // statement from «narrow to every id I could find»: a product whose folder
+    // was deleted is in the first and not in the second. On one storage the set
+    // IS the narrowing, and that is the point.
+    () => (storageId === ALL_STORAGES ? null : new Set(visibleCategories.map((c) => c.id))),
+    [storageId, visibleCategories]
+  )
+
   const rows = useMemo(
     () => catalogueRows({
-      products, categories, categoryId: visibleSelectedId, search, hideArchived,
+      products, categories: visibleCategories, categoryId: visibleSelectedId,
+      search, hideArchived, searchScope,
     }),
-    [products, categories, visibleSelectedId, search, hideArchived]
+    [products, visibleCategories, visibleSelectedId, search, hideArchived, searchScope]
   )
 
   // Runs of rows, each carrying its folder so the table can head it. Grouping,
   // not ranking: what matters is that a folder's products are adjacent.
-  const groups = useMemo(() => catalogueGroups(rows, categories), [rows, categories])
+  const groups = useMemo(() => catalogueGroups(rows, visibleCategories), [rows, visibleCategories])
+
+  // The three states the grid can be in, named rather than inferred from
+  // whether `rows` happens to be empty.
+  const searching = search.trim().length > 0
+  const noFolderChosen = !visibleSelectedId && !searching
 
   function selectCategory(id) {
     setSelectedCategoryId(id)
@@ -390,10 +459,26 @@ export default function ProductsBrowser({
         // A catalogue that starts at zero folders needs to say so. The services
         // screen never did — it opened onto a seeded tree — so an empty white
         // pane here would read as a screen that failed to load.
+        isUnassigned={isUnassignedFolder}
+        unassignedLabel={t('products:refShell.unassignedFolder')}
+        // 🔴 TWO EMPTY TREES, NOT ONE — and telling them apart is the whole
+        // point. «The salon has no folders at all» and «this storage has none
+        // assigned to it» look identical as a blank pane, and the second is now
+        // the ordinary state of a fresh storage. A blank that does not say
+        // which one it is reads as a screen that failed to load.
         treeEmpty={
           <div className="flex flex-col gap-1 p-4 text-center text-xs text-muted-foreground">
-            <span>{t('products:noCategoriesTitle')}</span>
-            <span>{t('products:noCategoriesHint')}</span>
+            {(categories || []).length === 0 ? (
+              <>
+                <span>{t('products:noCategoriesTitle')}</span>
+                <span>{t('products:noCategoriesHint')}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold">{t('products:refShell.noFoldersHere')}</span>
+                <span>{t('products:refShell.noFoldersHereHint')}</span>
+              </>
+            )}
           </div>
         }
         treeToolbar={
@@ -544,10 +629,34 @@ export default function ProductsBrowser({
                 ))}
               </Fragment>
             ))}
+            {/* 🔴 THREE EMPTY STATES, NOT ONE — AND THE REFERENCE IS WHY.
+                Its second screenshot shows folders present, none selected and a
+                blank grid; the blank ALONE could not be told from «this folder
+                is empty». What made it readable was the toolbar — nothing
+                highlighted, Edit and Archive greyed. The same rule applies
+                here, and louder: a blank grid with no sentence in it is a
+                screen that looks broken.
+                ⚠️ Same principle as the provisional-palette badge: a state the
+                reader must know about is SAID on screen, not left to be
+                inferred from an absence. */}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={COLUMNS} className="px-3 py-6 text-center text-muted-foreground">
-                  {search.trim() ? t('common:noResults') : t('products:emptyCatalogue')}
+                <td colSpan={COLUMNS} className="px-3 py-10 text-center">
+                  {noFolderChosen ? (
+                    <span className="flex flex-col gap-1" data-empty-state="pick-folder">
+                      <span className="font-semibold">{t('products:pickFolder.title')}</span>
+                      <span className="text-muted-foreground">{t('products:pickFolder.hint')}</span>
+                    </span>
+                  ) : searching ? (
+                    <span className="text-muted-foreground" data-empty-state="no-results">
+                      {t('common:noResults')}
+                    </span>
+                  ) : (
+                    <span className="flex flex-col gap-1" data-empty-state="folder-empty">
+                      <span className="font-semibold">{t('products:folderEmpty.title')}</span>
+                      <span className="text-muted-foreground">{t('products:folderEmpty.hint')}</span>
+                    </span>
+                  )}
                 </td>
               </tr>
             )}

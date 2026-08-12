@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import ProductsBrowser from './ProductsBrowser'
 import { catalogueRows } from '../lib/catalogueView'
+import { ALL_STORAGES } from '../lib/storageScope'
 
 // ⚠️ THE ONE RESIDUAL THE OWNER'S EYE COULD NOT CLOSE.
 //
@@ -21,9 +22,9 @@ jest.mock('next-i18next', () => ({
 }))
 
 const CATEGORIES = [
-  { id: 'c-hair', parent_id: null, name: 'شعر', sort_order: 1, is_active: true },
-  { id: 'c-shampoo', parent_id: 'c-hair', name: 'شامبو', sort_order: 1, is_active: true },
-  { id: 'c-nails', parent_id: null, name: 'أظافر', sort_order: 2, is_active: true },
+  { id: 'c-hair', parent_id: null, name: 'شعر', sort_order: 1, is_active: true, storage_id: 'stor-1' },
+  { id: 'c-shampoo', parent_id: 'c-hair', name: 'شامبو', sort_order: 1, is_active: true, storage_id: 'stor-1' },
+  { id: 'c-nails', parent_id: null, name: 'أظافر', sort_order: 2, is_active: true, storage_id: 'stor-1' },
 ]
 
 const product = (id, categoryId, over) => ({
@@ -40,9 +41,46 @@ const PRODUCTS = [
   product('f', 'c-gone'),
 ]
 
+// 🔴 THE RENDER OPENS ON A FOLDER NOW, AND THAT IS THE RULE CHANGE.
+//
+// «No folder chosen» used to mean every product, so a plain render showed the
+// whole catalogue and this file could count it. It now means an EMPTY grid —
+// the owner's rule, matching the reference — so a plain render has nothing to
+// count and the guard would have had no reachable case left.
+//
+// ⚠️ AND THE GUARD IS THE ONE THE OWNER ASKED FOR BY NAME: «nobody looking at a
+// long list can tell ALL from MOST». Losing it to a rule change would be the
+// quiet kind of loss — the suite stays green and the commit reads as a feature.
+//
+// ⇒ ProductsBrowser takes its opening state as props, so every case is
+// reachable again.
+//
+// ⚠️ AND THE DEFAULT RENDER IS «ALL STORAGES, SEARCHING», NOT «A FOLDER». A
+// folder cannot contain «منتج f», whose folder was deleted — and that is the
+// row a grouping is likeliest to drop, which is half of what this file guards.
+// The one state that reaches every product is a search from «all storages»,
+// where the scope is «do not narrow» rather than a set of known ids. Every
+// fixture name starts with «منتج», so the search matches all six.
+const STORAGE = 'stor-1'
 const render = (over) => renderToStaticMarkup(
   <ProductsBrowser
     salonId="s" suppliers={[]} storages={[]} balances={[]}
+    storageId={ALL_STORAGES}
+    initialSearch="منتج"
+    catalogue={{
+      products: PRODUCTS, categories: CATEGORIES, loading: false, error: null, reload: () => {},
+    }}
+    {...over}
+  />
+)
+
+// One folder, on one storage — the other reachable state, and the one the tree
+// filter is live in.
+const renderFolder = (over) => renderToStaticMarkup(
+  <ProductsBrowser
+    salonId="s" suppliers={[]} storages={[]} balances={[]}
+    storageId={STORAGE}
+    initialCategoryId="c-hair"
     catalogue={{
       products: PRODUCTS, categories: CATEGORIES, loading: false, error: null, reload: () => {},
     }}
@@ -66,7 +104,7 @@ const render = (over) => renderToStaticMarkup(
 const drawnRows = (html) => (html.match(/data-product-row="/g) || []).length
 
 describe('the table draws every row it was given', () => {
-  it('draws ALL products, not most of them, when no folder is chosen', () => {
+  it('draws ALL products, not most of them, when a search spans every storage', () => {
     // ⚠️ The residual, closed by counting. Six products in, six rows out — and
     // asserted against PRODUCTS.length rather than a literal, so adding a
     // fixture product cannot quietly make this test describe fewer.
@@ -152,14 +190,60 @@ describe('the table draws every row it was given', () => {
     // ⚠️ Compared against catalogueRows rather than against a number typed here.
     // A literal would have to be updated whenever the fixture moves, and the
     // person updating it would be writing down whatever the code now does.
-    for (const categoryId of [null, 'c-hair', 'c-shampoo', 'c-nails']) {
+    //
+    // 🔴 AND EVERY FOLDER IS RENDERED NOW, NOT ONE. This used to say «the screen
+    // holds the selection itself, so only the unfiltered case can be rendered
+    // directly — the rest assert the rule the screen reads», which is a test
+    // checking the library twice and the render once. The opening folder is a
+    // prop, so each case is a real render.
+    for (const categoryId of ['c-hair', 'c-shampoo', 'c-nails']) {
       const expected = catalogueRows({
         products: PRODUCTS, categories: CATEGORIES, categoryId,
       }).length
-      // The screen holds the selection itself, so only the unfiltered case can
-      // be rendered directly — the rest assert the rule the screen reads.
-      if (categoryId === null) expect(drawnRows(render())).toBe(expected)
-      else expect(expected).toBeGreaterThan(0)
+      expect(expected).toBeGreaterThan(0)
+      expect(drawnRows(renderFolder({ initialCategoryId: categoryId }))).toBe(expected)
     }
+  })
+
+  it('draws nothing at all, and says why, when no folder is chosen', () => {
+    // 🔴 THE OWNER'S POINT, ARRIVING FROM THE REFERENCE ANALYSIS: a blank grid
+    // ALONE cannot tell «no folder chosen» from «this folder is empty». In the
+    // reference's second screenshot the blank was only readable because the
+    // toolbar showed nothing selected — so here the grid says it in words.
+    const html = renderFolder({ initialCategoryId: null })
+    expect(drawnRows(html)).toBe(0)
+    expect(html).toContain('data-empty-state="pick-folder"')
+    expect(html).not.toContain('data-empty-state="folder-empty"')
+  })
+
+  it('says «this folder is empty» with different words from «pick a folder»', () => {
+    // The other half of the same point. Two states, two sentences — and the
+    // test asserts they are DIFFERENT, because one message for both is the
+    // blank grid again with extra steps.
+    const empty = { ...CATEGORIES[2], id: 'c-empty', name: 'فاضي', storage_id: 'stor-1' }
+    const html = renderToStaticMarkup(
+      <ProductsBrowser
+        salonId="s" suppliers={[]} storages={[]} balances={[]}
+        storageId={STORAGE}
+        initialCategoryId="c-empty"
+        catalogue={{
+          products: PRODUCTS, categories: [...CATEGORIES, empty],
+          loading: false, error: null, reload: () => {},
+        }}
+      />
+    )
+    expect(drawnRows(html)).toBe(0)
+    expect(html).toContain('data-empty-state="folder-empty"')
+    expect(html).not.toContain('data-empty-state="pick-folder"')
+  })
+
+  it('shows a storage only its own folders, and says so when it has none', () => {
+    // 🔴 The tree narrows and the balance does not — lib/treeVsBalanceScope
+    // asserts the pair. This is the RENDER half: a storage with nothing
+    // assigned to it draws an empty tree that names the reason instead of a
+    // blank pane that reads as a failed load.
+    const html = renderFolder({ storageId: 'stor-with-nothing', initialCategoryId: null })
+    expect(html).toContain('products:refShell.noFoldersHere')
+    expect(html).not.toContain('products:noCategoriesTitle')
   })
 })
