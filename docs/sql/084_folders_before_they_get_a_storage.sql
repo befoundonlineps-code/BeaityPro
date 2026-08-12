@@ -47,25 +47,31 @@
 -- مرّةً، و`join pg_class on oid = conrelid` أسقط قيدَ domain مرّةً أخرى — لأن
 -- `conrelid = 0` عنده. تُقرأ الفئةُ كاملةً وتُصفّى بالعين.
 
+-- ⚠️ كلُّ عمودٍ مُحوَّلٌ إلى `text` صراحةً، وهذا ليس تزيّدًا.
+-- أعمدةُ `information_schema` أنواعُها مجالات (`sql_identifier`,
+-- `character_data`) لا `text`، و`conname`/`relname` نوعُهما `name`. وحلُّ
+-- الأنواع في `UNION` بين مجالٍ و`text` يفشل في بعض الإصدارات برسالة
+-- «UNION types … cannot be matched» — **فيسقط الاستعلامُ كلُّه، ويكلّف جولةً
+-- كاملة** لأن من يشغّله هو المالك وحده. التحويلُ الصريح يُلغي السؤال.
 select
-  'A. أعمدة product_categories كاملةً' as section,
-  c.column_name                        as name,
-  c.data_type                          as detail,
-  c.is_nullable                        as extra_1,
-  coalesce(c.domain_name, '—')         as extra_2,
-  coalesce(c.column_default, '—')      as extra_3
+  'A. أعمدة product_categories كاملةً'::text as section,
+  c.column_name::text                        as name,
+  c.data_type::text                          as detail,
+  c.is_nullable::text                        as extra_1,
+  coalesce(c.domain_name::text, '—')         as extra_2,
+  coalesce(c.column_default::text, '—')      as extra_3
 from information_schema.columns c
 where c.table_schema = 'public' and c.table_name = 'product_categories'
 
 union all
 
 select
-  'B. قيود storages كاملةً — بلا تصفية بالنوع',
-  con.conname,
+  'B. قيود storages كاملةً — بلا تصفية بالنوع'::text,
+  con.conname::text,
   con.contype::text,
-  pg_get_constraintdef(con.oid),
-  '—',
-  '—'
+  pg_get_constraintdef(con.oid)::text,
+  '—'::text,
+  '—'::text
 from pg_constraint con
 where con.connamespace = 'public'::regnamespace
   and con.conrelid = 'public.storages'::regclass
@@ -73,12 +79,12 @@ where con.connamespace = 'public'::regnamespace
 union all
 
 select
-  'C. قيود product_categories كاملةً',
-  con.conname,
+  'C. قيود product_categories كاملةً'::text,
+  con.conname::text,
   con.contype::text,
-  pg_get_constraintdef(con.oid),
-  '—',
-  '—'
+  pg_get_constraintdef(con.oid)::text,
+  '—'::text,
+  '—'::text
 from pg_constraint con
 where con.connamespace = 'public'::regnamespace
   and con.conrelid = 'public.product_categories'::regclass
@@ -86,10 +92,10 @@ where con.connamespace = 'public'::regnamespace
 union all
 
 select
-  'D. فهارس storages — المفتاحُ الفريد قد يكون فهرسًا لا قيدًا',
-  i.relname,
-  pg_get_indexdef(i.oid),
-  '—', '—', '—'
+  'D. فهارس storages — المفتاحُ الفريد قد يكون فهرسًا لا قيدًا'::text,
+  i.relname::text,
+  pg_get_indexdef(i.oid)::text,
+  '—'::text, '—'::text, '—'::text
 from pg_index x
 join pg_class i on i.oid = x.indexrelid
 where x.indrelid = 'public.storages'::regclass
@@ -97,21 +103,21 @@ where x.indrelid = 'public.storages'::regclass
 union all
 
 select
-  'E. الأحجام',
-  'product_categories',
+  'E. الأحجام'::text,
+  'product_categories'::text,
   count(*)::text,
   count(*) filter (where pc.parent_id is not null)::text || ' منها مُعشَّش',
-  '—', '—'
+  '—'::text, '—'::text
 from public.product_categories pc
 
 union all
 
 select
-  'F. الأحجام',
-  'storages',
+  'F. الأحجام'::text,
+  'storages'::text,
   count(*)::text,
   count(*) filter (where s.is_active)::text || ' منها حيّ',
-  '—', '—'
+  '—'::text, '—'::text
 from public.storages s
 
 order by 1, 2;
