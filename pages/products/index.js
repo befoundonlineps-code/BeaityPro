@@ -2,13 +2,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { useTranslation } from 'next-i18next'
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations'
-import {
-  ClipboardList, PackagePlus, ArrowLeftRight, PackageMinus, Undo2,
-  ClipboardCheck, ListChecks, ScrollText, Truck, Boxes,
-} from 'lucide-react'
 import AuthGate from '../../components/AuthGate'
-import RefTopBar from '../../components/ref/RefTopBar'
-import RefToolbar, { RefToolButton, RefStorageBox } from '../../components/ref/RefToolbar'
+import AppShell from '../../components/AppShell'
+import ProductsSecondaryBar from '../../components/ProductsSecondaryBar'
+import ProvisionalPaletteBadge from '../../components/ref/ProvisionalPaletteBadge'
 import RefModal from '../../components/ref/RefModal'
 import ProductsBrowser from '../../components/ProductsBrowser'
 import StoragesManager from '../../components/StoragesManager'
@@ -26,10 +23,7 @@ import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
 import { useProductOrders } from '../../hooks/useProductOrders'
 import { productsQuery, isDocumentView } from '../../lib/productsView'
-import {
-  TOOLBAR_OPERATIONS, OPERATION_LABEL_KEY,
-  productsOperationFromQuery, operationBlocked,
-} from '../../lib/productsOperations'
+import { OPERATION_LABEL_KEY, productsOperationFromQuery } from '../../lib/productsOperations'
 import { currentLens, lensChoices, lensMayWiden, ALL_STORAGES } from '../../lib/storageLens'
 import { useStocktakeSession } from '../../hooks/useStocktakeSession'
 import { useStocktakeCoverage } from '../../hooks/useStocktakeCoverage'
@@ -42,24 +36,8 @@ export async function getServerSideProps({ locale }) {
   }
 }
 
-// The icon each operation wears in the band. Kept beside the page rather than
-// in lib/, because an icon is a drawing and lib/ holds decisions — and the
-// operation table there has to stay readable by a test that has no React.
-const OPERATION_ICON = {
-  orders: ClipboardList,
-  supply: PackagePlus,
-  transfer: ArrowLeftRight,
-  write_off: PackageMinus,
-  return_to_supplier: Undo2,
-  stocktake: ClipboardCheck,
-  coverage: ListChecks,
-  documents: ScrollText,
-  suppliers: Truck,
-  balances: Boxes,
-}
-
-// How wide each operation opens. The reference sizes every window to what is in
-// it: the storages list is narrow, a supply document is as wide as its grid.
+// How wide each operation opens. Each window is sized to what is in it: the
+// storages list is narrow, a supply document is as wide as its grid.
 const OPERATION_WIDTH = {
   storages: 'max-w-[720px]',
   suppliers: 'max-w-[820px]',
@@ -153,82 +131,87 @@ export default function ProductsPage() {
   return (
     <AuthGate>
       {({ session, salonId, logout }) => (
-        <div className="flex h-screen flex-col bg-white">
-          <RefTopBar userEmail={session.user.email} onLogout={logout} />
+        // 🔴 BACK INSIDE AppShell, AND THE TWO BARS ARE THE PRODUCT'S OWN AGAIN.
+        //
+        // They were rebuilt in the reference's image — an orange tab strip and a
+        // band of large icon buttons — and that widened the ask. What was asked
+        // for is the reference's CONTENT AREA: the tree, the dense grid, the
+        // modal per operation. The top bar and the operations bar keep the
+        // existing design and stay identical on every screen in the product,
+        // which is the whole reason somebody can move between sections without
+        // relearning where things are.
+        //
+        // ⇒ Everything above the catalogue is what it was. Everything from the
+        // catalogue down is converted. The line between them is exactly where
+        // the owner drew it.
+        //
+        // ⚠️ AND THE SENTENCE ABOVE ONCE NAMED THE COMPONENT IN ANGLE BRACKETS,
+        // WHICH BROKE A GUARD. lib/cataloguePickerScope.test.js finds the call
+        // site by searching this file for that tag and reading the props after
+        // it — so prose mentioning the tag became the first hit and the guard
+        // read a paragraph of English as a list of props. Same rule as §2ب of
+        // CLAUDE.md, arriving in JSX instead of PL/pgSQL: a comment must not
+        // spell the identifier its own file's check is hunting for.
+        <AppShell userEmail={session.user.email} onLogout={logout}>
+          <div className="flex h-full min-h-0 flex-col">
+            <ProductsSecondaryBar op={op} onSelect={openOperation} lensStorageId={lensId} />
 
-          <RefToolbar>
-            <RefStorageBox
-              label={t('products:lens.label')}
-              editLabel={t('products:refShell.editStorages')}
-              onEditStorages={() => openOperation('storages')}
-            >
-              <select
-                className="h-6 w-56 border border-[var(--rule)] bg-white px-1 text-xs outline-none focus:border-[var(--chrome)]"
-                value={lensId}
-                onChange={(e) => setChosenStorage(e.target.value)}
-              >
-                {/* ⚠️ Only where widening answers the screen's question. The
-                    catalogue and the document list can be asked of the whole
-                    salon; a stocktake and a supply cannot — and those are
-                    refused from the band rather than resolved quietly. */}
-                {lensMayWiden('catalog') && (
-                  <option value={ALL_STORAGES}>{t('products:columns.allStorages')}</option>
-                )}
-                {lensChoices(directories.storages, lensId).length === 0 && (
-                  <option value="">{t('products:docs.storageNone')}</option>
-                )}
-                {lensChoices(directories.storages, lensId).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.is_active === false ? t('products:archivedOption', { name: s.name }) : s.name}
-                  </option>
-                ))}
-              </select>
-            </RefStorageBox>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-5 py-2">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <span>
+                  <span className="font-semibold text-primary">{t('products:breadcrumbProducts')}</span>
+                  {' / '}
+                  <span>{t('products:breadcrumbCatalog')}</span>
+                </span>
+                {/* ⚠️ It sits here rather than in the top bar, because the
+                    colours it is about are all in the content area now — the
+                    grid head, the group row, the write cell, the modal. */}
+                <ProvisionalPaletteBadge />
+              </div>
 
-            {TOOLBAR_OPERATIONS.map((item) => {
-              // 🔴 GREYED WHILE THE LENS IS WIDE, and not because the screen
-              // would break — because it would NOT. currentLens resolves «all»
-              // to the first live storage on any view that may not widen, so
-              // pressing this from a catalogue showing every storage would open
-              // a count of a shelf nobody chose. Nothing errors.
-              //
-              // ⚠️ Greyed rather than hidden: a button that vanishes reads as a
-              // missing feature, one that greys says «not from here» — and the
-              // picker that ungreys it is in the same band.
-              //
-              // ✅ And the reference does exactly this: choosing «All storages»
-              // greys six of its ten buttons in the same band.
-              const blocked = operationBlocked(item, lensId)
-              return (
-                <RefToolButton
-                  key={item}
-                  icon={OPERATION_ICON[item]}
-                  label={t(`products:secondaryItems.${OPERATION_LABEL_KEY[item]}`)}
-                  active={op === item}
-                  disabled={blocked}
-                  blockedTitle={t('products:lens.pickStorageFirst')}
-                  onClick={() => openOperation(item)}
-                />
-              )
-            })}
-          </RefToolbar>
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">{t('products:lens.label')}</span>
+                <select
+                  className="h-9 rounded-lg border border-border bg-background px-3 text-sm"
+                  value={lensId}
+                  onChange={(e) => setChosenStorage(e.target.value)}
+                >
+                  {/* ⚠️ Only where widening answers the screen's question. The
+                      catalogue and the document list can be asked of the whole
+                      salon; a stocktake and a supply cannot — and those are
+                      refused from the bar rather than resolved quietly. */}
+                  {lensMayWiden('catalog') && (
+                    <option value={ALL_STORAGES}>{t('products:columns.allStorages')}</option>
+                  )}
+                  {lensChoices(directories.storages, lensId).length === 0 && (
+                    <option value="">{t('products:docs.storageNone')}</option>
+                  )}
+                  {lensChoices(directories.storages, lensId).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.is_active === false ? t('products:archivedOption', { name: s.name }) : s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-          {/* ── The catalogue is the screen, permanently ────────────────
-              Not a tab any more. Every operation opens over it and it stays
-              readable underneath, which is the reference's own arrangement:
-              in its invoices screenshot the tree and the grid headings are
-              still legible behind the window. */}
-          <ProductsBrowser
-            salonId={salonId}
-            suppliers={directories.suppliers}
-            catalogue={catalogue}
-            balances={balances.balances}
-            balancesLoading={balances.loading}
-            balancesError={balances.error}
-            storageId={lensId}
-            storageName={lensStorage?.name || null}
-            storages={directories.storages}
-          />
+            {/* ── The catalogue is the screen, permanently ────────────────
+                Not a tab any more. Every operation opens over it and it stays
+                readable underneath: in the reference's invoices screenshot the
+                tree and the grid headings are still legible behind the
+                window. */}
+            <ProductsBrowser
+              salonId={salonId}
+              suppliers={directories.suppliers}
+              catalogue={catalogue}
+              balances={balances.balances}
+              balancesLoading={balances.loading}
+              balancesError={balances.error}
+              storageId={lensId}
+              storageName={lensStorage?.name || null}
+              storages={directories.storages}
+            />
+          </div>
 
           {/* ── The operations ─────────────────────────────────────────── */}
           <RefModal
@@ -364,7 +347,7 @@ export default function ProductsPage() {
               />
             )}
           </RefModal>
-        </div>
+        </AppShell>
       )}
     </AuthGate>
   )

@@ -101,29 +101,36 @@ export function RefTd({ children, className = '', write, ...rest }) {
 
 // A group heading INSIDE the grid — a folder gathering the rows under it.
 //
-// ⚠️ The whole row is filled, not a thin strip above it — that is the structural
-// half («صفوف مجمّعة»), and the fill itself is a placeholder. And it keeps its cells
-// rather than spanning them, because in the reference a group row carries a
-// value of its own in the Packages column: fill it once and every child takes
-// it. A colSpan row cannot ever grow that, and the day it is needed the row
-// would have to be rebuilt under whoever is using it.
-export function RefGroupRow({ children, ...rest }) {
+// 🔴 IT IS A HEADING AND NOTHING ELSE. ONE SPANNING CELL, NO WRITABLE CELL, AND
+// THAT IS A DECISION RATHER THAN A SIMPLIFICATION.
+//
+// It was built with real cells, so that a group could carry a quantity of its
+// own in the Packages column — type 50 on «منتجات الترطيب» and every product
+// under it takes 50, which is what the reference does. The owner's answer:
+//
+//   «كل منتج ياخد كميته لحاله دايمًا. صف التصنيف ما لازم يكون فيه خانة كمية
+//    قابلة للكتابة أصلاً — لأنه لو كتبت فيها بتصير سؤال هل هاي بتتوزع على
+//    المنتجات تحتها، وهاد مش مطلوب.»
+//
+// ⚠️ AND THE SHAPE IS WHAT ENFORCES IT, NOT A RULE TO REMEMBER. A row of cells
+// invites a `write` prop on one of them — it is one word away, it looks
+// harmless, and the screen would then be asking a question nobody decided the
+// answer to. A single spanning cell has nowhere to put it.
+//
+// ⚠️ Filled across the whole row rather than drawn as a thin strip above it,
+// because that is the structural half («صفوف مجمّعة»). The fill itself is a
+// placeholder — see design/TOKENS.md.
+export function RefGroupRow({ columns, children, ...rest }) {
   return (
     <tr style={{ background: 'var(--group)' }} data-group-row {...rest}>
-      {children}
+      <td
+        colSpan={columns}
+        className="px-1.5 py-[1px] font-semibold"
+        style={{ borderBottom: '1px solid var(--rule)' }}
+      >
+        {children}
+      </td>
     </tr>
-  )
-}
-
-export function RefGroupTd({ children, className = '', ...rest }) {
-  return (
-    <td
-      className={`px-1.5 py-[1px] font-semibold ${className}`}
-      style={{ borderInlineEnd: '1px solid var(--rule)', borderBottom: '1px solid var(--rule)' }}
-      {...rest}
-    >
-      {children}
-    </td>
   )
 }
 

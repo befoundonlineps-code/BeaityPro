@@ -2,7 +2,7 @@ import { Fragment, useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, Plus, Pencil, Archive, Search } from 'lucide-react'
 import RefTwoPane, { RefPaneButton } from './ref/RefTwoPane'
-import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefGroupTd, RefFillerRow } from './ref/RefGrid'
+import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow } from './ref/RefGrid'
 import ProductFormDialog from './ProductFormDialog'
 import ProductCategoryFormDialog from './ProductCategoryFormDialog'
 import { buildProductTree, countProducts } from '../lib/productTree'
@@ -500,10 +500,8 @@ export default function ProductsBrowser({
                     the very thing the tree stopped being the only answer to. And
                     a product whose folder is unknown keeps its row and says so
                     rather than vanishing. */}
-                <RefGroupRow>
-                  <RefGroupTd colSpan={COLUMNS}>
-                    {group.category ? group.category.name : t('products:noCategoryGroup')}
-                  </RefGroupTd>
+                <RefGroupRow columns={COLUMNS}>
+                  {group.category ? group.category.name : t('products:noCategoryGroup')}
                 </RefGroupRow>
                 {group.products.map((p) => (
                   <RefRow
