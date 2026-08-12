@@ -18,3 +18,7 @@
 .DS_Store
 *.pem
 npm-debug.log*
+
+# نسخُ البيّنة المضادّة — تُؤخذ قبل الحقن وتُحذف عند الإرجاع.
+# وجودُها معناه حقنٌ قائمٌ الآن، و lib/counterEvidencePending.test.js بيسقّط عليه.
+/.counter-evidence/
