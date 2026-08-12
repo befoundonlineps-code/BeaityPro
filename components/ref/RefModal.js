@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { useTranslation } from 'next-i18next'
 import { X } from 'lucide-react'
@@ -43,6 +44,7 @@ export default function RefModal({
   width = 'max-w-[1100px]',
 }) {
   const { t } = useTranslation('common')
+  const panel = useRef(null)
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
@@ -51,13 +53,24 @@ export default function RefModal({
             whole visual argument of the reference's modals. */}
         <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/5" />
         <DialogPrimitive.Popup
+          ref={panel}
           data-ref-modal={title}
-          // ⚠️ FOCUS LANDS ON THE PANEL, NOT ON THE CLOSE BUTTON — measured in
-          // a real engine, where opening a modal drew a focus ring around the ×
-          // in the header bar. The first thing an operation says must not be
-          // «cancel is selected»; and the trap still works, because the panel is
-          // what base-ui returns to when Tab wraps.
+          // 🔴 FOCUS LANDS ON THE PANEL, NOT ON THE CLOSE BUTTON — and the first
+          // attempt at this DID NOT WORK while a comment here said it had.
+          //
+          // Opening a modal drew a focus ring round the × in the header bar, so
+          // `tabIndex={-1}` was added on the theory that base-ui would prefer a
+          // focusable popup. It does not: it takes the first tabbable
+          // descendant unless told otherwise. Re-measured — `document
+          // .activeElement` came back as the close button, aria-label «إغلاق»,
+          // with a live outline — which is the whole reason to read the engine
+          // instead of the reasoning.
+          //
+          // ⇒ `initialFocus` is the actual API, and it takes the ref. The trap
+          // is untouched; only where it starts moved. The first thing an
+          // operation says must not be «cancel is selected».
           tabIndex={-1}
+          initialFocus={panel}
           className={`fixed start-1/2 top-6 z-50 flex max-h-[calc(100vh-3rem)] w-[calc(100%-2rem)] -translate-x-1/2 flex-col bg-white text-sm shadow-2xl outline-none rtl:translate-x-1/2 ${width}`}
           style={{
             border: '1px solid var(--chrome)',
