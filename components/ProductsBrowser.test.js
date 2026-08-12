@@ -50,15 +50,20 @@ const render = (over) => renderToStaticMarkup(
   />
 )
 
-// ⚠️ THE ROW'S OWN CLASSES, not just `cursor-pointer` — which the first version
-// counted and got 7 for 6 products. The extra was the "hide archived" LABEL,
-// which is also clickable. A counter that catches anything clickable is a
-// counter that reports a duplicate row where there is none, and the next person
-// reads it as the code being wrong.
+// ⚠️ THE ROW'S OWN ATTRIBUTE, NOT ITS CLASSES.
 //
-// Corroborated by the test below it: every name appears exactly once, which
-// already ruled out a real duplicate before this was traced.
-const drawnRows = (html) => (html.match(/cursor-pointer border-b border-border\/60/g) || []).length
+// The first version counted `cursor-pointer` and got 7 for 6 products — the
+// extra was the "hide archived" LABEL, which is also clickable. So it was
+// narrowed to the row's exact class list, which fixed the count and pinned the
+// test to the STYLING: converting the grid to the reference's dense look
+// changed those classes and every count here dropped to zero, on a screen that
+// draws all six rows perfectly well.
+//
+// ⇒ It counts identity now. `data-product-row` is on the row because it IS the
+// row, and no restyle can move it — which is the project's own rule about
+// browser-driven checks («the elements a check clicks carry their identity in
+// the DOM») arriving at a rendered-markup check from the other side.
+const drawnRows = (html) => (html.match(/data-product-row="/g) || []).length
 
 describe('the table draws every row it was given', () => {
   it('draws ALL products, not most of them, when no folder is chosen', () => {

@@ -1,7 +1,8 @@
 import { Fragment, useState, useMemo } from 'react'
 import { useTranslation } from 'next-i18next'
-import { AlertTriangle, Plus, Pencil, Archive } from 'lucide-react'
-import TwoPaneBrowser, { ToolButton } from './TwoPaneBrowser'
+import { AlertTriangle, Plus, Pencil, Archive, Search } from 'lucide-react'
+import RefTwoPane, { RefPaneButton } from './ref/RefTwoPane'
+import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefGroupTd, RefFillerRow } from './ref/RefGrid'
 import ProductFormDialog from './ProductFormDialog'
 import ProductCategoryFormDialog from './ProductCategoryFormDialog'
 import { buildProductTree, countProducts } from '../lib/productTree'
@@ -11,7 +12,7 @@ import { catalogueRows, catalogueGroups } from '../lib/catalogueView'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { stockedStorages, BALANCE_STATE } from '../lib/balanceView'
-import { catalogueBalanceRows } from '../lib/catalogueBalance'
+import { catalogueBalanceRows, otherStorageTotals } from '../lib/catalogueBalance'
 import { ALL_STORAGES } from '../lib/storageLens'
 import { packageFraction, showsPackageFrame } from '../lib/catalogueFrames'
 import { setProductArchived, setProductCategoryArchived } from '../lib/productAdminIO'
@@ -109,6 +110,27 @@ function balanceCell(row, product, t, { loading, error }) {
   )
 }
 
+// ── «And how much is next door?» ──────────────────────────────────────────
+//
+// 🔴 THE COLUMN THE BALANCE COLUMN NEEDED. «Zero here» is half a sentence, and
+// the missing half is what decides whether somebody orders more or walks to the
+// next room. design/TOKENS.md wrote the rule down before there was anywhere to
+// put it: the grey zero is calm precisely because what to do next is beside it.
+//
+// ⚠️ AN EMPTY CELL WHEN THERE IS NO ROW, NOT A ZERO. No entry means the product
+// has no balance row in any other storage — nothing was measured about it
+// elsewhere — and a 0 there would be a measurement that was never taken. A row
+// that exists and sums to zero DOES print 0, because that one was taken.
+//
+// ⚠️ And the unit rides with the number, in the same frame the balance column
+// uses. Two figures of the same thing in adjacent columns written two ways is
+// how a reader learns to distrust both.
+function elsewhereCell(total, product, t) {
+  if (total === undefined || total === null) return null
+  const unit = t(`products:units.${product.base_unit}`)
+  return <span>{t('products:balances.inBase', { unit, n: Number(total) })}</span>
+}
+
 export default function ProductsBrowser({
   salonId, suppliers, catalogue, balances, storages,
   // ⚠️ Separate props rather than folded into `balances`, because the array is
@@ -128,6 +150,10 @@ export default function ProductsBrowser({
   // the difference between a rule to remember and a shape that cannot come
   // apart. Guarded in lib/cataloguePickerScope.test.js.
   storageId = ALL_STORAGES,
+  // The tree's root row says which storage the numbers below belong to, so it
+  // needs the name rather than the id. Optional: the tests render without one
+  // and get the bare «المنتجات».
+  storageName = null,
 }) {
   const { t } = useTranslation(['products', 'common'])
   const { categories, products, loading, error, reload } = catalogue
@@ -170,9 +196,23 @@ export default function ProductsBrowser({
   // recomputes it; nothing has to be cleared, so nothing can be left behind
   // describing a storage that is no longer selected — the same reason
   // visibleSelectedId is derived rather than reset.
+  // ⚠️ ONE CONVERSION OF THE SENTINEL, HERE, AND NOT INSIDE EITHER HELPER.
+  // storageScope says «all» is the string 'all'; catalogueBalance says it is
+  // null. Two sentinels for one idea, converted at the boundary — which is what
+  // this line has always been. Naming it means the second reader below uses the
+  // converted value rather than converting it again slightly differently.
+  const lensOrNull = storageId === ALL_STORAGES ? null : storageId
+
   const balanceByProduct = useMemo(
-    () => catalogueBalanceRows({ balances, products, storageId: storageId === ALL_STORAGES ? null : storageId }),
-    [balances, products, storageId]
+    () => catalogueBalanceRows({ balances, products, storageId: lensOrNull }),
+    [balances, products, lensOrNull]
+  )
+
+  // «And how much is next door?» — empty while the lens is already wide, which
+  // is what makes the column disappear rather than fill with zeros.
+  const elsewhereByProduct = useMemo(
+    () => otherStorageTotals({ balances, storageId: lensOrNull }),
+    [balances, lensOrNull]
   )
 
   // A selection that survived the folder leaving the tree points at something
@@ -289,6 +329,21 @@ export default function ProductsBrowser({
       ? <span className="text-muted-foreground">—</span>
       : t('products:priceShort', { price: Number(value).toLocaleString('ar') })
 
+  // 🔴 THE LAST COLUMN CHANGES WITH THE LENS, AND THE REFERENCE DOES THIS TOO.
+  //
+  // On one storage it reads «المتبقّي هنا» and is followed by «بمستودعاتٍ
+  // أخرى»; on «all storages» the second has no subject, so it goes and the
+  // first becomes «المتبقّي بالكل». Measured in the reference: its own grid
+  // ends with `Remaining · Units · In other storages` under one storage and
+  // with `On all storages` alone under all of them.
+  //
+  // ⚠️ The heading naming the grain is not cosmetic here — it is the fix for
+  // «28650 read as the product's balance when it was one storage's». The number
+  // changes with a control the reader may not have looked at, so the column
+  // says which question it answered.
+  const wide = storageId === ALL_STORAGES
+  const COLUMNS = wide ? 7 : 8
+
   return (
     <>
       {/* Above the browser, never instead of it. Swapping the element out on
@@ -296,7 +351,7 @@ export default function ProductsBrowser({
           that fails after somebody picked a folder would throw the folder,
           the open branches and the search away on its way to saying so. */}
       {error && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-destructive/40 bg-destructive/5 px-4 py-2">
           <AlertTriangle className="size-4 shrink-0 text-destructive" />
           <span className="text-sm font-medium text-destructive">
             {t('products:loadFailedTitle')}
@@ -311,39 +366,46 @@ export default function ProductsBrowser({
         </div>
       )}
 
-      <TwoPaneBrowser
+      <RefTwoPane
         loading={loading}
         tree={tree}
         isArchived={(root) => isCategoryArchived(root, byId)}
         archivedLabel={t('products:archivedBadge')}
+        // ⚠️ The root row says «everything», and says which storage the numbers
+        // under it belong to. The state existed and nothing on screen named it.
+        rootLabel={
+          wide
+            ? t('products:refShell.rootAll')
+            : storageName
+              ? t('products:refShell.rootStorage', { name: storageName })
+              : t('products:refShell.rootBare')
+        }
         selectedCategoryId={visibleSelectedId}
         onSelectCategory={selectCategory}
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder={t('products:searchPlaceholder')}
         // A catalogue that starts at zero folders needs to say so. The services
         // screen never did — it opened onto a seeded tree — so an empty white
         // pane here would read as a screen that failed to load.
         treeEmpty={
-          <div className="flex flex-col gap-1 p-4 text-center text-sm text-muted-foreground">
+          <div className="flex flex-col gap-1 p-4 text-center text-xs text-muted-foreground">
             <span>{t('products:noCategoriesTitle')}</span>
-            <span className="text-xs">{t('products:noCategoriesHint')}</span>
+            <span>{t('products:noCategoriesHint')}</span>
           </div>
         }
         treeToolbar={
           <>
-            <ToolButton
+            <RefPaneButton
               icon={Plus}
+              tone="text-green-600"
               label={t('products:categoryToolbar.add')}
               onClick={() => setCategoryDialog({ category: null })}
             />
-            <ToolButton
+            <RefPaneButton
               icon={Pencil}
               label={t('products:categoryToolbar.edit')}
               disabled={!selectedCategory}
               onClick={() => setCategoryDialog({ category: selectedCategory })}
             />
-            <ToolButton
+            <RefPaneButton
               icon={Archive}
               label={t(selectedIsArchived
                 ? 'products:categoryToolbar.restore'
@@ -355,13 +417,14 @@ export default function ProductsBrowser({
         }
         itemsToolbar={
           <>
-            <ToolButton
+            <RefPaneButton
               icon={Plus}
+              tone="text-green-600"
               label={t('products:productToolbar.add')}
               disabled={!visibleSelectedId}
               onClick={() => setDialog({ product: null })}
             />
-            <ToolButton
+            <RefPaneButton
               icon={Pencil}
               label={t('products:productToolbar.edit')}
               disabled={!selectedProduct}
@@ -369,7 +432,7 @@ export default function ProductsBrowser({
             />
             {/* No confirmation, unlike a folder: this takes one product off the
                 list and the same press puts it back. */}
-            <ToolButton
+            <RefPaneButton
               icon={Archive}
               label={t(selectedProduct && selectedProduct.is_active === false
                 ? 'products:productToolbar.restore'
@@ -378,10 +441,22 @@ export default function ProductsBrowser({
               onClick={toggleProductArchived}
             />
 
-            <label className="flex cursor-pointer items-center gap-2 px-2 text-sm">
+            {/* The search sits in this row in the reference, beside the buttons
+                rather than floated to the far end. */}
+            <span className="relative ms-2 flex items-center">
+              <Search className="pointer-events-none absolute end-1.5 size-3 text-muted-foreground" />
+              <input
+                className="h-6 w-56 border border-[var(--rule)] px-1.5 pe-6 text-xs outline-none focus:border-[var(--chrome)]"
+                placeholder={t('products:searchPlaceholder')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </span>
+
+            <label className="flex cursor-pointer items-center gap-1.5 px-2 text-xs">
               <input
                 type="checkbox"
-                className="accent-primary"
+                className="accent-[var(--chrome)]"
                 checked={hideArchived}
                 onChange={(e) => setHideArchived(e.target.checked)}
               />
@@ -391,29 +466,31 @@ export default function ProductsBrowser({
           </>
         }
       >
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-muted/60 text-xs text-muted-foreground">
+        <RefTable>
+          <RefHead tone="list">
             <tr>
-              <th className="w-24 px-3 py-2 text-start font-medium">{t('products:columns.abbreviation')}</th>
-              <th className="px-3 py-2 text-start font-medium">{t('products:columns.name')}</th>
-              <th className="w-28 px-3 py-2 text-start font-medium">{t('products:columns.inContainer')}</th>
-              <th className="w-28 px-3 py-2 text-start font-medium">{t('products:columns.purchasePrice')}</th>
-              <th className="w-28 px-3 py-2 text-start font-medium">{t('products:columns.retailPrice')}</th>
-              {/* The heading names the grain, because the number changes with
-                  the picker and a reader who missed the picker would otherwise
-                  read a storage's figure as the product's — the exact
-                  substitution that made 28650 look like ten missing units. */}
-              <th className="w-40 px-3 py-2 text-start font-medium">
-                {t(storageId === ALL_STORAGES ? 'products:columns.remainingEverywhere' : 'products:columns.remainingHere')}
-              </th>
+              <RefTh className="w-20">{t('products:columns.abbreviation')}</RefTh>
+              <RefTh>{t('products:columns.name')}</RefTh>
+              <RefTh className="w-20">{t('products:columns.inContainer')}</RefTh>
+              {/* 🔴 A COLUMN OF ITS OWN, AND IT FIXES AN ARABIC FAULT RATHER
+                  THAN ADDING A FIELD. This cell used to read «15 قطعة» — a
+                  number followed by a singular noun, which is the exact shape
+                  CLAUDE.md forbids («3 دقيقة» غلط) and which the count guard
+                  missed because the noun arrives in a variable rather than
+                  written out. Split into two columns the number stands alone
+                  under a heading that says what it counts, and the unit stands
+                  alone under its own. No agreement, so nothing to get wrong.
+                  The reference had it this way; we did not, and it was not a
+                  matter of taste. */}
+              <RefTh className="w-20">{t('products:columns.unit')}</RefTh>
+              <RefTh className="w-24">{t('products:columns.purchasePrice')}</RefTh>
+              <RefTh className="w-24">{t('products:columns.retailPrice')}</RefTh>
+              <RefTh className="w-44">
+                {t(wide ? 'products:columns.remainingEverywhere' : 'products:columns.remainingHere')}
+              </RefTh>
+              {!wide && <RefTh className="w-32">{t('products:columns.inOtherStorages')}</RefTh>}
             </tr>
-          </thead>
-          {/* ⚠️ This used to say there were no movements yet and so no balance
-              column. There are, and the comment outlived them — the class this
-              project keeps paying for, on a comment that read as a decision.
-              The column is here now and it keeps the distinction the old
-              comment was reaching for: a product that never moved says so
-              instead of showing a zero. */}
+          </RefHead>
           <tbody>
             {groups.map((group) => (
               <Fragment key={group.categoryId || 'none'}>
@@ -423,54 +500,60 @@ export default function ProductsBrowser({
                     the very thing the tree stopped being the only answer to. And
                     a product whose folder is unknown keeps its row and says so
                     rather than vanishing. */}
-                <tr className="bg-muted/40">
-                  <td colSpan={6} className="px-3 py-1 text-xs font-medium text-muted-foreground">
+                <RefGroupRow>
+                  <RefGroupTd colSpan={COLUMNS}>
                     {group.category ? group.category.name : t('products:noCategoryGroup')}
-                  </td>
-                </tr>
+                  </RefGroupTd>
+                </RefGroupRow>
                 {group.products.map((p) => (
-              <tr
-                key={p.id}
-                onClick={() => setSelectedProductId(p.id)}
-                className={`cursor-pointer border-b border-border/60 ${
-                  selectedProductId === p.id ? 'bg-primary/10' : 'hover:bg-muted/60'
-                }`}
-              >
-                <td className="px-3 py-1.5 text-muted-foreground">{p.abbreviation || '—'}</td>
-                <td className="px-3 py-1.5">
-                  <span className="flex items-center gap-2">
-                    <span className={p.is_active === false ? 'text-muted-foreground line-through' : ''}>
-                      {p.name}
-                    </span>
-                    {p.kind === 'set' && <Badge variant="outline">{t('products:setBadge')}</Badge>}
-                    {p.is_active === false && <Badge variant="outline">{t('products:archivedBadge')}</Badge>}
-                  </span>
-                </td>
-                <td className="px-3 py-1.5 text-muted-foreground">
-                  {t('products:inContainerValue', {
-                    count: Number(p.units_per_package),
-                    unit: t(`products:units.${p.base_unit}`),
-                  })}
-                </td>
-                <td className="px-3 py-1.5">{money(p.nominal_purchase_price)}</td>
-                <td className="px-3 py-1.5">{money(p.package_price)}</td>
-                <td className="px-3 py-1.5">{balanceCell(balanceByProduct.get(p.id), p, t, { loading: balancesLoading, error: balancesError })}</td>
-              </tr>
+                  <RefRow
+                    key={p.id}
+                    data-product-row={p.id}
+                    selected={selectedProductId === p.id}
+                    onClick={() => setSelectedProductId(p.id)}
+                  >
+                    <RefTd className="text-muted-foreground">{p.abbreviation || '—'}</RefTd>
+                    <RefTd>
+                      <span className="flex items-center gap-2">
+                        <span className={p.is_active === false ? 'text-muted-foreground line-through' : ''}>
+                          {p.name}
+                        </span>
+                        {p.kind === 'set' && <Badge variant="outline">{t('products:setBadge')}</Badge>}
+                        {p.is_active === false && <Badge variant="outline">{t('products:archivedBadge')}</Badge>}
+                      </span>
+                    </RefTd>
+                    <RefTd className="text-muted-foreground">{Number(p.units_per_package)}</RefTd>
+                    <RefTd className="text-muted-foreground">{t(`products:units.${p.base_unit}`)}</RefTd>
+                    <RefTd>{money(p.nominal_purchase_price)}</RefTd>
+                    <RefTd>{money(p.package_price)}</RefTd>
+                    <RefTd>
+                      {balanceCell(balanceByProduct.get(p.id), p, t, { loading: balancesLoading, error: balancesError })}
+                    </RefTd>
+                    {!wide && (
+                      <RefTd className="text-muted-foreground">
+                        {elsewhereCell(elsewhereByProduct.get(p.id), p, t)}
+                      </RefTd>
+                    )}
+                  </RefRow>
                 ))}
               </Fragment>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={COLUMNS} className="px-3 py-6 text-center text-muted-foreground">
                   {search.trim() ? t('common:noResults') : t('products:emptyCatalogue')}
                 </td>
               </tr>
             )}
+            {/* Carries the column rules down through the empty area, so an
+                empty grid reads as an empty grid rather than as a screen that
+                did not load. */}
+            <RefFillerRow columns={COLUMNS} />
           </tbody>
-        </table>
-      </TwoPaneBrowser>
+        </RefTable>
+      </RefTwoPane>
 
-      {actionError && <div className="text-sm text-destructive">{actionError}</div>}
+      {actionError && <div className="px-3 py-1 text-xs text-destructive">{actionError}</div>}
 
       {/* ⚠️ An explanation, not a question. No second button, because the act
           is not destructive and the button that undoes it is still where the

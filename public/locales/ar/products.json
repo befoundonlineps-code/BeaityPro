@@ -11,7 +11,13 @@
   "noCategoriesTitle": "ما في مجلدات بعد",
   "noCategoriesHint": "كتالوج المنتجات بيبدأ فاضي — اضغط «إضافة» فوق الشجرة لإنشاء أول مجلّد.",
   "priceShort": "{{price}} ₪",
-  "inContainerValue": "{{count}} {{unit}}",
+  "refShell": {
+    "editStorages": "تعديل المستودعات",
+    "rootAll": "المنتجات (كل المستودعات)",
+    "rootStorage": "المنتجات (مستودع «{{name}}»)",
+    "rootBare": "المنتجات",
+    "noStorage": "ما في مستودع"
+  },
   "units": {
     "pcs": "قطعة",
     "ml": "مل",
@@ -28,6 +34,8 @@
     "abbreviation": "الاختصار",
     "name": "الاسم",
     "inContainer": "بالعبوة",
+    "unit": "الوحدة",
+    "inOtherStorages": "بمستودعاتٍ أخرى",
     "purchasePrice": "سعر الشراء",
     "retailPrice": "سعر البيع"
   },
