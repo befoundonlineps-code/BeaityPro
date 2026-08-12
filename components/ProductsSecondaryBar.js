@@ -98,7 +98,12 @@ export default function ProductsSecondaryBar({ op, onSelect, lensStorageId }) {
   const { t } = useTranslation(['products', 'common'])
 
   return (
-    <div className="flex w-full items-center gap-1 overflow-x-auto border-b border-sidebar-border bg-muted/40 px-4 py-1.5">
+    // ⚠️ NO BOTTOM BORDER ANY MORE, and that is the only class that changed.
+    // The bar used to be a full-width row and owned the rule under it; it now
+    // shares a band with the storage box, and the band carries one rule for
+    // both. Two rules at slightly different heights inside one band is the kind
+    // of seam nobody can name but everybody sees.
+    <div className="flex w-full items-center gap-1 overflow-x-auto bg-muted/40 px-4 py-1.5">
       {ITEMS.map((item) => {
         // 🔴 GREYED WHILE THE LENS IS WIDE, and the reason is not that the
         // screen would break — it is that it would NOT. currentLens resolves

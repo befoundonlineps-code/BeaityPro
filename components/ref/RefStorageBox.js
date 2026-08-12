@@ -28,14 +28,19 @@ import { ALL_STORAGES } from '../../lib/storageScope'
 // and it carries meaning: the picker and the link inside it are one subject —
 // the storages — so they share a frame. A field floating in a toolbar reads as
 // one of several unrelated controls.
+// ⚠️ IT IS THE BOX AND NOT THE ROW IT SITS IN, and it briefly was both. Owning
+// the row meant the row could hold nothing else — and the operations bar
+// belongs beside it, which is where the reference puts its toolbar. A component
+// that owns a band it does not fill is a component that decides what may stand
+// next to it.
 export default function RefStorageBox({
   value, onChange, choices, mayWiden, allLabel, noneLabel, archivedLabel,
-  onEditStorages, children,
+  onEditStorages,
 }) {
   const { t } = useTranslation(['products', 'common'])
 
   return (
-    <div className="flex shrink-0 items-stretch gap-3 border-b border-[var(--rule)] bg-white px-2 py-1.5">
+    <div className="flex shrink-0 items-stretch bg-white px-2 py-1.5">
       <div className="flex w-[230px] shrink-0 flex-col gap-1 border border-[var(--rule)] px-2 py-1">
         <span className="text-[10px] leading-none text-muted-foreground">
           {t('products:lens.label')}
@@ -78,10 +83,6 @@ export default function RefStorageBox({
           {t('products:refShell.editStorages')}
         </button>
       </div>
-
-      {/* Anything the screen wants beside the box — today, the notice that the
-          colours here are not decided. */}
-      <div className="flex min-w-0 flex-1 items-start justify-end">{children}</div>
     </div>
   )
 }

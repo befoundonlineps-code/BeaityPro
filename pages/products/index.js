@@ -155,7 +155,6 @@ export default function ProductsPage() {
         // spell the identifier its own file's check is hunting for.
         <AppShell userEmail={session.user.email} onLogout={logout}>
           <div className="flex h-full min-h-0 flex-col">
-            <ProductsSecondaryBar op={op} onSelect={openOperation} lensStorageId={lensId} />
 
             {/* 🔴 THE BREADCRUMB ROW THAT WAS HERE IS GONE, AND KEEPING IT WAS
                 THE MISTAKE THE OWNER NAMED. «المنتجات / كتالوج المنتجات» with a
@@ -168,18 +167,34 @@ export default function ProductsPage() {
                 tree's root row says the same thing AND names the storage the
                 numbers belong to, which the breadcrumb never did. */}
             <div data-content-area className="flex min-h-0 flex-1 flex-col">
-            <RefStorageBox
-              value={lensId}
-              onChange={setChosenStorage}
-              choices={lensChoices(directories.storages, lensId)}
-              mayWiden={lensMayWiden('catalog')}
-              allLabel={t('products:columns.allStorages')}
-              noneLabel={t('products:docs.storageNone')}
-              archivedLabel={(name) => t('products:archivedOption', { name })}
-              onEditStorages={() => openOperation('storages')}
-            >
-              <ProvisionalPaletteBadge />
-            </RefStorageBox>
+              {/* 🔴 THE OPERATIONS BAR SITS BESIDE THE STORAGE BOX, NOT ABOVE
+                  IT — the owner's correction, drawn on a screenshot.
+                  «Where am I working» and «what can I do here» are one band in
+                  the reference, and they were two rows here: the bar full-width
+                  under the top bar, the box on a strip of its own with an empty
+                  half. I had even reported that empty half as an open question.
+                  It was not a question — it was the bar's place.
+                  ⚠️ And the bar itself is untouched: same component, same
+                  colours, same order. What moved is where it is put, which is
+                  the page's business rather than the bar's. */}
+              <div className="flex shrink-0 items-stretch border-b border-[var(--rule)] bg-white">
+                <RefStorageBox
+                  value={lensId}
+                  onChange={setChosenStorage}
+                  choices={lensChoices(directories.storages, lensId)}
+                  mayWiden={lensMayWiden('catalog')}
+                  allLabel={t('products:columns.allStorages')}
+                  noneLabel={t('products:docs.storageNone')}
+                  archivedLabel={(name) => t('products:archivedOption', { name })}
+                  onEditStorages={() => openOperation('storages')}
+                />
+                <div className="flex min-w-0 flex-1 items-center">
+                  <ProductsSecondaryBar op={op} onSelect={openOperation} lensStorageId={lensId} />
+                </div>
+                <div className="flex shrink-0 items-start p-1.5">
+                  <ProvisionalPaletteBadge />
+                </div>
+              </div>
 
             {/* ── The catalogue is the screen, permanently ────────────────
                 Not a tab any more. Every operation opens over it and it stays
