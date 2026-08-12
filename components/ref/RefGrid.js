@@ -1,16 +1,23 @@
 // The dense grid.
 //
-// One primitive, two tones, and the tone is the sentence: a GREY head means «a
-// list you are reading» and an ORANGE head means «a sheet you are filling».
-// Measured, not chosen — the catalogue and the invoice list carry grey heads in
-// the reference, and the supply and order line grids carry orange, in the same
-// screenshots and sometimes in the same window.
+// One primitive, two tones, and THE DISTINCTION IS STRUCTURAL WHILE THE COLOURS
+// ARE NOT: one head says «a list you are reading» and the other «a sheet you
+// are filling», so a reader knows what a table is before reading a cell of it.
+// That two-way split is taken from the reference, where the catalogue and the
+// invoice list are headed one way and the supply and order line grids another —
+// sometimes inside the same window. Which two fills carry it is undecided, and
+// both are placeholders in globals.css today.
 //
-// ⚠️ AND IT IS DENSE ON PURPOSE, WHICH IS THE PART THAT IS EASY TO UNDO. Row
-// height is set by a small padding and a small font, and every «let it breathe»
-// edit to either one costs rows on the screen. The reference fits about thirty
-// products in the height ours fits twelve, and somebody counting a shelf reads
-// the difference as scrolling.
+// ⚠️ DENSE ON PURPOSE, AND THAT PART IS THE ASK. «Same information density» was
+// named directly: a grid, not cards; many rows, not a few roomy ones. Every
+// «let it breathe» edit to the padding or the font costs rows on screen, and
+// somebody counting a shelf reads the difference as scrolling.
+//
+// 🔴 BUT THE EXACT ROW HEIGHT IS NOT THE ASK, and it was briefly treated as
+// though it were: the reference's rows measure 18px and these were tuned to 19
+// to match. That is a typography decision — and one taken off an ENGLISH
+// reference for an ARABIC screen, where the same point size reads smaller.
+// Density is the requirement; nineteen pixels is a guess wearing its clothes.
 
 // The table itself.
 //
@@ -56,10 +63,12 @@ export function RefTh({ children, className = '', ...rest }) {
   )
 }
 
-// A row of the body. `selected` is the pale cyan the reference puts under the
-// row the cursor is on — and it is NOT the write blue. Those two are a shade
-// apart and mean opposite things: one says «I am looking at this», the other
-// says «type here».
+// A row of the body. `selected` marks the row the cursor is on — and it is a
+// SEPARATE token from the write fill, which is the part that matters. The two
+// mean opposite things: one says «I am looking at this», the other says «type
+// here». In the reference they are a shade apart and easily confused; keeping
+// them as two names means whatever is chosen for each, they cannot collapse
+// into one by accident.
 export function RefRow({ selected, onClick, children, className = '', ...rest }) {
   return (
     <tr
@@ -92,7 +101,8 @@ export function RefTd({ children, className = '', write, ...rest }) {
 
 // A group heading INSIDE the grid — a folder gathering the rows under it.
 //
-// ⚠️ Yellow across the whole row, not a grey strip. And it keeps its cells
+// ⚠️ The whole row is filled, not a thin strip above it — that is the structural
+// half («صفوف مجمّعة»), and the fill itself is a placeholder. And it keeps its cells
 // rather than spanning them, because in the reference a group row carries a
 // value of its own in the Packages column: fill it once and every child takes
 // it. A colSpan row cannot ever grow that, and the day it is needed the row

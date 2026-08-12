@@ -21,14 +21,25 @@ import { X } from 'lucide-react'
 // is built on too. This is a different skin on the same machine, not a second
 // machine.
 
-// Square corners, no rounding anywhere. The reference is a Windows application
-// and every corner in it is a right angle; rounded corners on an orange title
-// bar read as a web page imitating one rather than as the thing itself.
+// 🔴 THE SQUARE CORNERS ARE NOT A DECISION ANYBODY TOOK, AND THIS COMMENT USED
+// TO ARGUE THAT THEY WERE.
+//
+// It read: «the reference is a Windows application and every corner in it is a
+// right angle; rounded corners read as a web page imitating one rather than as
+// the thing itself.» That is not an argument — it is a preference in the
+// costume of a principle, and it is more dangerous than the palette was,
+// because a colour looks like a choice and a corner radius looks like physics.
+//
+// ⇒ Zero radius is a PLACEHOLDER too, and it sits with the rest of the open
+// list in design/TOKENS.md. What is structural here is that an operation opens
+// OVER the screen it operates on rather than replacing it — the catalogue stays
+// readable underneath, so nobody loses their place to fill in a form. The
+// corners, the shadow and how much the backdrop dims are all still open.
 export default function RefModal({
   open, onClose, title, children, footer,
-  // The reference sizes each modal to its content: the group picker is narrow,
-  // the supply document is wide. A single width would make the picker a mostly
-  // empty rectangle.
+  // Each operation opens at the size of what is in it — the storages list is
+  // narrow, a supply document is as wide as its grid. THAT is structural; the
+  // particular pixel counts below are not.
   width = 'max-w-[1100px]',
 }) {
   const { t } = useTranslation('common')
@@ -43,41 +54,43 @@ export default function RefModal({
           data-ref-modal={title}
           // ⚠️ FOCUS LANDS ON THE PANEL, NOT ON THE CLOSE BUTTON — measured in
           // a real engine, where opening a modal drew a focus ring around the ×
-          // in the orange bar. The first thing an operation says must not be
+          // in the header bar. The first thing an operation says must not be
           // «cancel is selected»; and the trap still works, because the panel is
           // what base-ui returns to when Tab wraps.
           tabIndex={-1}
           className={`fixed start-1/2 top-6 z-50 flex max-h-[calc(100vh-3rem)] w-[calc(100%-2rem)] -translate-x-1/2 flex-col bg-white text-sm shadow-2xl outline-none rtl:translate-x-1/2 ${width}`}
           style={{
             border: '1px solid var(--chrome)',
-            // 🔴 THE ORANGE ACTION BUTTON, WITHOUT REWIRING TEN SCREENS.
+            // 🔴 THE ACTION BUTTON TAKES THE CHROME COLOUR, WITHOUT REWIRING
+            // TEN SCREENS.
             //
             // Every operation already ends in one primary button — «سجّل
             // التوريد», «احفظ الجرد» — sitting at the bottom of its own form,
             // which is where the reference puts its «To debit» too. What it was
-            // not, was orange. Re-parenting each of those into a modal footer
+            // not, was distinguished from the buttons beside it. Re-parenting each
             // means a render prop threaded through ten components, each of
             // which would then have TWO ways to submit for as long as the
             // conversion took.
             //
             // ⇒ The variable is redefined for this subtree instead, so
-            // `bg-primary` resolves to the chrome orange inside a modal and to
-            // the app's blue everywhere else. One declaration, no component
-            // touched, and it cannot fall out of step because there is nothing
-            // to keep in step.
+            // `bg-primary` resolves to the chrome token inside a modal and to
+            // the app's own primary everywhere else. One declaration, no
+            // component touched, and it cannot fall out of step because there
+            // is nothing to keep in step.
             //
             // ⚠️ `--color-*` AND NOT `--primary`. Tailwind v4's `@theme inline`
             // declares `--color-primary: var(--primary)` ON :root, so the
             // substitution happens there and descendants inherit the finished
             // colour — overriding `--primary` here would change nothing at all,
             // silently. Measured in a real engine rather than reasoned: the
-            // post button's computed background reads rgb(254, 162, 15).
+            // computed background inside a modal reads back as the chrome
+            // token's current value and not the app's primary.
             '--color-primary': 'var(--chrome)',
             '--color-primary-foreground': 'var(--chrome-ink)',
             '--color-ring': 'var(--chrome)',
           }}
         >
-          {/* ── The orange header ─────────────────────────────────────── */}
+          {/* ── The header bar ────────────────────────────────────────── */}
           <div
             className="flex shrink-0 items-center justify-between gap-2 px-2 py-1"
             style={{ background: 'var(--chrome)', color: 'var(--chrome-ink)' }}
@@ -96,7 +109,7 @@ export default function RefModal({
           {/* ── The body ──────────────────────────────────────────────── */}
           <div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
 
-          {/* ── Cancel, then the orange one ───────────────────────────── */}
+          {/* ── Cancel, then the one that acts ────────────────────────── */}
           {footer && (
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--rule)] px-3 py-2">
               {footer}
@@ -108,12 +121,12 @@ export default function RefModal({
   )
 }
 
-// The one orange button an operation ends with. There is exactly one per modal
+// The ONE button an operation ends with. There is exactly one per modal
 // in the reference — «To order», «To debit», «Select» — and it is the only
-// orange thing in the body.
+// thing in the body carrying the chrome token.
 //
-// ⚠️ Which is why it is a component rather than a class string: an orange
-// button that appears twice stops meaning «this is the act».
+// ⚠️ Which is why it is a component rather than a class string: a second one
+// on the same screen stops it meaning «this is the act».
 export function RefActionButton({ children, disabled, onClick, type = 'button' }) {
   return (
     <button
