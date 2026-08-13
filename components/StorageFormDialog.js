@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { User } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
-import { saveStorage, saveStorageResponsibles } from '../lib/inventoryAdminIO'
+import { saveStorage, saveStorageResponsibles, saveStorageCategories } from '../lib/inventoryAdminIO'
 import {
   validateStorage, storagePayload, responsiblesVisible, responsibleKey,
   storageSaveAction, responsibleCounts,
   STORAGE_KINDS, FINE_BASES,
 } from '../lib/storageForm'
+import {
+  folderKey, folderLinksFor, folderTickRows, stockedFolders, blockedUnticks,
+} from '../lib/storageFolders'
 import { EMPLOYEE_ROLES } from '../lib/employeeRoles'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -54,6 +57,12 @@ function CheckboxField({ label, hint, checked, onChange, className = '' }) {
 // actually works with.
 export default function StorageFormDialog({
   open, onOpenChange, storage, employees, responsibles, salonId, onSaved,
+  // 🔴 التشكيلة: أيُّ مجلّداتٍ يحفظها هذا المستودع.
+  //
+  // ⚠️ والأرصدةُ والمنتجاتُ تصل معها **لأن الرفضَ لازم يسمّي الأصناف**. الصفحةُ
+  // محمَّلٌ عندها الاثنان أصلًا، فلا استعلامَ جديدًا هنا — و٠٦٨ب_٣ يكتب نفسَ
+  // السؤال بـSQL للتشخيص من المحرّر، لا طريقًا ثانيًا للشاشة.
+  categories = [], products = [], balances = [], storageCategories = [],
 }) {
   const { t } = useTranslation(['products', 'employees', 'common'])
 
@@ -72,6 +81,7 @@ export default function StorageFormDialog({
   const [finePercent, setFinePercent] = useState('')
   const [fineBasis, setFineBasis] = useState('')
   const [selectedKeys, setSelectedKeys] = useState([])
+  const [folderKeys, setFolderKeys] = useState([])
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -94,6 +104,16 @@ export default function StorageFormDialog({
   // in the question that nothing on the screen accounts for — "2 responsibles
   // will be removed" beside one name. Such a row is still removed by the save;
   // it is just not something to tell somebody they are losing.
+  // الروابطُ القائمة لهذا المستودع، ومجلّداتُه الممنوعةُ من الشيل.
+  //
+  // ⚠️ مشتقّةٌ كلَّ رسمة لا محفوظة، لنفس سبب `existingRows` فوقها: حالةٌ محفوظةٌ
+  // عن مستودعٍ تغيّر هي حالةٌ تصف ما لم يعد على الشاشة.
+  const existingFolderRows = storage ? folderLinksFor(storageCategories, storage.id) : []
+  const stocked = storage
+    ? stockedFolders({ storageId: storage.id, categories, products, balances })
+    : new Map()
+  const tickRows = folderTickRows(categories)
+
   const { people, roles } = responsibleCounts(existingRows)
   const saveAction = storageSaveAction({
     kind, isEdit, responsibleCount: people + roles, confirmed: confirmDrop,
@@ -122,7 +142,13 @@ export default function StorageFormDialog({
     setSelectedKeys(storage
       ? (responsibles || []).filter((r) => r.storage_id === storage.id).map(responsibleKey)
       : [])
-  }, [open, storage, responsibles])
+    // ⚠️ مستودعٌ جديدٌ يفتح **بلا أيّ تأشير**، لا بكلّ المجلّدات. تأشيرُ الكلّ
+    // يكتب قرارًا لم يتّخذه أحد على كلّ مجلّدٍ في الصالون — وهو بالحرف ما فعلته
+    // بذرةُ ٠٦٦ب، والتي احتاجت عمودَ `seeded` كاملًا كي يمكن تمييزُها لاحقًا
+    // عن قرار. الفراغُ حالةٌ يراها صاحبُها ويملؤها؛ التأشيرُ الكامل حالةٌ تبدو
+    // مقرَّرة.
+    setFolderKeys(storage ? folderLinksFor(storageCategories, storage.id).map(folderKey) : [])
+  }, [open, storage, responsibles, storageCategories])
 
   const values = {
     name, kind, ownerEmployeeId, packagesOnly, saleEnabled,
@@ -133,10 +159,33 @@ export default function StorageFormDialog({
     setSelectedKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
   }
 
+  function toggleFolder(id) {
+    setFolderKeys((prev) => (prev.includes(id) ? prev.filter((k) => k !== id) : [...prev, id]))
+  }
+
   async function handleSave() {
     const validationKey = validateStorage(values)
     if (validationKey) {
       setError(t(validationKey))
+      return
+    }
+
+    // 🔴 الرفضُ يُقال هنا أوّلًا، وبأسماء الأصناف — وهو المطلبُ الذي كتبته
+    // ترويسةُ ٠٦٨أ ولم يُبنَ. المُشغِّلُ في القاعدة يرفض على أيّ حال، لكن رمزَه
+    // له مفتاحٌ مسمّى **يغلب الـ`hint`**، فقائمةُ الأصناف التي يبنيها لا تصل
+    // المستخدمَ إطلاقًا. بلا هذه الجملة يُقال له «لأ» ويُترك يدوّر على الرفّ.
+    const blocked = blockedUnticks({
+      existingKeys: existingFolderRows.map(folderKey),
+      selectedKeys: folderKeys,
+      stocked,
+    })
+    if (blocked.length > 0) {
+      const first = blocked[0]
+      const folder = (categories || []).find((c) => c.id === first.categoryId)
+      setError(t('products:storageDialog.folderStillStockedError', {
+        folder: folder?.name || '—',
+        products: first.products.join(' · '),
+      }))
       return
     }
 
@@ -202,6 +251,21 @@ export default function StorageFormDialog({
       }
     }
 
+    // التشكيلة. ⚠️ بعد المستودع لأن مستودعًا جديدًا لا معرِّفَ له قبل حفظه —
+    // نفسُ ترتيب المسؤولين وللسبب نفسِه.
+    const { ok: foldersOk, error: foldersError } = await saveStorageCategories({
+      storageId, salonId, existingRows: existingFolderRows, selectedKeys: folderKeys,
+    })
+
+    if (!foldersOk) {
+      setSaving(false)
+      onSaved()
+      setError(foldersError
+        ? dbErrorSentence(foldersError, t, 'StorageFormDialog.folders')
+        : t('products:storageDialog.foldersFailedError'))
+      return
+    }
+
     setSaving(false)
     onSaved()
     onOpenChange(false)
@@ -259,6 +323,64 @@ export default function StorageFormDialog({
                   checked={saleByUnits}
                   onChange={(e) => setSaleByUnits(e.target.checked)}
                 />
+              </div>
+            )}
+          </Section>
+
+          {/* 🔴 التشكيلة — أيُّ أصنافٍ مسموحٌ تكون بهذا المستودع.
+              القرار: «كل مستودع إله أصناف محددة، من الأول صح، بلا اعتماد على
+              انتباه الموظف». والمجلّدُ يقدر يكون بأكتر من مستودع — وبدون ذلك
+              «الوجهةُ لازم تحفظ هالمجلّد» تصير «الوجهةُ = مستودعُه الوحيد»، أي
+              منعَ كلِّ نقل. */}
+          <Section title={t('products:storageDialog.sectionFolders')}>
+            <p className="text-xs text-muted-foreground">
+              {t('products:storageDialog.foldersHint')}
+            </p>
+
+            {tickRows.length === 0 ? (
+              // ⚠️ الفراغُ يُسمّى بدل أن يُترك لوحًا أبيض. بعد التصفير هذه هي
+              // الحالةُ الأولى التي سيراها أحد، وبلا جملةٍ فيها تُقرأ عطلًا.
+              <p className="text-xs text-muted-foreground" data-empty-state="no-folders">
+                {t('products:storageDialog.foldersEmpty')}
+              </p>
+            ) : (
+              <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border p-2">
+                {tickRows.map((row) => {
+                  const names = stocked.get(row.id)
+                  return (
+                    <label
+                      key={row.id}
+                      data-folder-tick={row.id}
+                      className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-muted/60"
+                      style={{ paddingInlineStart: `${4 + row.depth * 16}px` }}
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={folderKeys.includes(row.id)}
+                        onChange={() => toggleFolder(row.id)}
+                      />
+                      <span className={row.archived ? 'text-muted-foreground line-through' : ''}>
+                        {row.name}
+                      </span>
+                      {/* ⚠️ يُقال على السطر، لا عند الحفظ وحدَه. من يؤشّر يحتاج
+                          أن يعرف قبل أن يضغط أيُّ صفٍّ لا يمكن التراجع عنه —
+                          والاسمُ في العنوان لأن سردَ الأصناف على السطر يغرق
+                          اللوح. */}
+                      {names && (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px]"
+                          title={t('products:storageDialog.folderStockedHint', {
+                            products: names.join(' · '),
+                          })}
+                        >
+                          {t('products:storageDialog.folderStockedBadge')}
+                        </Badge>
+                      )}
+                    </label>
+                  )
+                })}
               </div>
             )}
           </Section>

@@ -227,6 +227,12 @@ export default function ProductsPage() {
                 storages={directories.storages}
                 responsibles={directories.responsibles}
                 employees={employees}
+                // التشكيلة، ومعها ما تحتاجه رسالةُ الرفض لتسمّي الأصناف. كلُّه
+                // محمَّلٌ لهذه الصفحة أصلًا — فلا استعلامَ جديد.
+                categories={catalogue.categories}
+                products={catalogue.products}
+                balances={balances.balances}
+                storageCategories={directories.storageCategories}
                 loading={directories.loading}
                 error={directories.error}
                 reload={directories.reload}
