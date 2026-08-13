@@ -150,6 +150,10 @@ export default function ProductsBrowser({
   // the difference between a rule to remember and a shape that cannot come
   // apart. Guarded in lib/cataloguePickerScope.test.js.
   storageId = ALL_STORAGES,
+  // 🔴 التشكيلة: أيُّ مجلّداتٍ يحفظها كلُّ مستودع. الانتماءُ صفوفٌ في
+  // `storage_categories` لا عمودٌ على المجلّد — لأن المجلّدَ يمكن أن يكون في
+  // أكثر من مستودع، وهو شرطُ النقل بينهما.
+  storageCategories = [],
   // The tree's root row says which storage the numbers below belong to, so it
   // needs the name rather than the id. Optional: the tests render without one
   // and get the bare «المنتجات».
@@ -220,8 +224,8 @@ export default function ProductsBrowser({
   // cannot be reached by a stale selection: catalogueScope fails closed on a
   // folder it cannot find.
   const visibleCategories = useMemo(
-    () => foldersForStorage(categories, storageId),
-    [categories, storageId]
+    () => foldersForStorage(categories, storageId, storageCategories),
+    [categories, storageId, storageCategories]
   )
 
   // The hiding rule is in lib/productTree.js, not spelled out here: it thins
@@ -274,7 +278,8 @@ export default function ProductsBrowser({
   // moves to another. Two independent stoppers, the same shape as ancestorIds —
   // deleting either leaves the other holding.
   const visibleSelectedId =
-    treeContains(tree, selectedCategoryId) && !isPassThroughFolder(byId[selectedCategoryId], storageId)
+    treeContains(tree, selectedCategoryId)
+      && !isPassThroughFolder(byId[selectedCategoryId], storageId, storageCategories)
       ? selectedCategoryId
       : null
 
@@ -283,12 +288,19 @@ export default function ProductsBrowser({
   // that happened and gives a door. «تتبع مستودعًا آخر» leaves the reader
   // hunting; «تتبع مستودع الشعر» tells them which one to switch to.
   const passThroughNote = (node) => {
-    if (!isPassThroughFolder(node, storageId)) return null
-    const owner = (storages || []).find((s) => s.id === node.storage_id) || null
-    return owner
+    if (!isPassThroughFolder(node, storageId, storageCategories)) return null
+    // ⚠️ **صار جمعًا مع النموذج:** المجلّدُ يمكن أن يكون في عدّة مستودعات، فما في
+    // «مستودعُه». تُسمّى كلُّها — لأن الجملةَ بتعطي بابًا («بدّل لأيٍّ من هدول»)،
+    // وواحدٌ منها منتقًى عشوائيًّا بيعطي بابًا ممكن يكون الغلط.
+    const owners = (storages || [])
+      .filter((s) => (storageCategories || []).some(
+        (l) => l.category_id === node.id && l.storage_id === s.id
+      ))
+      .map((s) => s.name)
+    return owners.length > 0
       ? {
-          tag: owner.name,
-          title: t('products:refShell.passThroughHint', { storage: owner.name }),
+          tag: owners.join(' · '),
+          title: t('products:refShell.passThroughHint', { storage: owners.join(' · ') }),
         }
       : {
           tag: t('products:refShell.unassignedFolder'),
@@ -335,10 +347,10 @@ export default function ProductsBrowser({
       ? null
       : new Set(
           visibleCategories
-            .filter((c) => !isPassThroughFolder(c, storageId))
+            .filter((c) => !isPassThroughFolder(c, storageId, storageCategories))
             .map((c) => c.id)
         )),
-    [storageId, visibleCategories]
+    [storageId, visibleCategories, storageCategories]
   )
 
   const rows = useMemo(
@@ -360,6 +372,7 @@ export default function ProductsBrowser({
   const canAddFolder = canCreateFolder({
     parent: visibleSelectedId ? byId[visibleSelectedId] : null,
     lensStorageId: storageId,
+    links: storageCategories,
   })
 
   const searching = search.trim().length > 0
@@ -508,7 +521,7 @@ export default function ProductsBrowser({
         // A catalogue that starts at zero folders needs to say so. The services
         // screen never did — it opened onto a seeded tree — so an empty white
         // pane here would read as a screen that failed to load.
-        isUnassigned={isUnassignedFolder}
+        isUnassigned={(node) => isUnassignedFolder(node, storageCategories)}
         unassignedLabel={t('products:refShell.unassignedFolder')}
         // 🔴 A FOLDER DRAWN HERE WITHOUT BELONGING HERE IS INERT — the
         // reviewer's question, answered one level up from where it was asked.
@@ -786,6 +799,7 @@ export default function ProductsBrowser({
         category={categoryDialog?.category}
         categories={categories}
         lensStorageId={storageId}
+        links={storageCategories}
         defaultParentId={categoryDialog?.category ? null : visibleSelectedId}
         salonId={salonId}
         onSaved={reload}

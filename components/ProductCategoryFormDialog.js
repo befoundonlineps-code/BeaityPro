@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'next-i18next'
 import { dbErrorSentence } from '../lib/dbErrors'
-import { saveProductCategory } from '../lib/productAdminIO'
+import { saveProductCategory, linkFolderToStorages } from '../lib/productAdminIO'
 import { productCategoryPayload, validateProductCategory } from '../lib/productForm'
-import { storageForNewFolder, parentChoicesForFolder, NO_CONTEXT } from '../lib/folderStorageInherit'
+import { storagesForNewFolder, parentChoicesForFolder } from '../lib/folderStorageInherit'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -32,11 +32,14 @@ export default function ProductCategoryFormDialog({
   open, onOpenChange, category, categories, defaultParentId, salonId, onSaved,
   // 🔴 THE STORAGE ARRIVES AS CONTEXT, NOT AS A FIELD — AND THERE IS NO FIELD.
   //
-  // The owner's decision: a new folder takes the storage of its parent, or of
+  // The owner's decision: a new folder takes the storages of its parent, or of
   // the storage the screen is standing on, and where neither exists the
   // creation is refused rather than guessed. So this dialog never asks; it
   // derives, and lib/folderStorageInherit.js is the one place that decides.
-  lensStorageId = null,
+  //
+  // ⚠️ **صار جمعًا:** المجلّدُ يمكن أن يكون في أكثر من مستودع، والابنُ يأخذ
+  // **كلَّ** روابط أبيه — فلا يمكن أن يولد عقدةً معلَّقة.
+  lensStorageId = null, links = [],
 }) {
   const { t } = useTranslation(['products', 'common'])
 
@@ -64,20 +67,20 @@ export default function ProductCategoryFormDialog({
   // folder invisible», plus why an edit is left alone — lives in
   // lib/folderStorageInherit.js, where it is the thing under test. This dialog
   // portals, so nothing it renders reaches a static render to assert on.
-  const parentOptions = parentChoicesForFolder({ category, categories, lensStorageId })
+  const parentOptions = parentChoicesForFolder({ category, categories, lensStorageId, links })
 
   // ⚠️ Recomputed from the parent CURRENTLY chosen in the dialog, not from the
-  // one it opened with. Somebody who changes the parent changes the storage in
-  // the same act — which is the rule «a subfolder takes its parent's storage»
+  // one it opened with. Somebody who changes the parent changes the storages in
+  // the same act — which is the rule «a subfolder takes its parent's storages»
   // behaving rather than being remembered.
   const chosenParent = parentId ? (categories || []).find((c) => c.id === parentId) || null : null
-  const derivedStorageId = storageForNewFolder({ parent: chosenParent, lensStorageId })
+  const derivedStorageIds = storagesForNewFolder({ parent: chosenParent, lensStorageId, links })
 
-  // ⚠️ ONLY ON CREATE. An edit sends no storage_id at all, so renaming a folder
-  // cannot move it between storages and cannot clear a legacy folder's blank —
-  // productCategoryPayload omits the key when it is undefined, which is «I have
-  // nothing to say about this column» rather than «make it empty».
-  const missingContext = !isEdit && derivedStorageId === NO_CONTEXT
+  // ⚠️ ONLY ON CREATE. An edit writes no links at all, so renaming a folder
+  // cannot move it between storages — moving is done from the storage window,
+  // where the assortment is ticked. Two places for one decision is the fault
+  // this whole round removed; it is not reopened from the opposite door.
+  const missingContext = !isEdit && derivedStorageIds.length === 0
 
   async function handleSave() {
     const validationKey = validateProductCategory({ name })
@@ -97,23 +100,41 @@ export default function ProductCategoryFormDialog({
     setError('')
     setSaving(true)
 
-    const { ok, error: saveError } = await saveProductCategory({
+    const { ok, error: saveError, row } = await saveProductCategory({
       id: isEdit ? category.id : null,
-      payload: productCategoryPayload(
-        isEdit ? { name, parentId } : { name, parentId, storageId: derivedStorageId }
-      ),
+      payload: productCategoryPayload({ name, parentId }),
       salonId,
     })
 
-    setSaving(false)
-
     if (!ok) {
+      setSaving(false)
       setError(saveError
         ? dbErrorSentence(saveError, t, 'ProductCategoryFormDialog.save')
         : t('products:categoryDialog.noRowsError'))
       return
     }
 
+    // الانتماءُ نداءٌ ثانٍ، وعلى الإنشاء وحدَه. الحالةُ الناقصة — مجلّدٌ بلا
+    // روابط — **مرئيّةٌ وقابلةٌ للتصحيح**: يظهر تحت «كل المستودعات» بشارة «بلا
+    // مستودع»، ويُؤشَّر من نافذة المستودع. فلا يلزمها RPC (البند ١، «الكتابات»).
+    if (!isEdit) {
+      const { ok: linked, error: linkError } = await linkFolderToStorages({
+        categoryId: row.id, salonId, storageIds: derivedStorageIds,
+      })
+
+      if (!linked) {
+        setSaving(false)
+        // ⚠️ `onSaved()` أوّلًا: المجلّدُ **انكتب فعلًا**، فإخفاؤه عن الشاشة
+        // بحجّة أن نصفَه الثاني فشل يجعل الشخصَ ينشئه من جديد — ويصير اثنان.
+        onSaved()
+        setError(linkError
+          ? dbErrorSentence(linkError, t, 'ProductCategoryFormDialog.link')
+          : t('products:categoryDialog.linkFailedError'))
+        return
+      }
+    }
+
+    setSaving(false)
     onSaved()
     onOpenChange(false)
   }

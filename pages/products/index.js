@@ -211,6 +211,7 @@ export default function ProductsPage() {
               storageId={lensId}
               storageName={lensStorage?.name || null}
               storages={directories.storages}
+              storageCategories={directories.storageCategories}
             />
             </div>
           </div>

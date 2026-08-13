@@ -22,9 +22,9 @@ jest.mock('next-i18next', () => ({
 }))
 
 const CATEGORIES = [
-  { id: 'c-hair', parent_id: null, name: 'شعر', sort_order: 1, is_active: true, storage_id: 'stor-1' },
-  { id: 'c-shampoo', parent_id: 'c-hair', name: 'شامبو', sort_order: 1, is_active: true, storage_id: 'stor-1' },
-  { id: 'c-nails', parent_id: null, name: 'أظافر', sort_order: 2, is_active: true, storage_id: 'stor-1' },
+  { id: 'c-hair', parent_id: null, name: 'شعر', sort_order: 1, is_active: true },
+  { id: 'c-shampoo', parent_id: 'c-hair', name: 'شامبو', sort_order: 1, is_active: true },
+  { id: 'c-nails', parent_id: null, name: 'أظافر', sort_order: 2, is_active: true },
 ]
 
 const product = (id, categoryId, over) => ({
@@ -62,9 +62,15 @@ const PRODUCTS = [
 // where the scope is «do not narrow» rather than a set of known ids. Every
 // fixture name starts with «منتج», so the search matches all six.
 const STORAGE = 'stor-1'
+
+// 🔴 الانتماءُ صفوفٌ في `storage_categories` لا عمودٌ على المجلّد — المجلّدُ
+// يقدر يكون بأكتر من مستودع، وهو شرطُ النقل بين اثنين.
+const LINKS = CATEGORIES.map((c) => ({
+  id: `l-${c.id}`, storage_id: STORAGE, category_id: c.id,
+}))
 const render = (over) => renderToStaticMarkup(
   <ProductsBrowser
-    salonId="s" suppliers={[]} storages={[]} balances={[]}
+    salonId="s" suppliers={[]} storages={[]} balances={[]} storageCategories={LINKS}
     storageId={ALL_STORAGES}
     initialSearch="منتج"
     catalogue={{
@@ -78,7 +84,7 @@ const render = (over) => renderToStaticMarkup(
 // filter is live in.
 const renderFolder = (over) => renderToStaticMarkup(
   <ProductsBrowser
-    salonId="s" suppliers={[]} storages={[]} balances={[]}
+    salonId="s" suppliers={[]} storages={[]} balances={[]} storageCategories={LINKS}
     storageId={STORAGE}
     initialCategoryId="c-hair"
     catalogue={{
@@ -220,10 +226,11 @@ describe('the table draws every row it was given', () => {
     // The other half of the same point. Two states, two sentences — and the
     // test asserts they are DIFFERENT, because one message for both is the
     // blank grid again with extra steps.
-    const empty = { ...CATEGORIES[2], id: 'c-empty', name: 'فاضي', storage_id: 'stor-1' }
+    const empty = { ...CATEGORIES[2], id: 'c-empty', name: 'فاضي' }
     const html = renderToStaticMarkup(
       <ProductsBrowser
         salonId="s" suppliers={[]} storages={[]} balances={[]}
+        storageCategories={[...LINKS, { id: 'l-empty', storage_id: STORAGE, category_id: 'c-empty' }]}
         storageId={STORAGE}
         initialCategoryId="c-empty"
         catalogue={{
