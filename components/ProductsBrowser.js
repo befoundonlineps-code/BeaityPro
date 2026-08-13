@@ -10,6 +10,7 @@ import { treeContains } from '../lib/categoryTree'
 import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { catalogueRows, catalogueGroups } from '../lib/catalogueView'
 import { foldersForStorage, isUnassignedFolder } from '../lib/folderStorageScope'
+import { canCreateFolder } from '../lib/folderStorageInherit'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { stockedStorages, BALANCE_STATE } from '../lib/balanceView'
@@ -313,6 +314,13 @@ export default function ProductsBrowser({
 
   // The three states the grid can be in, named rather than inferred from
   // whether `rows` happens to be empty.
+  // Whether a new folder could take a storage from where we are standing.
+  // Read by the button and by the dialog through the same function.
+  const canAddFolder = canCreateFolder({
+    parent: visibleSelectedId ? byId[visibleSelectedId] : null,
+    lensStorageId: storageId,
+  })
+
   const searching = search.trim().length > 0
   const noFolderChosen = !visibleSelectedId && !searching
 
@@ -483,10 +491,20 @@ export default function ProductsBrowser({
         }
         treeToolbar={
           <>
+            {/* 🔴 DISABLED WHEN THERE IS NO CONTEXT TO INHERIT FROM — and the
+                condition is DERIVED from the same function the write uses, not
+                stated a second time here. A separate rule on the button is the
+                second list that drifts: it would forbid a case the write
+                handles perfectly (a selected, assigned parent while the lens is
+                wide) and one of the two would be corrected without the other.
+                ⚠️ Greyed rather than hidden, and the title says what to do —
+                the same rule the operations bar follows. */}
             <RefPaneButton
               icon={Plus}
               tone="text-green-600"
               label={t('products:categoryToolbar.add')}
+              disabled={!canAddFolder}
+              blockedTitle={t('products:categoryDialog.noStorageContext')}
               onClick={() => setCategoryDialog({ category: null })}
             />
             <RefPaneButton
@@ -719,6 +737,7 @@ export default function ProductsBrowser({
         onOpenChange={(open) => { if (!open) setCategoryDialog(null) }}
         category={categoryDialog?.category}
         categories={categories}
+        lensStorageId={storageId}
         defaultParentId={categoryDialog?.category ? null : visibleSelectedId}
         salonId={salonId}
         onSaved={reload}

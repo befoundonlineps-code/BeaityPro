@@ -3,6 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { saveProductCategory } from '../lib/productAdminIO'
 import { productCategoryPayload, validateProductCategory } from '../lib/productForm'
+import { storageForNewFolder, NO_CONTEXT } from '../lib/folderStorageInherit'
 import { parentOptionsFor } from '../lib/categoryVisibility'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -30,6 +31,13 @@ const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 p
 // product — shampoo is shampoo whoever is asking.
 export default function ProductCategoryFormDialog({
   open, onOpenChange, category, categories, defaultParentId, salonId, onSaved,
+  // 🔴 THE STORAGE ARRIVES AS CONTEXT, NOT AS A FIELD — AND THERE IS NO FIELD.
+  //
+  // The owner's decision: a new folder takes the storage of its parent, or of
+  // the storage the screen is standing on, and where neither exists the
+  // creation is refused rather than guessed. So this dialog never asks; it
+  // derives, and lib/folderStorageInherit.js is the one place that decides.
+  lensStorageId = null,
 }) {
   const { t } = useTranslation(['products', 'common'])
 
@@ -54,10 +62,31 @@ export default function ProductCategoryFormDialog({
   // cycles, and nothing else may narrow it.
   const parentOptions = parentOptionsFor(category, categories)
 
+  // ⚠️ Recomputed from the parent CURRENTLY chosen in the dialog, not from the
+  // one it opened with. Somebody who changes the parent changes the storage in
+  // the same act — which is the rule «a subfolder takes its parent's storage»
+  // behaving rather than being remembered.
+  const chosenParent = parentId ? (categories || []).find((c) => c.id === parentId) || null : null
+  const derivedStorageId = storageForNewFolder({ parent: chosenParent, lensStorageId })
+
+  // ⚠️ ONLY ON CREATE. An edit sends no storage_id at all, so renaming a folder
+  // cannot move it between storages and cannot clear a legacy folder's blank —
+  // productCategoryPayload omits the key when it is undefined, which is «I have
+  // nothing to say about this column» rather than «make it empty».
+  const missingContext = !isEdit && derivedStorageId === NO_CONTEXT
+
   async function handleSave() {
     const validationKey = validateProductCategory({ name })
     if (validationKey) {
       setError(t(validationKey))
+      return
+    }
+    // The screen disables «add folder» in this case, so reaching here means the
+    // parent was cleared after the dialog opened. Refused rather than saved
+    // with a blank storage — a fourth unassigned folder is a state nobody
+    // decided to create.
+    if (missingContext) {
+      setError(t('products:categoryDialog.noStorageContext'))
       return
     }
 
@@ -66,7 +95,9 @@ export default function ProductCategoryFormDialog({
 
     const { ok, error: saveError } = await saveProductCategory({
       id: isEdit ? category.id : null,
-      payload: productCategoryPayload({ name, parentId }),
+      payload: productCategoryPayload(
+        isEdit ? { name, parentId } : { name, parentId, storageId: derivedStorageId }
+      ),
       salonId,
     })
 

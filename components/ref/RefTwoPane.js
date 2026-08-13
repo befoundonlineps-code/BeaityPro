@@ -191,12 +191,17 @@ export default function RefTwoPane({
 
 // The small text buttons that head each pane: «+ Add», «Edit», «To archive».
 // Flat, iconed, and greyed rather than hidden — the reference's own row.
-export function RefPaneButton({ icon: IconComp, label, disabled, onClick, tone }) {
+export function RefPaneButton({ icon: IconComp, label, disabled, onClick, tone, blockedTitle }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      // ⚠️ The refusal says what to do, and it is the only place it can. A
+      // greyed button with no title is «not from here» with no «then from
+      // where» — which the project already ruled is worse than not explaining
+      // at all, because it names a problem and offers no door.
+      title={disabled && blockedTitle ? blockedTitle : label}
       className={`flex shrink-0 items-center gap-1 px-1.5 py-1 text-xs ${
         disabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-black/5'
       }`}
