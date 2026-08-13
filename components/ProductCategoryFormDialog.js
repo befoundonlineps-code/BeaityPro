@@ -3,8 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { saveProductCategory } from '../lib/productAdminIO'
 import { productCategoryPayload, validateProductCategory } from '../lib/productForm'
-import { storageForNewFolder, NO_CONTEXT } from '../lib/folderStorageInherit'
-import { parentOptionsFor } from '../lib/categoryVisibility'
+import { storageForNewFolder, parentChoicesForFolder, NO_CONTEXT } from '../lib/folderStorageInherit'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -57,10 +56,15 @@ export default function ProductCategoryFormDialog({
 
   // ⚠️ `categories` is the whole list, deliberately — never the tree's filtered
   // copy. Passing a list thinned by "hide archived" would leave an archived
-  // folder out of the parent options, which reads as "you may not put it
-  // there" when the truth is only that it is not on screen. The rule is about
-  // cycles, and nothing else may narrow it.
-  const parentOptions = parentOptionsFor(category, categories)
+  // folder out of the parent options, which reads as "you may not put it there"
+  // when the truth is only that it is not on screen. VIEW FILTERS may not narrow
+  // this; the storage is not a view filter, and on CREATE it does.
+  //
+  // The rule itself — cycles, plus «never offer a parent that would make the new
+  // folder invisible», plus why an edit is left alone — lives in
+  // lib/folderStorageInherit.js, where it is the thing under test. This dialog
+  // portals, so nothing it renders reaches a static render to assert on.
+  const parentOptions = parentChoicesForFolder({ category, categories, lensStorageId })
 
   // ⚠️ Recomputed from the parent CURRENTLY chosen in the dialog, not from the
   // one it opened with. Somebody who changes the parent changes the storage in

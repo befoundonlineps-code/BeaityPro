@@ -23,10 +23,46 @@ import { Folder, FolderOpen, Minus, Plus } from 'lucide-react'
 // tree says out loud which storage the numbers belong to. That is the grain
 // riding along with the number, in the one place a reader cannot miss it.
 
-function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archived, archivedLabel, isUnassigned, unassignedLabel }) {
+function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archived, archivedLabel, isUnassigned, unassignedLabel, passThrough }) {
   const hasChildren = (node.children || []).length > 0
-  const open = expanded.has(node.id)
   const selected = selectedId === node.id
+
+  // 🔴 SHOWN, NEVER SELECTED — one call, and the tag and the refusal come out of
+  // it together so they cannot describe different rows. lib/folderStorageScope.js
+  // holds the reasoning; this only draws it.
+  const note = passThrough ? passThrough(node) : null
+
+  // ⚠️ AND ALWAYS OPEN. A pass-through row is on screen for exactly one reason:
+  // the folder underneath it belongs here and cannot be reached otherwise. A
+  // collapsed one hides the only thing it is for, and since it cannot be
+  // selected either, it would be a row that does nothing at all.
+  const open = !!note || expanded.has(node.id)
+
+  const label = (
+    <>
+      {open ? <FolderOpen className="size-3.5 shrink-0" /> : <Folder className="size-3.5 shrink-0" />}
+      <span className="truncate">{node.name}</span>
+      {archived && <span className="shrink-0 opacity-70">({archivedLabel})</span>}
+      {/* ⚠️ Said rather than left to be noticed. A folder that appears under
+          «all storages» and under no single storage looks like a bug until
+          something names the state — and a folder shown by courtesy of its
+          child is the same problem one storage down. The pass-through note wins
+          when both apply: it is the one that explains why the row is inert. */}
+      {note ? (
+        <span className="shrink-0 border border-[var(--rule)] px-1 text-[10px] leading-none opacity-70">
+          {note.tag}
+        </span>
+      ) : unassignedLabel && isUnassigned && isUnassigned(node) ? (
+        <span className="shrink-0 border border-[var(--rule)] px-1 text-[10px] leading-none opacity-70">
+          {unassignedLabel}
+        </span>
+      ) : null}
+    </>
+  )
+
+  const labelClass = `flex min-w-0 flex-1 items-center gap-1.5 truncate px-1 py-[3px] text-start text-xs ${
+    archived ? 'line-through opacity-60' : ''
+  }`
 
   return (
     <div>
@@ -34,7 +70,7 @@ function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archiv
         className="flex items-center gap-1"
         style={{ paddingInlineStart: `${8 + depth * 14}px` }}
       >
-        {hasChildren ? (
+        {hasChildren && !note ? (
           <button
             type="button"
             onClick={() => onToggle(node.id)}
@@ -47,27 +83,30 @@ function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archiv
           <span className="size-3.5 shrink-0" />
         )}
 
-        <button
-          type="button"
-          onClick={() => onSelect(node.id)}
-          data-tree-node={node.id}
-          className={`flex min-w-0 flex-1 items-center gap-1.5 truncate px-1 py-[3px] text-start text-xs ${
-            archived ? 'line-through opacity-60' : ''
-          }`}
-          style={selected ? { background: 'var(--chrome)', color: 'var(--chrome-ink)' } : undefined}
-        >
-          {open ? <FolderOpen className="size-3.5 shrink-0" /> : <Folder className="size-3.5 shrink-0" />}
-          <span className="truncate">{node.name}</span>
-          {archived && <span className="shrink-0 opacity-70">({archivedLabel})</span>}
-          {/* ⚠️ Said rather than left to be noticed. A folder that appears
-              under «all storages» and under no single storage looks like a bug
-              until something names the state. */}
-          {unassignedLabel && isUnassigned && isUnassigned(node) && (
-            <span className="shrink-0 border border-[var(--rule)] px-1 text-[10px] leading-none opacity-70">
-              {unassignedLabel}
-            </span>
-          )}
-        </button>
+        {note ? (
+          // ⚠️ A span, not a disabled button. A disabled button is still a
+          // control that says «you may not» about something you might want; this
+          // row is not a control at all, and the title says what it IS and where
+          // to go — the project's rule that a refusal names a door.
+          <span
+            data-tree-node={node.id}
+            data-pass-through="true"
+            title={note.title}
+            className={`${labelClass} opacity-60`}
+          >
+            {label}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onSelect(node.id)}
+            data-tree-node={node.id}
+            className={labelClass}
+            style={selected ? { background: 'var(--chrome)', color: 'var(--chrome-ink)' } : undefined}
+          >
+            {label}
+          </button>
+        )}
       </div>
 
       {open && (node.children || []).map((sub) => (
@@ -83,6 +122,7 @@ function TreeRow({ node, depth, expanded, onToggle, selectedId, onSelect, archiv
           archivedLabel={archivedLabel}
           isUnassigned={isUnassigned}
           unassignedLabel={unassignedLabel}
+          passThrough={passThrough}
         />
       ))}
     </div>
@@ -102,6 +142,10 @@ export default function RefTwoPane({
   itemsToolbar,
   isUnassigned,
   unassignedLabel,
+  // (node) => { tag, title } | null — a folder drawn here without belonging
+  // here. One function rather than a predicate beside a label, so the row that
+  // is inert and the row that says why are the same row by construction.
+  passThrough,
   children,
 }) {
   const { t } = useTranslation('common')
@@ -173,6 +217,7 @@ export default function RefTwoPane({
                   archivedLabel={archivedLabel}
                   isUnassigned={isUnassigned}
                   unassignedLabel={unassignedLabel}
+                  passThrough={passThrough}
                 />
               ))}
         </div>

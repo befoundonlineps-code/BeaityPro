@@ -9,7 +9,7 @@ import { buildProductTree, countProducts } from '../lib/productTree'
 import { treeContains } from '../lib/categoryTree'
 import { isCategoryArchived, descendantIds } from '../lib/categoryVisibility'
 import { catalogueRows, catalogueGroups } from '../lib/catalogueView'
-import { foldersForStorage, isUnassignedFolder } from '../lib/folderStorageScope'
+import { foldersForStorage, isUnassignedFolder, isPassThroughFolder } from '../lib/folderStorageScope'
 import { canCreateFolder } from '../lib/folderStorageInherit'
 import { indexCategoriesById } from '../lib/categoryTypes'
 import { dbErrorSentence } from '../lib/dbErrors'
@@ -266,7 +266,35 @@ export default function ProductsBrowser({
   // act, so unticking the box puts the person back where they were instead of
   // making them find the folder again. Nothing is written, so nothing can be
   // written wrongly.
-  const visibleSelectedId = treeContains(tree, selectedCategoryId) ? selectedCategoryId : null
+  //
+  // 🔴 AND A PASS-THROUGH FOLDER IS NEVER THE SELECTION — the second stopper.
+  // The row is not a button, so it cannot be reached by hand; this catches every
+  // other way in, and they are real: `initialCategoryId` arrives from outside,
+  // and a folder selected under one storage is still in state when the picker
+  // moves to another. Two independent stoppers, the same shape as ancestorIds —
+  // deleting either leaves the other holding.
+  const visibleSelectedId =
+    treeContains(tree, selectedCategoryId) && !isPassThroughFolder(byId[selectedCategoryId], storageId)
+      ? selectedCategoryId
+      : null
+
+  // ⚠️ (node) => { tag, title } | null, and it NAMES THE STORAGE rather than
+  // saying «elsewhere». The rule this project keeps: a refusal names the case
+  // that happened and gives a door. «تتبع مستودعًا آخر» leaves the reader
+  // hunting; «تتبع مستودع الشعر» tells them which one to switch to.
+  const passThroughNote = (node) => {
+    if (!isPassThroughFolder(node, storageId)) return null
+    const owner = (storages || []).find((s) => s.id === node.storage_id) || null
+    return owner
+      ? {
+          tag: owner.name,
+          title: t('products:refShell.passThroughHint', { storage: owner.name }),
+        }
+      : {
+          tag: t('products:refShell.unassignedFolder'),
+          title: t('products:refShell.passThroughUnassignedHint'),
+        }
+  }
 
   // 🔴 NO FOLDER CHOSEN MEANS NO ROWS — AND THE COMMENT HERE USED TO SAY THE
   // EXACT OPPOSITE, CORRECTLY, ABOUT AN EARLIER RULE.
@@ -296,7 +324,20 @@ export default function ProductsBrowser({
     // statement from «narrow to every id I could find»: a product whose folder
     // was deleted is in the first and not in the second. On one storage the set
     // IS the narrowing, and that is the point.
-    () => (storageId === ALL_STORAGES ? null : new Set(visibleCategories.map((c) => c.id))),
+    //
+    // 🔴 AND THE SPINES COME OUT OF IT. They are drawn so their children stay
+    // reachable, not because they are here — and with them in this set, a
+    // product in another storage was findable from this one IF ITS FOLDER
+    // HAPPENED TO HAVE A CHILD ASSIGNED HERE. That is not a narrower answer, it
+    // is an arbitrary one: the same product is findable or not depending on a
+    // structural accident two levels away that the searcher cannot see.
+    () => (storageId === ALL_STORAGES
+      ? null
+      : new Set(
+          visibleCategories
+            .filter((c) => !isPassThroughFolder(c, storageId))
+            .map((c) => c.id)
+        )),
     [storageId, visibleCategories]
   )
 
@@ -469,6 +510,13 @@ export default function ProductsBrowser({
         // pane here would read as a screen that failed to load.
         isUnassigned={isUnassignedFolder}
         unassignedLabel={t('products:refShell.unassignedFolder')}
+        // 🔴 A FOLDER DRAWN HERE WITHOUT BELONGING HERE IS INERT — the
+        // reviewer's question, answered one level up from where it was asked.
+        // «No add button on it» would have left Edit and Archive live, and
+        // archiving it takes a subtree out of a storage this screen is not
+        // looking at. Blocking the SELECTION blocks all three at once, because
+        // all three read it.
+        passThrough={passThroughNote}
         // 🔴 TWO EMPTY TREES, NOT ONE — and telling them apart is the whole
         // point. «The salon has no folders at all» and «this storage has none
         // assigned to it» look identical as a blank pane, and the second is now
