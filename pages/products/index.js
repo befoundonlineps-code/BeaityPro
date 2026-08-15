@@ -275,8 +275,11 @@ export default function ProductsPage() {
                 balances={balances.balances}
                 storageCategories={directories.storageCategories}
                 suppliers={directories.suppliers}
-                loading={catalogue.loading || directories.loading || balances.loading}
-                error={catalogue.error || directories.error || balances.error}
+                // «إدخال من فاتورة» — من الطلبيّات، وهي محمَّلةٌ لهذه الصفحة أصلًا.
+                orders={productOrders.orders}
+                orderLines={productOrders.lines}
+                loading={catalogue.loading || directories.loading || balances.loading || productOrders.loading}
+                error={catalogue.error || directories.error || balances.error || productOrders.error}
                 onPosted={() => { catalogue.reload(); stockDocuments.reload(); balances.reload() }}
                 onClose={closeOperation}
               />

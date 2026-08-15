@@ -102,6 +102,18 @@ describe('ما ترسمه الترويسةُ والأسفل', () => {
     expect(gridHtml()).toContain('data-to-storage')
   })
 
+  it('🔴 «إدخال من فاتورة» شغّالٌ لا معطَّل — والمالكُ هو من كشف عكسَه', () => {
+    // 🔴 **حارسٌ لعطلٍ وقع فعلًا ووصل شاشةَ المالك.** الخطّةُ المتّفَقُ عليها
+    // كانت «نبدأ بالطلبيّات، مبنيّةٌ وجاهزة» — وشُحن الزرُّ معطَّلًا بجملة
+    // «لسا ما انبنت». **ولا اختبارَ كان يقدر يمسكه**، لأن الفرقَ بين ضابطٍ
+    // شكليٍّ وضابطٍ شغّالٍ لم يكن مُدَّعًى في أيِّ مكان.
+    const html = gridHtml()
+    expect(html).toContain('data-fill-from-order')
+    // والشكليّاتُ تبقى ثلاثًا لا أربعًا: الفلتر · الإكسل · تعديلُ السعر.
+    expect((html.match(/data-shell-control/g) || [])).toHaveLength(3)
+    expect(html).not.toMatch(/data-shell-control="[^"]*enterLabel/)
+  })
+
   it('«تعديل السعر البيعي» مرسومٌ ومعطَّلٌ ويقول لماذا', () => {
     const html = gridHtml()
     expect(html).toContain('data-shell-control="changeRetailPrice"')
