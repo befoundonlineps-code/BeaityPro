@@ -17,6 +17,9 @@ import { supabase } from '../lib/supabaseClient'
 export function useInventoryDirectories() {
   const [storages, setStorages] = useState([])
   const [responsibles, setResponsibles] = useState([])
+  // 🔴 أيُّ مجلّداتٍ يحفظها كلُّ مستودع — تشكيلتُه. جدولُ ربطٍ متعدّد-لمتعدّد،
+  // ويعيش هنا لا في `useProductCatalog` لأن نافذةَ المستودع هي التي تكتبه.
+  const [storageCategories, setStorageCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [contacts, setContacts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -27,17 +30,23 @@ export function useInventoryDirectories() {
   async function load() {
     setLoading(true)
     try {
-      const [st, resp, sup, cont] = await Promise.all([
+      const [st, resp, links, sup, cont] = await Promise.all([
         supabase.from('storages').select('*').order('sort_order'),
         supabase.from('storage_responsibles').select('*'),
+        supabase.from('storage_categories').select('*'),
         supabase.from('suppliers').select('*').order('sort_order'),
         supabase.from('supplier_contacts').select('*').order('sort_order'),
       ])
 
-      // Any one of them failing fails all four. A storage list read with its
+      // Any one of them failing fails all five. A storage list read with its
       // responsibles missing is not a half-loaded screen, it is a screen that
       // says nobody is answerable for anything.
-      const failure = st.error || resp.error || sup.error || cont.error
+      //
+      // ⚠️ And the folder links are the same class, louder: read them as [] on
+      // failure and every storage says «I keep nothing» — a sentence a broken
+      // query must never be able to produce, and one that invites somebody to
+      // «fix» it by ticking everything again.
+      const failure = st.error || resp.error || links.error || sup.error || cont.error
       if (failure) {
         // What was on screen stays on screen. Replacing it with [] would turn
         // a failed refresh into an empty directory.
@@ -48,6 +57,7 @@ export function useInventoryDirectories() {
       setError(null)
       setStorages(st.data || [])
       setResponsibles(resp.data || [])
+      setStorageCategories(links.data || [])
       setSuppliers(sup.data || [])
       setContacts(cont.data || [])
     } catch (thrown) {
@@ -60,5 +70,8 @@ export function useInventoryDirectories() {
     }
   }
 
-  return { storages, responsibles, suppliers, contacts, loading, error, reload: load }
+  return {
+    storages, responsibles, storageCategories, suppliers, contacts,
+    loading, error, reload: load,
+  }
 }

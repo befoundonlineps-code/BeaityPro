@@ -11,6 +11,7 @@ import { buildServicePhotoPath, getPublicServicePhotoUrl, photoSavePlan, BUCKET 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import NumberField from '@/components/ui/NumberField'
 import { Button } from '@/components/ui/button'
 
 const DEFAULT_COLOR = '#7C3AED'
@@ -322,7 +323,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
                     <Input type="number" min="1" value={duration} onChange={(e) => setDuration(e.target.value)} />
                   </Field>
                   <Field label={t('services:serviceDialog.priceLabel')}>
-                    <Input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+                    <NumberField min="0" step="1" value={price} onChange={(e) => setPrice(e.target.value)} />
                   </Field>
                   <Field label={t('services:serviceDialog.colorLabel')}>
                     <Input
@@ -337,10 +338,9 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
                   label={t('services:serviceDialog.plannedCostLabel')}
                   hint={t('services:serviceDialog.plannedCostHint')}
                 >
-                  <Input
-                    type="number"
+                  <NumberField
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={plannedCost}
                     onChange={(e) => setPlannedCost(e.target.value)}
                   />

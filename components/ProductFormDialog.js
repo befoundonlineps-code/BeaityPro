@@ -12,6 +12,7 @@ import { supplierChoices } from '../lib/supplierForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import NumberField from '@/components/ui/NumberField'
 import { Button } from '@/components/ui/button'
 
 const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30'
@@ -386,7 +387,7 @@ export default function ProductFormDialog({
                   label={t('products:productDialog.inContainerLabel')}
                   hint={t('products:productDialog.inContainerHint')}
                 >
-                  <Input type="number" min="0" step="0.001" value={unitsPerPackage}
+                  <NumberField min="0" step="0.01" value={unitsPerPackage}
                     onChange={(e) => setUnitsPerPackage(e.target.value)} />
                 </Field>
                 <Field label={t('products:productDialog.baseUnitLabel')}>
@@ -406,7 +407,7 @@ export default function ProductFormDialog({
                   label={t('products:productDialog.portionOutputLabel')}
                   hint={t('products:productDialog.portionOutputHint')}
                 >
-                  <Input type="number" min="0" step="0.001" value={portionOutput}
+                  <NumberField min="0" step="0.01" value={portionOutput}
                     onChange={(e) => setPortionOutput(e.target.value)} />
                 </Field>
                 <Field label={t('products:productDialog.barCodeLabel')}>
@@ -460,7 +461,7 @@ export default function ProductFormDialog({
             />
             {sellByPackages && (
               <Field label={t('products:productDialog.packagePriceLabel')}>
-                <Input type="number" min="0" step="0.01" value={packagePrice}
+                <NumberField min="0" step="1" value={packagePrice}
                   onChange={(e) => setPackagePrice(e.target.value)} />
               </Field>
             )}
@@ -476,11 +477,11 @@ export default function ProductFormDialog({
                 {sellByPortions && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Field label={t('products:productDialog.portionSizeLabel', { unit: t(`products:units.${baseUnit}`) })}>
-                      <Input type="number" min="0" step="0.001" value={unitsPerPortion}
+                      <NumberField min="0" step="0.01" value={unitsPerPortion}
                         onChange={(e) => setUnitsPerPortion(e.target.value)} />
                     </Field>
                     <Field label={t('products:productDialog.portionPriceLabel')}>
-                      <Input type="number" min="0" step="0.01" value={portionPrice}
+                      <NumberField min="0" step="1" value={portionPrice}
                         onChange={(e) => setPortionPrice(e.target.value)} />
                     </Field>
                   </div>
@@ -496,13 +497,19 @@ export default function ProductFormDialog({
                   label={t('products:productDialog.purchasePriceLabel')}
                   hint={t('products:productDialog.purchasePriceHint')}
                 >
-                  <Input type="number" min="0" step="0.01" value={purchasePrice}
+                  <NumberField min="0" step="1" value={purchasePrice}
                     onChange={(e) => setPurchasePrice(e.target.value)} />
                 </Field>
                 <Field
                   label={t('products:productDialog.lowSupplyLabel', { unit: t(`products:units.${baseUnit}`) })}
                 >
-                  <Input type="number" min="0" step="0.001" value={lowSupplyUnits}
+                  {/* 🔴 الخطوةُ ١ لا ٠.٠٠١ — وهذا الحقلُ بعينه هو ما أنتج
+                      «٣٠.٠٠٢» على شاشة المالك: ضغطتا سهمٍ لا عطلَ تنسيق.
+                      ⚠️ والكتابةُ اليدويّة لكسرٍ باقيةٌ كما هي (مقيسًا: لا شيء
+                      في التطبيق ينادي `checkValidity`، ونموذجٌ واحدٌ في
+                      المستودع كلِّه بلا حقولٍ رقميّة، ولا تنسيقَ على
+                      `:invalid`) — فالسهمُ وحدَه هو ما تغيّر. */}
+                  <NumberField min="0" step="1" value={lowSupplyUnits}
                     onChange={(e) => setLowSupplyUnits(e.target.value)} />
                 </Field>
                 <Field label={t('products:productDialog.abbreviationLabel')}>
@@ -546,11 +553,10 @@ export default function ProductFormDialog({
                   </div>
                   <div className="w-32">
                     <Label>{t('products:productDialog.componentQuantityLabel')}</Label>
-                    <Input
+                    <NumberField
                       className="mt-1.5"
-                      type="number"
                       min="0"
-                      step="0.001"
+                      step="0.01"
                       value={c.quantityBase}
                       onChange={(e) => setComponentAt(index, { quantityBase: e.target.value })}
                     />

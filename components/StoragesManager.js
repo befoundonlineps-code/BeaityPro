@@ -20,6 +20,9 @@ import { Badge } from '@/components/ui/badge'
 // reportDbError like any other, which is the whole reason that layer exists.
 export default function StoragesManager({
   storages, responsibles, employees, loading, error, reload, salonId,
+  // التشكيلة ومدخلاتُ رسالة الرفض — تمرّ من الصفحة إلى النافذة بلا أن تُستعمل
+  // هنا. الصفحةُ محمَّلٌ عندها الكتالوجُ والأرصدةُ أصلًا.
+  categories = [], products = [], balances = [], storageCategories = [],
 }) {
   const { t } = useTranslation(['products', 'employees', 'common'])
   const [dialog, setDialog] = useState(null)
@@ -153,6 +156,10 @@ export default function StoragesManager({
         storage={dialog?.storage}
         employees={employees}
         responsibles={responsibles}
+        categories={categories}
+        products={products}
+        balances={balances}
+        storageCategories={storageCategories}
         salonId={salonId}
         onSaved={reload}
       />

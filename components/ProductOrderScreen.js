@@ -9,6 +9,7 @@ import { supplierChoices } from '../lib/supplierForm'
 import { emptyDocumentRow } from '../lib/stockDocumentForm'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import NumberField from '@/components/ui/NumberField'
 import { Button } from '@/components/ui/button'
 
 const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30'
@@ -256,10 +257,9 @@ export default function ProductOrderScreen({
                         </select>
                       </td>
                       <td className="p-2">
-                        <Input
-                          type="number"
+                        <NumberField
                           min="0"
-                          step="0.001"
+                          step="0.01"
                           value={row.enteredQuantity}
                           onChange={(e) => setRow(index, { enteredQuantity: e.target.value })}
                         />
@@ -284,10 +284,9 @@ export default function ProductOrderScreen({
                             box carried across arrives empty, so the supply
                             refuses it rather than stamping a zero cost for good
                             (ADR-051). */}
-                        <Input
-                          type="number"
+                        <NumberField
                           min="0"
-                          step="0.01"
+                          step="1"
                           value={row.enteredUnitPrice}
                           onChange={(e) => setRow(index, { enteredUnitPrice: e.target.value })}
                         />
