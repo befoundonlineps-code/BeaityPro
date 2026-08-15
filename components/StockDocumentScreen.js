@@ -20,6 +20,7 @@ import { supplierChoices } from '../lib/supplierForm'
 import { baseUnitsFor } from '../lib/stockDocument'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import NumberField from '@/components/ui/NumberField'
 import { Button } from '@/components/ui/button'
 
 const FIELD = 'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30'
@@ -390,7 +391,7 @@ export default function StockDocumentScreen({
             </Field>
 
             <Field label={index === 0 ? t('products:docs.quantityLabel') : undefined}>
-              <Input type="number" min="0" step="0.01" value={row.enteredQuantity}
+              <NumberField min="0" step="0.01" value={row.enteredQuantity}
                 onChange={(e) => setRowAt(index, { enteredQuantity: e.target.value })} />
             </Field>
 
@@ -407,7 +408,7 @@ export default function StockDocumentScreen({
                 label={index === 0 ? t('products:docs.bonusLabel') : undefined}
                 hint={bonusHint(row)}
               >
-                <Input type="number" min="0" step="0.01" value={row.bonusQuantity}
+                <NumberField min="0" step="0.01" value={row.bonusQuantity}
                   onChange={(e) => setRowAt(index, { bonusQuantity: e.target.value })} />
               </Field>
             )}
@@ -432,13 +433,13 @@ export default function StockDocumentScreen({
                     : undefined}
                   hint={nominalHint(row)}
                 >
-                  <Input type="number" min="0" step="1" value={row.enteredUnitPrice}
+                  <NumberField min="0" step="1" value={row.enteredUnitPrice}
                     onChange={(e) => setRowAt(index, { enteredUnitPrice: e.target.value })} />
                 </Field>
 
                 <Field label={index === 0 ? t('products:docs.lineDiscountLabel') : undefined}>
                   <div className="flex gap-1">
-                    <Input type="number" min="0" step="1" className="w-20"
+                    <NumberField min="0" step="1" className="w-20"
                       value={row.lineDiscountValue}
                       onChange={(e) => setRowAt(index, { lineDiscountValue: e.target.value })} />
                     <select className={FIELD + ' w-16'} value={row.lineDiscountKind}
@@ -623,7 +624,7 @@ export default function StockDocumentScreen({
             <div className="flex items-center justify-between gap-4">
               <dt className="flex items-center gap-2 text-muted-foreground">
                 {t('products:docs.ladderDocumentDiscount')}
-                <Input type="number" min="0" step="1" className="h-7 w-20"
+                <NumberField min="0" step="1" className="h-7 w-20"
                   value={discountValue}
                   onChange={(e) => { setDiscountValue(e.target.value); setPosted(false) }} />
                 <select className={FIELD + ' h-7 w-16'} value={discountKind}
@@ -639,7 +640,7 @@ export default function StockDocumentScreen({
             <div className="flex items-center justify-between gap-4">
               <dt className="flex flex-wrap items-center gap-2 text-muted-foreground">
                 {t('products:docs.ladderTransport')}
-                <Input type="number" min="0" step="1" className="h-7 w-20"
+                <NumberField min="0" step="1" className="h-7 w-20"
                   value={transportAmount}
                   onChange={(e) => { setTransportAmount(e.target.value); setPosted(false) }} />
                 <select className={FIELD + ' h-7 w-32'} value={transportPaidTo}
@@ -667,7 +668,7 @@ export default function StockDocumentScreen({
               <div className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-xs text-muted-foreground">
                   {t(isReturn ? 'products:docs.receivedNowLabel' : 'products:docs.paidNowLabel')}
-                  <Input type="number" min="0" step="1" className="h-8 w-28"
+                  <NumberField min="0" step="1" className="h-8 w-28"
                     value={paidAmount}
                     onChange={(e) => { setPaidAmount(e.target.value); setPosted(false) }} />
                 </label>

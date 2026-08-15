@@ -15,6 +15,7 @@ import { EMPLOYEE_ROLES } from '../lib/employeeRoles'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import NumberField from '@/components/ui/NumberField'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -434,7 +435,7 @@ export default function StorageFormDialog({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label>{t('products:storageDialog.finePercentLabel')}</Label>
-                <Input type="number" min="0" max="100" step="1" value={finePercent}
+                <NumberField min="0" max="100" step="1" value={finePercent}
                   placeholder={t('products:storageDialog.fineBlankPlaceholder')}
                   onChange={(e) => setFinePercent(e.target.value)} />
               </div>
