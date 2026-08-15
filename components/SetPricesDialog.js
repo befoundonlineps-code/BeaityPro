@@ -26,7 +26,7 @@ function PriceCell({ isTheColumn, value, onChange }) {
       <input
         type="number"
         min="0"
-        step="0.01"
+        step="1"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="h-8 w-full bg-transparent px-2 text-center text-sm tabular-nums outline-none focus:bg-primary/5"

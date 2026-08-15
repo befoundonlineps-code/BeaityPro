@@ -460,7 +460,7 @@ export default function ProductFormDialog({
             />
             {sellByPackages && (
               <Field label={t('products:productDialog.packagePriceLabel')}>
-                <Input type="number" min="0" step="0.01" value={packagePrice}
+                <Input type="number" min="0" step="1" value={packagePrice}
                   onChange={(e) => setPackagePrice(e.target.value)} />
               </Field>
             )}
@@ -480,7 +480,7 @@ export default function ProductFormDialog({
                         onChange={(e) => setUnitsPerPortion(e.target.value)} />
                     </Field>
                     <Field label={t('products:productDialog.portionPriceLabel')}>
-                      <Input type="number" min="0" step="0.01" value={portionPrice}
+                      <Input type="number" min="0" step="1" value={portionPrice}
                         onChange={(e) => setPortionPrice(e.target.value)} />
                     </Field>
                   </div>
@@ -496,13 +496,19 @@ export default function ProductFormDialog({
                   label={t('products:productDialog.purchasePriceLabel')}
                   hint={t('products:productDialog.purchasePriceHint')}
                 >
-                  <Input type="number" min="0" step="0.01" value={purchasePrice}
+                  <Input type="number" min="0" step="1" value={purchasePrice}
                     onChange={(e) => setPurchasePrice(e.target.value)} />
                 </Field>
                 <Field
                   label={t('products:productDialog.lowSupplyLabel', { unit: t(`products:units.${baseUnit}`) })}
                 >
-                  <Input type="number" min="0" step="0.001" value={lowSupplyUnits}
+                  {/* 🔴 الخطوةُ ١ لا ٠.٠٠١ — وهذا الحقلُ بعينه هو ما أنتج
+                      «٣٠.٠٠٢» على شاشة المالك: ضغطتا سهمٍ لا عطلَ تنسيق.
+                      ⚠️ والكتابةُ اليدويّة لكسرٍ باقيةٌ كما هي (مقيسًا: لا شيء
+                      في التطبيق ينادي `checkValidity`، ونموذجٌ واحدٌ في
+                      المستودع كلِّه بلا حقولٍ رقميّة، ولا تنسيقَ على
+                      `:invalid`) — فالسهمُ وحدَه هو ما تغيّر. */}
+                  <Input type="number" min="0" step="1" value={lowSupplyUnits}
                     onChange={(e) => setLowSupplyUnits(e.target.value)} />
                 </Field>
                 <Field label={t('products:productDialog.abbreviationLabel')}>

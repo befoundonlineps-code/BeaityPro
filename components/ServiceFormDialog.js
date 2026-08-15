@@ -322,7 +322,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
                     <Input type="number" min="1" value={duration} onChange={(e) => setDuration(e.target.value)} />
                   </Field>
                   <Field label={t('services:serviceDialog.priceLabel')}>
-                    <Input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+                    <Input type="number" min="0" step="1" value={price} onChange={(e) => setPrice(e.target.value)} />
                   </Field>
                   <Field label={t('services:serviceDialog.colorLabel')}>
                     <Input
@@ -340,7 +340,7 @@ export default function ServiceFormDialog({ open, onOpenChange, service, categor
                   <Input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="1"
                     value={plannedCost}
                     onChange={(e) => setPlannedCost(e.target.value)}
                   />

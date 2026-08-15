@@ -46,7 +46,7 @@ export default function BalanceDialog({ open, type, onOpenChange, onSubmit }) {
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="balance-amount">{t('balanceDialog.amountLabel')}</Label>
-            <Input id="balance-amount" type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input id="balance-amount" type="number" step="1" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="balance-note">{t('balanceDialog.noteLabel')}</Label>

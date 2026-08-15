@@ -287,7 +287,7 @@ export default function ProductOrderScreen({
                         <Input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="1"
                           value={row.enteredUnitPrice}
                           onChange={(e) => setRow(index, { enteredUnitPrice: e.target.value })}
                         />

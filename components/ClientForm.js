@@ -169,7 +169,7 @@ export default function ClientForm({ form, update, activeTab, setActiveTab, read
             {activeTab === 2 && (
               <TabsContent value="2" className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <BField label={t('cardNumberLabel')} value={form.cardNumber} onChange={(e) => update('cardNumber', e.target.value)} disabled={readOnly} />
-                <BField label={t('maxDebtLabel')} type="number" step="0.01" value={form.maxDebt} onChange={(e) => update('maxDebt', e.target.value)} disabled={readOnly} />
+                <BField label={t('maxDebtLabel')} type="number" step="1" value={form.maxDebt} onChange={(e) => update('maxDebt', e.target.value)} disabled={readOnly} />
               </TabsContent>
             )}
 
