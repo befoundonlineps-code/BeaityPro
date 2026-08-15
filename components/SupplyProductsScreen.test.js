@@ -125,6 +125,31 @@ describe('ما ترسمه الترويسةُ والأسفل', () => {
     expect(source).not.toMatch(/data-fill-from-order[^>]*disabled/)
   })
 
+  it('🔴 عمودُ تكلفة السطر مرسومٌ وقابلٌ للتعديل، ومفتوحٌ بسعر الكتالوج', () => {
+    // الرقمُ الذي يُختم على كلّ صرفٍ بعده صار **ظاهرًا على السطر وقابلًا
+    // للتعديل** بدل افتراضٍ مخبوءٍ في الكتالوج — قرارُ المالك النهائيّ.
+    const html = gridHtml()
+    expect(html).toContain('data-unit-cost="p1"')
+    expect(html).toContain('supplyRef.unitCostColumn')
+    // ⚠️ وليس معطَّلًا: عمودٌ يُرسم ولا يُكتب فيه أسوأُ من غيابه.
+    //
+    // 🔴 **والإبرةُ هي الخاصّيّةُ نفسُها لا الكلمة.** أوّلُ صياغةٍ كانت
+    // `[^>]*disabled` **فسقطت على حقلٍ سليم**: قائمةُ أصناف Tailwind تحوي
+    // `disabled:pointer-events-none`، وهي بالضبط الحالةُ التي يسمّيها
+    // CLAUDE.md بين الفحوص الكاذبة. فالمطلوبُ `disabled=""` بفراغٍ قبلها.
+    expect(html).not.toMatch(/data-unit-cost="p1"[^>]*\sdisabled=""/)
+    // ومفتوحٌ بسعر الكتالوج (٢٠٠ لـp1) كي يراه من يوقّع.
+    expect(html).toMatch(/data-unit-cost="p1"[^>]*value="200"/)
+  })
+
+  it('منتجٌ بلا سعرِ شراءٍ يفتح بخانةٍ فارغةٍ لا بصفر', () => {
+    // 🔴 «لا أعرف» المكتوبةَ صفرًا تُختم ولا تُستدرَك.
+    const html = gridHtml({
+      products: [{ id: 'p1', name: 'كريم', category_id: 'skin', units_per_package: 1, base_unit: 'pcs' }],
+    })
+    expect(html).toMatch(/data-unit-cost="p1"[^>]*value=""/)
+  })
+
   it('«تعديل السعر البيعي» مرسومٌ ومعطَّلٌ ويقول لماذا', () => {
     const html = gridHtml()
     expect(html).toContain('data-shell-control="changeRetailPrice"')

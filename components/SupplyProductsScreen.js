@@ -3,7 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet, FileInput, Filter } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { orderFolderRows, allSelectableIds, canOpenGrid, toggleFolder } from '../lib/orderFolderPick'
-import { orderGridRows, orderGridTotal, ORDER_PRICE_COLUMN } from '../lib/orderGrid'
+import { orderGridRows, orderGridTotal } from '../lib/orderGrid'
 import { destinationNarrows } from '../lib/supplyDestinationScope'
 import { fillPackagesFromOrder, gridHoldsWork, skippedByReason } from '../lib/supplyFillFromOrder'
 import { stockDocumentPayload, storageChoices } from '../lib/stockDocumentForm'
@@ -59,6 +59,12 @@ export default function SupplyProductsScreen({
   const [step, setStep] = useState('folders')
   const [selected, setSelected] = useState(() => allSelectableIds(folderRows))
   const [packages, setPackages] = useState({})
+  // 🔴 تكلفةُ السطر — عمودٌ قابلٌ للتعديل بقرار المالك النهائيّ.
+  //
+  // ⚠️ **والحالةُ فارغةٌ عند الفتح، والخانةُ ليست فارغة:** ما لم يُكتب يعرض سعرَ
+  // الكتالوج. فالفرقُ بين «قبِلَ الافتراضيّ» و«كتبَ نفسَ الرقم» لا يُخزَّن —
+  // **وهو فرقٌ لا يحتاجه أحد**، بينما الرقمُ الظاهرُ على السطر يحتاجه من يوقّع.
+  const [prices, setPrices] = useState({})
   const [supplierId, setSupplierId] = useState('')
   const [invoiceNo, setInvoiceNo] = useState('')
   const [docDate, setDocDate] = useState(today())
@@ -93,7 +99,8 @@ export default function SupplyProductsScreen({
     // حبّةُ الرقم: رصيدُ مستودعٍ آخرَ هنا يقول «عندك بضاعة» عن رفٍّ فارغ.
     storageId: toStorageId,
     packages,
-  }), [narrowed.kept, categories, products, balances, toStorageId, packages])
+    prices,
+  }), [narrowed.kept, categories, products, balances, toStorageId, packages, prices])
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -118,18 +125,18 @@ export default function SupplyProductsScreen({
   // مفتوحٌ أُعلن ولم يُبتلع.
   const documentRows = useMemo(() => rows
     .filter((r) => r.kind === 'product' && String(r.packages ?? '').trim() !== '')
-    .map((r) => {
-      const product = (products || []).find((p) => p.id === r.id)
-      return {
-        productId: r.id,
-        enteredQuantity: r.packages,
-        enteredUom: 'package',
-        enteredUnitPrice: product?.[ORDER_PRICE_COLUMN] ?? '',
-        lineDiscountKind: 'percent',
-        lineDiscountValue: '',
-        bonusQuantity: '',
-      }
-    }), [rows, products])
+    .map((r) => ({
+      productId: r.id,
+      enteredQuantity: r.packages,
+      enteredUom: 'package',
+      // 🔴 **من الخانة التي يراها الإنسان، لا من الكتالوج.** `row.price` هو
+      // المكتوبُ إن كُتب وإلّا سعرُ الكتالوج — **مصدرٌ واحدٌ للرقم**، فما يُرحَّل
+      // هو بعينه ما يُعرَض ويُجمَع.
+      enteredUnitPrice: r.price,
+      lineDiscountKind: 'percent',
+      lineDiscountValue: '',
+      bonusQuantity: '',
+    })), [rows])
 
   // 🔴 التعبئةُ من طلبيّة. **وما لا يُملأ يُسمّى بأسماء منتجاته وبسببه** — لأن
   // خمسةَ أسطرٍ تصير ثلاثةً بلا كلمة هي صنفُ «رقمٌ أصغر من الحقيقة، متّسقٌ مع
@@ -241,7 +248,9 @@ export default function SupplyProductsScreen({
   }
 
   // ------------------------------------------------------------------ النافذةُ الثانية
-  const COLUMNS = 5
+  // ستّةٌ لا خمسة: عمودُ التكلفة **زيادةٌ عن المرجع بقرار المالك**، لأن الرقمَ
+  // المختومَ هنا يقود سلسلةَ التكلفة ولا يُصحَّح إلّا بعكس المستند.
+  const COLUMNS = 6
 
   return (
     // ⚠️ `relative` لأن نافذةَ اختيار الفاتورة لوحٌ مطلقُ الموضع داخل هذه
@@ -308,6 +317,7 @@ export default function SupplyProductsScreen({
               <RefTh className="w-24">{t('products:orders.packagesColumn')}</RefTh>
               <RefTh className="w-28">{t('products:orders.numberColumn')}</RefTh>
               <RefTh className="w-32">{t('products:orders.inStockColumn')}</RefTh>
+              <RefTh className="w-28">{t('products:supplyRef.unitCostColumn')}</RefTh>
               <RefTh className="w-28">{t('products:orders.amountColumn')}</RefTh>
             </tr>
           </RefHead>
@@ -334,6 +344,18 @@ export default function SupplyProductsScreen({
                 </RefTd>
                 <RefTd>{row.number === null ? '—' : t('products:orders.qtyWithUnit', { n: row.number, unit: t(`products:units.${row.unit}`) })}</RefTd>
                 <RefTd>{t('products:orders.qtyWithUnit', { n: row.inStock, unit: t(`products:units.${row.unit}`) })}</RefTd>
+                <RefTd write>
+                  {/* 🔴 الرقمُ الذي يُختم على كلّ صرفٍ بعده. مفتوحٌ بسعر الكتالوج
+                      كي يراه من يوقّع، **وفارغٌ حين لا سعرَ مسجَّلًا** — لا صفرًا. */}
+                  <NumberField
+                    min="0"
+                    step="1"
+                    className={FIELD}
+                    data-unit-cost={row.id}
+                    value={row.price}
+                    onChange={(e) => setPrices({ ...prices, [row.id]: e.target.value })}
+                  />
+                </RefTd>
                 <RefTd>{row.amount === null ? '—' : row.amount}</RefTd>
               </RefRow>
             )))}

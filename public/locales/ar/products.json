@@ -592,6 +592,7 @@
     "toStorage": "إلى مستودع",
     "discount": "خصم",
     "transport": "تكاليف نقل",
+    "unitCostColumn": "تكلفة العبوة",
     "changeRetailPrice": "تعديل السعر البيعي",
     "toDebitButton": "للتوريد",
     "loadFailedTitle": "ما قدرنا نحمّل بيانات التوريد",
