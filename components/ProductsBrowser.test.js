@@ -70,7 +70,8 @@ const LINKS = CATEGORIES.map((c) => ({
 }))
 const render = (over) => renderToStaticMarkup(
   <ProductsBrowser
-    salonId="s" suppliers={[]} storages={[]} balances={[]} storageCategories={LINKS}
+    salonId="s" balances={[]}
+    directories={{ storages: [], suppliers: [], storageCategories: LINKS, reload: () => {} }}
     storageId={ALL_STORAGES}
     initialSearch="منتج"
     catalogue={{
@@ -84,7 +85,8 @@ const render = (over) => renderToStaticMarkup(
 // filter is live in.
 const renderFolder = (over) => renderToStaticMarkup(
   <ProductsBrowser
-    salonId="s" suppliers={[]} storages={[]} balances={[]} storageCategories={LINKS}
+    salonId="s" balances={[]}
+    directories={{ storages: [], suppliers: [], storageCategories: LINKS, reload: () => {} }}
     storageId={STORAGE}
     initialCategoryId="c-hair"
     catalogue={{
@@ -149,7 +151,13 @@ describe('the table draws every row it was given', () => {
       { product_id: 'c', storage_id: 's2', balance_base: 0, avg_cost: null, cost_has_estimate: false },
     ]
     const storages = [{ id: 's1', name: 'عام' }, { id: 's2', name: 'تجريبي' }]
-    expect(drawnRows(render({ balances, storages }))).toBe(PRODUCTS.length)
+    // ⚠️ المستودعاتُ تصل داخل `directories` لا كخاصّيّةٍ مستقلّة — وكانت هنا
+    // `storages={…}` بعد التحويل، **فمرّت الاختبارُ وهي لا تصل الشاشةَ
+    // إطلاقًا**. خاصّيّةٌ ميّتةٌ في تجهيزةٍ تُقرأ كأنها حيّة.
+    expect(drawnRows(render({
+      balances,
+      directories: { storages, suppliers: [], storageCategories: LINKS, reload: () => {} },
+    }))).toBe(PRODUCTS.length)
   })
 
   it('says «never moved» and «zero» in the same column and not the same way', () => {
@@ -229,8 +237,8 @@ describe('the table draws every row it was given', () => {
     const empty = { ...CATEGORIES[2], id: 'c-empty', name: 'فاضي' }
     const html = renderToStaticMarkup(
       <ProductsBrowser
-        salonId="s" suppliers={[]} storages={[]} balances={[]}
-        storageCategories={[...LINKS, { id: 'l-empty', storage_id: STORAGE, category_id: 'c-empty' }]}
+        salonId="s" balances={[]}
+        directories={{ storages: [], suppliers: [], storageCategories: [...LINKS, { id: 'l-empty', storage_id: STORAGE, category_id: 'c-empty' }], reload: () => {} }}
         storageId={STORAGE}
         initialCategoryId="c-empty"
         catalogue={{

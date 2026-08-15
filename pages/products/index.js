@@ -203,15 +203,17 @@ export default function ProductsPage() {
                 window. */}
             <ProductsBrowser
               salonId={salonId}
-              suppliers={directories.suppliers}
               catalogue={catalogue}
+              // الدليلُ كاملًا: مصفوفاتُه ودالّةُ تحديثه معًا. حفظُ مجلّدٍ يكتب
+              // رابطًا في storage_categories، وهو يعيش هنا — ففصلُ المصفوفة عن
+              // مُحدِّثها هو بالضبط ما ترك الشاشةَ تعرض «بلا مستودع» عن رابطٍ
+              // مكتوب.
+              directories={directories}
               balances={balances.balances}
               balancesLoading={balances.loading}
               balancesError={balances.error}
               storageId={lensId}
               storageName={lensStorage?.name || null}
-              storages={directories.storages}
-              storageCategories={directories.storageCategories}
             />
             </div>
           </div>

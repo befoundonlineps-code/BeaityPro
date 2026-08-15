@@ -132,7 +132,19 @@ function elsewhereCell(total, product, t) {
 }
 
 export default function ProductsBrowser({
-  salonId, suppliers, catalogue, balances, storages,
+  salonId, catalogue, balances,
+  // 🔴 الدليلُ كائنًا كاملًا، لا ثلاثَ مصفوفاتٍ منزوعةً منه — **وهذا تصحيحُ
+  // عطلٍ وقع، لا ترتيب.**
+  //
+  // كانت `storages` و`suppliers` و`storageCategories` تصل مصفوفاتٍ، **ودالّةُ
+  // إعادة التحميل تبقى عند من يملكها.** فحفظُ مجلّدٍ نادى `catalogue.reload()`
+  // وحدَها: ظهر المجلّدُ (الكتالوجُ تحدّث) **ورابطُه لم يظهر** (الدليلُ لم
+  // يتحدّث) — فقُرئ «بلا مستودع» عن مجلّدٍ رابطُه في القاعدة فعلًا، **واختفى
+  // من شجرة مستودعه.**
+  //
+  // ⇒ فالبياناتُ ودالّةُ تحديثها **تسافران معًا**: لا يقدر منادٍ يعطي إحداهما
+  // وينسى الأخرى، لأنّهما شيءٌ واحد. **بنيةٌ لا تنفكّ بدل قاعدةٍ تُتذكَّر.**
+  directories = { storages: [], suppliers: [], storageCategories: [], reload: () => {} },
   // ⚠️ Separate props rather than folded into `balances`, because the array is
   // already the shape three other screens take. And they default to "loaded",
   // which fails OPEN — a caller that forgets them gets the lie back. There is
@@ -150,10 +162,6 @@ export default function ProductsBrowser({
   // the difference between a rule to remember and a shape that cannot come
   // apart. Guarded in lib/cataloguePickerScope.test.js.
   storageId = ALL_STORAGES,
-  // 🔴 التشكيلة: أيُّ مجلّداتٍ يحفظها كلُّ مستودع. الانتماءُ صفوفٌ في
-  // `storage_categories` لا عمودٌ على المجلّد — لأن المجلّدَ يمكن أن يكون في
-  // أكثر من مستودع، وهو شرطُ النقل بينهما.
-  storageCategories = [],
   // The tree's root row says which storage the numbers below belong to, so it
   // needs the name rather than the id. Optional: the tests render without one
   // and get the bare «المنتجات».
@@ -164,7 +172,20 @@ export default function ProductsBrowser({
   initialSearch = '',
 }) {
   const { t } = useTranslation(['products', 'common'])
-  const { categories, products, loading, error, reload } = catalogue
+  const { categories, products, loading, error } = catalogue
+  // 🔴 التشكيلة والمستودعاتُ والمورّدون — كلُّهم من الدليل، ومعهم مُحدِّثُه.
+  const { storages, suppliers, storageCategories } = directories
+
+  // 🔴 **مُحدِّثٌ واحد، فما في قرارٌ يُخطأ فيه.**
+  //
+  // كتابةُ هذه الشاشة تمسّ جدولين يملكهما خطّافان: المجلّدُ في
+  // `useProductCatalog` ورابطُه في `useInventoryDirectories`. **ومُحدِّثان
+  // اثنان يعنيان اختيارًا عند كلّ حفظ** — ووقع الخطأُ فيه مرّةً وكفت.
+  //
+  // ⚠️ **ويُستعمل هذا في كلّ موضع، حتى حيث يكفي أحدُهما** (أرشفةُ منتجٍ لا
+  // تمسّ رابطًا). لأن «متى يكفي الواحد؟» سؤالٌ يُطرح عند كلّ إضافةٍ قادمة،
+  // **وإجابتُه الخاطئة صامتة**: شاشةٌ تعرض حالةً قديمةً لا خطأً. فلا سؤال.
+  const reloadAll = () => { catalogue.reload(); directories.reload() }
 
   // Shown after archiving a product that still has stock. Not a confirmation —
   // see toggleProductArchived for why it asks nothing.
@@ -423,7 +444,7 @@ export default function ProductsBrowser({
       ? { product: selectedProduct, storages: stillStocked }
       : null)
 
-    reload()
+    reloadAll()
   }
 
   async function confirmArchiveCategory() {
@@ -441,7 +462,7 @@ export default function ProductsBrowser({
       return
     }
     setArchiveTarget(null)
-    reload()
+    reloadAll()
   }
 
   // How many products an archive takes with it, at any depth. "23 products" is
@@ -494,7 +515,7 @@ export default function ProductsBrowser({
           <span className="text-xs text-muted-foreground">{t('products:loadFailedHint')}</span>
           <button
             type="button"
-            onClick={reload}
+            onClick={reloadAll}
             className="ms-auto h-6 border border-[var(--rule)] bg-white px-2 text-xs hover:bg-black/5"
           >
             {t('products:retry')}
@@ -790,7 +811,7 @@ export default function ProductsBrowser({
         products={products}
         suppliers={suppliers}
         salonId={salonId}
-        onSaved={reload}
+        onSaved={reloadAll}
       />
 
       <ProductCategoryFormDialog
@@ -802,7 +823,7 @@ export default function ProductsBrowser({
         links={storageCategories}
         defaultParentId={categoryDialog?.category ? null : visibleSelectedId}
         salonId={salonId}
-        onSaved={reload}
+        onSaved={reloadAll}
       />
 
       {/* Archiving a folder is asked about rather than done. It reaches
