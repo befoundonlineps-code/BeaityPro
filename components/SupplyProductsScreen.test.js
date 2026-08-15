@@ -108,10 +108,21 @@ describe('ما ترسمه الترويسةُ والأسفل', () => {
     // «لسا ما انبنت». **ولا اختبارَ كان يقدر يمسكه**، لأن الفرقَ بين ضابطٍ
     // شكليٍّ وضابطٍ شغّالٍ لم يكن مُدَّعًى في أيِّ مكان.
     const html = gridHtml()
-    expect(html).toContain('data-fill-from-order')
-    // والشكليّاتُ تبقى ثلاثًا لا أربعًا: الفلتر · الإكسل · تعديلُ السعر.
-    expect((html.match(/data-shell-control/g) || [])).toHaveLength(3)
+
+    // ⚠️ **الزرُّ صار فاتحَ قائمةٍ لا زرًّا مباشرًا**، والقائمةُ مقفولةٌ في
+    // الرسم الساكن — فالمرسومُ هو المفتاحُ وحدَه، ويجب ألّا يكون معطَّلًا.
+    expect(html).toContain('data-enter-menu')
+    expect(html).not.toMatch(/data-enter-menu[^>]*disabled/)
     expect(html).not.toMatch(/data-shell-control="[^"]*enterLabel/)
+
+    // والمعطَّلاتُ المرسومةُ وقتَ الإقفال ثلاثةٌ: الفلتر · الإكسل · تعديلُ السعر.
+    expect((html.match(/data-shell-control/g) || [])).toHaveLength(3)
+
+    // 🔴 **والنصفُ الذي لا يراه الرسمُ المقفول يُقرأ من المصدر.** بلا هذا يمرّ
+    // مفتاحٌ يفتح قائمةً فارغةً — أي نفسُ العطل بلبوسٍ جديد.
+    const source = require('fs').readFileSync(require('path').join(__dirname, 'SupplyProductsScreen.js'), 'utf8')
+    expect(source).toMatch(/data-fill-from-order[\s\S]{0,200}setFilling\(\{ step: 'pick' \}\)/)
+    expect(source).not.toMatch(/data-fill-from-order[^>]*disabled/)
   })
 
   it('«تعديل السعر البيعي» مرسومٌ ومعطَّلٌ ويقول لماذا', () => {

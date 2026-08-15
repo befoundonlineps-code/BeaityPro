@@ -13,6 +13,7 @@ import { supplierChoices } from '../lib/supplierForm'
 import { DISCOUNT_KINDS, TRANSPORT_PAID_TO } from '../lib/documentMoney'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from './ref/RefGrid'
 import { RefActionButton, RefCancelButton } from './ref/RefModal'
+import InvoicePickerDialog from './InvoicePickerDialog'
 import NumberField from '@/components/ui/NumberField'
 import { Input } from '@/components/ui/input'
 
@@ -73,6 +74,7 @@ export default function SupplyProductsScreen({
   const [failure, setFailure] = useState(null)
   const [filling, setFilling] = useState(null)
   const [fillNotice, setFillNotice] = useState(null)
+  const [enterOpen, setEnterOpen] = useState(false)
 
   // 🔴 قاعدةُ التطابق. **والاختيارُ المخزَّن لا يُمسّ** — التضييقُ عرضٌ لا حذف،
   // وإلّا أكلَ تبديلُ الوجهةِ ذهابًا وإيابًا المجلّداتِ واحدًا واحدًا بلا أن
@@ -132,8 +134,12 @@ export default function SupplyProductsScreen({
   // 🔴 التعبئةُ من طلبيّة. **وما لا يُملأ يُسمّى بأسماء منتجاته وبسببه** — لأن
   // خمسةَ أسطرٍ تصير ثلاثةً بلا كلمة هي صنفُ «رقمٌ أصغر من الحقيقة، متّسقٌ مع
   // نفسه، بلا خطأٍ ولا سطر».
-  function applyFill(orderId, replace) {
-    const lines = (orderLines || []).filter((l) => l.order_id === orderId)
+  // ⚠️ **مصفوفةُ معرِّفاتٍ لا معرِّفًا واحدًا** — «Use Shift or Ctrl to select
+  // multiple invoices». وسطورُ الطلبيّاتِ المختارةِ تُجمع، تمامًا كما يُجمع
+  // منتجٌ تكرّر داخل طلبيّةٍ واحدة: الجمعُ هو الجمعُ نفسُه.
+  function applyFill(orderIds, replace) {
+    const wanted = new Set(orderIds || [])
+    const lines = (orderLines || []).filter((l) => wanted.has(l.order_id))
     const answer = fillPackagesFromOrder({ orderLines: lines, rows })
     setPackages(replace ? answer.packages : { ...packages, ...answer.packages })
     setFilling(null)
@@ -238,7 +244,9 @@ export default function SupplyProductsScreen({
   const COLUMNS = 5
 
   return (
-    <div className="flex h-full flex-col gap-2">
+    // ⚠️ `relative` لأن نافذةَ اختيار الفاتورة لوحٌ مطلقُ الموضع داخل هذه
+    // الشاشة — بلا سلفٍ موضوعٍ تهرب إلى أقرب واحدٍ فوقها وتغطّي الصفحةَ كلَّها.
+    <div className="relative flex h-full flex-col gap-2">
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex items-center gap-1.5 text-xs">
           {t('products:supplyRef.fromSupplier')}
@@ -346,17 +354,40 @@ export default function SupplyProductsScreen({
         </label>
         <ShellControl icon={Filter} label={t('products:orders.filterLabel')} why={t('products:orders.laterHint')} />
 
-        {/* 🔴 شغّالٌ فعلًا — من الطلبيّات. والتعبئةُ من توريدٍ سابقٍ مؤجَّلةٌ
-            بقرار المالك لأنها تنسخ أسعارًا دُفعت فعلًا. */}
-        <button
-          type="button"
-          data-fill-from-order
-          onClick={() => setFilling({ step: 'pick' })}
-          className="flex h-7 items-center gap-1 border border-[var(--rule)] px-2 text-xs hover:bg-[var(--group)]"
-        >
-          <FileInput className="size-3.5" />
-          {t('products:orders.enterLabel')}
-        </button>
+        {/* 🔴 «إدخال» قائمةٌ من بندين كما في المرجع، لا زرًّا واحدًا. */}
+        <div className="relative">
+          <button
+            type="button"
+            data-enter-menu
+            onClick={() => setEnterOpen((v) => !v)}
+            className="flex h-7 items-center gap-1 border border-[var(--rule)] px-2 text-xs hover:bg-[var(--group)]"
+          >
+            <FileInput className="size-3.5" />
+            {t('products:orders.enterLabel')}
+          </button>
+          {enterOpen && (
+            <div className="absolute z-10 mt-px flex min-w-[160px] flex-col border border-[var(--rule)] bg-background text-xs shadow-lg">
+              <button
+                type="button"
+                data-fill-from-order
+                className="px-2 py-1 text-start hover:bg-[var(--group)]"
+                onClick={() => { setEnterOpen(false); setFilling({ step: 'pick' }) }}
+              >
+                {t('products:invoicePicker.fromInvoice')}
+              </button>
+              {/* مرسومٌ ومعطَّلٌ ويقول لماذا — لا محذوفًا. */}
+              <button
+                type="button"
+                disabled
+                data-shell-control="fromExcel"
+                title={t('products:orders.laterHint')}
+                className="cursor-not-allowed px-2 py-1 text-start text-muted-foreground opacity-60"
+              >
+                {t('products:invoicePicker.fromExcel')}
+              </button>
+            </div>
+          )}
+        </div>
 
         <ShellControl icon={FileSpreadsheet} label={t('products:orders.excelLabel')} why={t('products:orders.laterHint')} />
       </div>
@@ -400,61 +431,35 @@ export default function SupplyProductsScreen({
           onChange={(e) => setNote(e.target.value)} />
       </label>
 
-      {filling && (
+      {/* 🔴 النافذةُ نفسُها كما في المرجع — فلاترُ فترةٍ ونوعٍ ورقمٍ ومورّد،
+          وجدولٌ بسبعة أعمدة، واختيارٌ متعدّدٌ بـShift أو Ctrl. */}
+      {filling && filling.step === 'pick' && (
+        <InvoicePickerDialog
+          orders={orders}
+          orderLines={orderLines}
+          suppliers={suppliers}
+          onCancel={() => setFilling(null)}
+          onSelect={(ids) => {
+            // ⚠️ يُسأل فقط حين يكون هناك ما يُخسَر. خانةٌ فارغةٌ ليست عملًا،
+            // وسؤالٌ جوابُه واحدٌ معقولٌ يعلّم الناسَ الضغطَ على الأسئلة بلا قراءة.
+            if (gridHoldsWork(packages)) { setFilling({ step: 'replace', orderIds: ids }); return }
+            applyFill(ids, true)
+          }}
+        />
+      )}
+
+      {filling && filling.step === 'replace' && (
         <div data-fill-picker className="border border-[var(--rule)] bg-[var(--group)] p-2 text-xs">
-          {filling.step === 'pick' ? (
-            <>
-              <p className="font-medium">{t('products:supplyRef.fillPickTitle')}</p>
-              <p className="mt-1 text-muted-foreground">{t('products:supplyRef.fillPickHint')}</p>
-              {(orders || []).length === 0 ? (
-                <p className="mt-2">{t('products:supplyRef.fillNoOrders')}</p>
-              ) : (
-                <ul className="mt-2 flex flex-col gap-1">
-                  {(orders || []).map((order) => (
-                    <li key={order.id}>
-                      <button
-                        type="button"
-                        data-fill-order={order.id}
-                        className="flex w-full items-center gap-3 border border-[var(--rule)] bg-transparent px-2 py-1 text-start hover:bg-background"
-                        onClick={() => {
-                          // ⚠️ يُسأل فقط حين يكون هناك ما يُخسَر. خانةٌ فارغةٌ
-                          // ليست عملًا، وسؤالٌ جوابُه واحدٌ معقولٌ يعلّم الناسَ
-                          // الضغطَ على الأسئلة بلا قراءة.
-                          if (gridHoldsWork(packages)) { setFilling({ step: 'replace', orderId: order.id }); return }
-                          applyFill(order.id, true)
-                        }}
-                      >
-                        {/* ⚠️ عنصران بفراغٍ بينهما، **لا فاصلٌ مكتوبٌ بالإيد.**
-                            تاريخٌ بأرقامٍ لاتينيّةٍ تليه شرطةٌ محايدةٌ هو الشكلُ
-                            الذي تقلبه خوارزميّةُ bidi — وحارسُ `timeRangeDirection`
-                            أسقط الصياغةَ الأولى لهذا السطر بالضبط. */}
-                        <span>{order.order_date}</span>
-                        <span>{t('products:supplyRef.fillOrderLines', {
-                          n: (orderLines || []).filter((l) => l.order_id === order.id).length,
-                        })}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="mt-2">
-                <RefCancelButton onClick={() => setFilling(null)}>{t('products:orders.cancelButton')}</RefCancelButton>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="font-medium">{t('products:supplyRef.fillReplaceTitle')}</p>
-              <div className="mt-2 flex gap-2">
-                <RefActionButton onClick={() => applyFill(filling.orderId, true)}>
-                  {t('products:supplyRef.fillReplace')}
-                </RefActionButton>
-                <RefCancelButton onClick={() => applyFill(filling.orderId, false)}>
-                  {t('products:supplyRef.fillMerge')}
-                </RefCancelButton>
-                <RefCancelButton onClick={() => setFilling(null)}>{t('products:orders.cancelButton')}</RefCancelButton>
-              </div>
-            </>
-          )}
+          <p className="font-medium">{t('products:supplyRef.fillReplaceTitle')}</p>
+          <div className="mt-2 flex gap-2">
+            <RefActionButton onClick={() => applyFill(filling.orderIds, true)}>
+              {t('products:supplyRef.fillReplace')}
+            </RefActionButton>
+            <RefCancelButton onClick={() => applyFill(filling.orderIds, false)}>
+              {t('products:supplyRef.fillMerge')}
+            </RefCancelButton>
+            <RefCancelButton onClick={() => setFilling(null)}>{t('products:orders.cancelButton')}</RefCancelButton>
+          </div>
         </div>
       )}
 
