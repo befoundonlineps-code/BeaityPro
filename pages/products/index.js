@@ -15,7 +15,7 @@ import StockDocumentScreen from '../../components/StockDocumentScreen'
 import StockDocumentsList from '../../components/StockDocumentsList'
 import StorageBalances from '../../components/StorageBalances'
 import StocktakeScreen from '../../components/StocktakeScreen'
-import ProductOrderScreen from '../../components/ProductOrderScreen'
+import OrderProductsScreen from '../../components/OrderProductsScreen'
 import StocktakeCoverage from '../../components/StocktakeCoverage'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
@@ -243,15 +243,22 @@ export default function ProductsPage() {
               />
             )}
             {op === 'orders' && (
-              <ProductOrderScreen
+              <OrderProductsScreen
+                // ⚠️ مفتاحُه العدسة: تبديلُ المستودع يبدأ طلبًا جديدًا
+                // **بإعادة التركيب** لا بأثرٍ يمسح الحالةَ بعد الرسم — وإلّا بقي
+                // تأشيرُ مجلّداتِ مستودعٍ وأرقامُه فوق مستودعٍ آخر.
+                key={lensId}
                 salonId={salonId}
-                orders={productOrders.orders}
-                lines={productOrders.lines}
-                suppliers={directories.suppliers}
+                storageId={lensId}
+                categories={catalogue.categories}
                 products={catalogue.products}
-                loading={productOrders.loading || catalogue.loading || directories.loading}
-                error={productOrders.error || catalogue.error || directories.error}
-                reload={productOrders.reload}
+                balances={balances.balances}
+                storageCategories={directories.storageCategories}
+                suppliers={directories.suppliers}
+                loading={productOrders.loading || catalogue.loading || directories.loading || balances.loading}
+                error={productOrders.error || catalogue.error || directories.error || balances.error}
+                onSaved={productOrders.reload}
+                onClose={closeOperation}
               />
             )}
             {isDocumentView(op) && (
