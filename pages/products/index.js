@@ -23,7 +23,8 @@ import { useEmployees } from '../../hooks/useEmployees'
 import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
 import { useProductOrders } from '../../hooks/useProductOrders'
-import { productsQuery, isDocumentView } from '../../lib/productsView'
+import { productsQuery, usesSharedDocumentScreen } from '../../lib/productsView'
+import SupplyProductsScreen from '../../components/SupplyProductsScreen'
 import { OPERATION_LABEL_KEY, productsOperationFromQuery } from '../../lib/productsOperations'
 import { currentLens, lensChoices, lensMayWiden } from '../../lib/storageLens'
 import { useStocktakeSession } from '../../hooks/useStocktakeSession'
@@ -261,7 +262,26 @@ export default function ProductsPage() {
                 onClose={closeOperation}
               />
             )}
-            {isDocumentView(op) && (
+            {op === 'supply' && (
+              <SupplyProductsScreen
+                // ⚠️ مفتاحُه العدسة، كما شاشةُ الطلب: تبديلُ المستودع يبدأ
+                // مستندًا جديدًا بإعادة التركيب لا بأثرٍ يمسح الحالةَ بعد الرسم.
+                key={lensId}
+                salonId={salonId}
+                storageId={lensId}
+                storages={directories.storages}
+                categories={catalogue.categories}
+                products={catalogue.products}
+                balances={balances.balances}
+                storageCategories={directories.storageCategories}
+                suppliers={directories.suppliers}
+                loading={catalogue.loading || directories.loading || balances.loading}
+                error={catalogue.error || directories.error || balances.error}
+                onPosted={() => { catalogue.reload(); stockDocuments.reload(); balances.reload() }}
+                onClose={closeOperation}
+              />
+            )}
+            {usesSharedDocumentScreen(op) && (
               <StockDocumentScreen
                 // Keyed on the doc type so switching documents starts a fresh
                 // form. Without it React keeps the old state under the new
