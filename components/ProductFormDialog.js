@@ -386,7 +386,7 @@ export default function ProductFormDialog({
                   label={t('products:productDialog.inContainerLabel')}
                   hint={t('products:productDialog.inContainerHint')}
                 >
-                  <Input type="number" min="0" step="0.001" value={unitsPerPackage}
+                  <Input type="number" min="0" step="0.01" value={unitsPerPackage}
                     onChange={(e) => setUnitsPerPackage(e.target.value)} />
                 </Field>
                 <Field label={t('products:productDialog.baseUnitLabel')}>
@@ -406,7 +406,7 @@ export default function ProductFormDialog({
                   label={t('products:productDialog.portionOutputLabel')}
                   hint={t('products:productDialog.portionOutputHint')}
                 >
-                  <Input type="number" min="0" step="0.001" value={portionOutput}
+                  <Input type="number" min="0" step="0.01" value={portionOutput}
                     onChange={(e) => setPortionOutput(e.target.value)} />
                 </Field>
                 <Field label={t('products:productDialog.barCodeLabel')}>
@@ -476,7 +476,7 @@ export default function ProductFormDialog({
                 {sellByPortions && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Field label={t('products:productDialog.portionSizeLabel', { unit: t(`products:units.${baseUnit}`) })}>
-                      <Input type="number" min="0" step="0.001" value={unitsPerPortion}
+                      <Input type="number" min="0" step="0.01" value={unitsPerPortion}
                         onChange={(e) => setUnitsPerPortion(e.target.value)} />
                     </Field>
                     <Field label={t('products:productDialog.portionPriceLabel')}>
@@ -556,7 +556,7 @@ export default function ProductFormDialog({
                       className="mt-1.5"
                       type="number"
                       min="0"
-                      step="0.001"
+                      step="0.01"
                       value={c.quantityBase}
                       onChange={(e) => setComponentAt(index, { quantityBase: e.target.value })}
                     />

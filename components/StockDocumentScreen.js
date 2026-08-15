@@ -390,7 +390,7 @@ export default function StockDocumentScreen({
             </Field>
 
             <Field label={index === 0 ? t('products:docs.quantityLabel') : undefined}>
-              <Input type="number" min="0" step="0.001" value={row.enteredQuantity}
+              <Input type="number" min="0" step="0.01" value={row.enteredQuantity}
                 onChange={(e) => setRowAt(index, { enteredQuantity: e.target.value })} />
             </Field>
 
@@ -407,7 +407,7 @@ export default function StockDocumentScreen({
                 label={index === 0 ? t('products:docs.bonusLabel') : undefined}
                 hint={bonusHint(row)}
               >
-                <Input type="number" min="0" step="0.001" value={row.bonusQuantity}
+                <Input type="number" min="0" step="0.01" value={row.bonusQuantity}
                   onChange={(e) => setRowAt(index, { bonusQuantity: e.target.value })} />
               </Field>
             )}
