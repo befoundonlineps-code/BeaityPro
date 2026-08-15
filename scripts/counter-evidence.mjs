@@ -161,8 +161,29 @@ function status() {
   for (const e of manifest.files) console.log(`    ${e.rel}`)
 }
 
+// 🔴 التخلّي عن النسخة **بلا استرجاع** — وهذا الأمرُ غاب فوقعت الحالةُ التي
+// وُجد لأجلها.
+//
+// ⚠️ **رسالةُ الحارس نفسُها كانت تقول «شغّل restore»**، وقد تُقرأ بعد ساعةٍ من
+// الشغل على نفس الملفّ — **وعندها `restore` يمحو الشغلَ لا الحقن.** صار فعلًا:
+// نسخةٌ أُخذت لقياس حقنةٍ صغيرة، ثمّ كُتب فوق الملفّ خمسُمئة سطرٍ جديدة، ثمّ
+// سقطت الحزمةُ على «نسخةٌ معلَّقة» **وطريقُ الخروج الوحيدُ المعروضُ كان الأمرَ
+// المدمِّر**.
+//
+// **والفرقُ بين الأمرين سؤالٌ واحدٌ يُسأل قبلهما:** هل الملفُّ الآن يحمل الحقنَ
+// (⟵ `restore`) أم عملًا جديدًا (⟵ `discard`)؟ فالأداةُ تعرض الاثنين بدل أن
+// تعرض واحدًا وتترك الثاني لِمن يعرف أن يحذف المجلّدَ بيده.
+function discard() {
+  const manifest = readManifest()
+  if (!manifest) { console.log('✓ ما في نسخةٌ معلَّقة'); return }
+  fs.rmSync(SNAPSHOT_DIR, { recursive: true, force: true })
+  console.log('✓ انشالت النسخة بلا استرجاع — الملفّات متل ما هي الآن:')
+  for (const e of manifest.files) console.log(`    ${e.rel}`)
+}
+
 const [command, ...rest] = process.argv.slice(2)
 if (command === 'snapshot') snapshot(rest)
 else if (command === 'restore') restore()
+else if (command === 'discard') discard()
 else if (command === 'status') status()
-else die('الأوامر: snapshot <files…> | restore | status')
+else die('الأوامر: snapshot <files…> | restore | discard | status')

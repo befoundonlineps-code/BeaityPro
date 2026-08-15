@@ -15,7 +15,7 @@ import StockDocumentScreen from '../../components/StockDocumentScreen'
 import StockDocumentsList from '../../components/StockDocumentsList'
 import StorageBalances from '../../components/StorageBalances'
 import StocktakeScreen from '../../components/StocktakeScreen'
-import ProductOrderScreen from '../../components/ProductOrderScreen'
+import OrderProductsScreen from '../../components/OrderProductsScreen'
 import StocktakeCoverage from '../../components/StocktakeCoverage'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
 import { useProductCatalog } from '../../hooks/useProductCatalog'
@@ -23,7 +23,8 @@ import { useEmployees } from '../../hooks/useEmployees'
 import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
 import { useProductOrders } from '../../hooks/useProductOrders'
-import { productsQuery, isDocumentView } from '../../lib/productsView'
+import { productsQuery, usesSharedDocumentScreen } from '../../lib/productsView'
+import SupplyProductsScreen from '../../components/SupplyProductsScreen'
 import { OPERATION_LABEL_KEY, productsOperationFromQuery } from '../../lib/productsOperations'
 import { currentLens, lensChoices, lensMayWiden } from '../../lib/storageLens'
 import { useStocktakeSession } from '../../hooks/useStocktakeSession'
@@ -243,18 +244,47 @@ export default function ProductsPage() {
               />
             )}
             {op === 'orders' && (
-              <ProductOrderScreen
+              <OrderProductsScreen
+                // ⚠️ مفتاحُه العدسة: تبديلُ المستودع يبدأ طلبًا جديدًا
+                // **بإعادة التركيب** لا بأثرٍ يمسح الحالةَ بعد الرسم — وإلّا بقي
+                // تأشيرُ مجلّداتِ مستودعٍ وأرقامُه فوق مستودعٍ آخر.
+                key={lensId}
                 salonId={salonId}
-                orders={productOrders.orders}
-                lines={productOrders.lines}
-                suppliers={directories.suppliers}
+                storageId={lensId}
+                categories={catalogue.categories}
                 products={catalogue.products}
-                loading={productOrders.loading || catalogue.loading || directories.loading}
-                error={productOrders.error || catalogue.error || directories.error}
-                reload={productOrders.reload}
+                balances={balances.balances}
+                storageCategories={directories.storageCategories}
+                suppliers={directories.suppliers}
+                loading={productOrders.loading || catalogue.loading || directories.loading || balances.loading}
+                error={productOrders.error || catalogue.error || directories.error || balances.error}
+                onSaved={productOrders.reload}
+                onClose={closeOperation}
               />
             )}
-            {isDocumentView(op) && (
+            {op === 'supply' && (
+              <SupplyProductsScreen
+                // ⚠️ مفتاحُه العدسة، كما شاشةُ الطلب: تبديلُ المستودع يبدأ
+                // مستندًا جديدًا بإعادة التركيب لا بأثرٍ يمسح الحالةَ بعد الرسم.
+                key={lensId}
+                salonId={salonId}
+                storageId={lensId}
+                storages={directories.storages}
+                categories={catalogue.categories}
+                products={catalogue.products}
+                balances={balances.balances}
+                storageCategories={directories.storageCategories}
+                suppliers={directories.suppliers}
+                // «إدخال من فاتورة» — من الطلبيّات، وهي محمَّلةٌ لهذه الصفحة أصلًا.
+                orders={productOrders.orders}
+                orderLines={productOrders.lines}
+                loading={catalogue.loading || directories.loading || balances.loading || productOrders.loading}
+                error={catalogue.error || directories.error || balances.error || productOrders.error}
+                onPosted={() => { catalogue.reload(); stockDocuments.reload(); balances.reload() }}
+                onClose={closeOperation}
+              />
+            )}
+            {usesSharedDocumentScreen(op) && (
               <StockDocumentScreen
                 // Keyed on the doc type so switching documents starts a fresh
                 // form. Without it React keeps the old state under the new
