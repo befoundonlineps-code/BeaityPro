@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { AlertTriangle, Undo2, ChevronDown, ChevronLeft } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
+import { numberOrNull } from '../lib/decimalPlaces'
 import { reverseStockDocument } from '../lib/stockIO'
 import {
   EMPTY_FILTERS, filterDocuments, supplierFilterApplies, filterEmptyReason, FILTER_EMPTY,
@@ -10,6 +11,7 @@ import {
 import {
   sortDocuments, movementsOf, movementFrames, reversalState,
   documentProductNames, documentDate, costFrames, documentValue, documentValueLabel,
+  cancellationState, visibleDocuments,
 } from '../lib/stockDocumentList'
 import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION } from '../lib/stockDocument'
 import { Button } from '@/components/ui/button'
@@ -47,6 +49,14 @@ export default function StockDocumentsList({
 
   const [filters, setFilters] = useState(EMPTY_FILTERS)
 
+  // 🔴 **مؤشَّرةٌ افتراضيًّا، كـ`hideArchived`** — والملغى ضجيجٌ في القائمة
+  // اليوميّة، **وليس سرًّا**: رفعُ التأشير يعيده مع عاكسه.
+  const [hideCancelled, setHideCancelled] = useState(true)
+
+  // 🔴 **سببُ الإلغاء إلزاميّ، ويسافر في `p_note`** — ولا عمودَ جديدَ له.
+  // ⚠️ **والإلزامُ على المقصوص لا الخام**، وإلّا مرّت مسافةٌ سببًا.
+  const [reason, setReason] = useState('')
+
   // ⚠️ A WIDENING, NOT A SECOND STORAGE PICKER — and the first attempt was the
   // second storage picker, which is the fault this whole stage exists to remove.
   //
@@ -79,7 +89,12 @@ export default function StockDocumentsList({
   // disagree about which storage is in force.
   const inForce = { ...filters, storageId: storageInForce(storageId) }
 
-  const rows = sortDocuments(filterDocuments(documents, inForce))
+  // ⚠️ **الإخفاءُ بعد الترشيح وقبل الحالة الفارغة**، فرسالةُ «لا نتائج» تصف ما
+  // يراه المستخدمُ فعلًا. ويُمرَّر `documents` كاملةً لا `rows` — عاكسٌ رشّحه
+  // مرشِّحُ النوعِ خارجًا يجعل أصلَه يبدو حيًّا.
+  const matched = sortDocuments(filterDocuments(documents, inForce))
+  const rows = visibleDocuments(matched, documents, hideCancelled)
+  const hiddenCount = matched.length - rows.length
   const emptyKind = filterEmptyReason({ documents, filtered: rows, filters: inForce })
   const supplierUsable = supplierFilterApplies(filters.docType)
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
@@ -98,7 +113,11 @@ export default function StockDocumentsList({
     if (!confirming) return
     setBusy(true)
     setActionError('')
-    const { ok, error: rpcError } = await reverseStockDocument({ documentId: confirming.id })
+    // 🔴 **السببُ يصل القاعدةَ فعلًا، لا يبقى في الشاشة.** `p_note` موجودٌ في
+    // توقيع الدالّة منذ بنائها، **فالإلزامُ واجهةٌ والحفظُ قائم.**
+    const { ok, error: rpcError } = await reverseStockDocument({
+      documentId: confirming.id, note: reason.trim(),
+    })
     setBusy(false)
     if (!ok) {
       setActionError(rpcError
@@ -116,7 +135,21 @@ export default function StockDocumentsList({
       return
     }
     setConfirming(null)
+    setReason('')
     reload()
+  }
+
+  // ⚠️ **يُفرَّغ عند الفتح والإغلاق معًا**: سببٌ باقٍ من إلغاءٍ سابقٍ يُرسَل
+  // على مستندٍ آخرَ بلا أن يقرأه أحد — **حقلٌ ممتلئٌ سلفًا يُقرأ مكتوبًا.**
+  function openConfirm(doc) {
+    setConfirming(doc)
+    setReason('')
+    setActionError('')
+  }
+  function closeConfirm() {
+    setConfirming(null)
+    setReason('')
+    setActionError('')
   }
 
   // ⚠️ Unit first, number second — every quantity, everywhere.
@@ -219,10 +252,30 @@ export default function StockDocumentsList({
             {(suppliers || []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
           </select>
         </label>
+        {/* 🔴 **خانةٌ لا مرشِّح**، ولذلك ليست في `EMPTY_FILTERS`: «امسح
+            المرشِّحات» يوسّع البحث، **وإظهارُ الملغاة ليس توسيعًا بل تبديلُ
+            سؤال.** ولو كانت فيها لأعادها المسحُ إلى «مخفيّة» فبدت الخانةُ
+            تُلغي نفسَها. */}
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            data-hide-cancelled
+            checked={hideCancelled}
+            onChange={(e) => setHideCancelled(e.target.checked)}
+          />
+          {t('products:documents.hideCancelled')}
+        </label>
         <Button type="button" variant="outline" size="sm"
           onClick={() => setFilters(EMPTY_FILTERS)}>
           {t('products:documents.filterClear')}
         </Button>
+        {/* ⚠️ **العددُ المخفيُّ يُقال، وإلّا بدا الإخفاءُ نقصًا في البيانات.**
+            وهو الفرقُ بين «ما في مستندات» و«في مستنداتٌ لا تراها الآن». */}
+        {hideCancelled && hiddenCount > 0 && (
+          <span className="text-xs text-muted-foreground" data-hidden-count={hiddenCount}>
+            {t('products:documents.hiddenCancelled', { n: hiddenCount })}
+          </span>
+        )}
       </div>
 
 
@@ -253,6 +306,7 @@ export default function StockDocumentsList({
           {rows.map((doc) => {
             const lines = movementsOf(movements, doc.id)
             const state = reversalState(doc, documents)
+            const cancel = cancellationState(doc, documents)
             const isOpen = expanded.has(doc.id)
 
             return (
@@ -266,7 +320,15 @@ export default function StockDocumentsList({
               // announce a success that never happened.
               //
               // This is "write the condition, not the count" applied to the DOM.
-              <div key={doc.id} data-doc-id={doc.id} data-doc-type={doc.doc_type} className="rounded-xl border border-border">
+              // 🔴 **الملغى مميَّزٌ بصريًّا ولا يُلخبط بالشغّال** — باهتٌ
+              // ومشطوبُ العنوان، **وليس مخفيًّا حين يُطلَب عرضُه.**
+              <div
+                key={doc.id}
+                data-doc-id={doc.id}
+                data-doc-type={doc.doc_type}
+                data-cancelled={cancel.cancelled ? cancel.kind : undefined}
+                className={`rounded-xl border ${cancel.cancelled ? 'border-dashed border-border/60 bg-muted/30 opacity-70' : 'border-border'}`}
+              >
                 <div className="flex flex-wrap items-center gap-3 p-3">
                   <button
                     type="button"
@@ -274,7 +336,18 @@ export default function StockDocumentsList({
                     onClick={() => toggle(doc.id)}
                   >
                     {isOpen ? <ChevronDown className="size-4 shrink-0" /> : <ChevronLeft className="size-4 shrink-0" />}
-                    <span className="font-medium">{t(`products:docs.${doc.doc_type}.title`)}</span>
+                    <span className={`font-medium ${cancel.cancelled ? 'line-through' : ''}`}>
+                      {t(`products:docs.${doc.doc_type}.title`)}
+                    </span>
+                    {/* ⚠️ **رقمُ المستند على الصفّ، لا في التفاصيل وحدَها.**
+                        كان لا يُعرض إطلاقًا، **وهو المقبضُ البشريُّ الوحيد**
+                        الذي بُني ٠٩٨ لأجله — ومستندان بنفس التاريخ والمستودع
+                        والمورّد لا يفترقان بغيره. */}
+                    {doc.doc_number && (
+                      <span className="text-xs text-muted-foreground" data-doc-number={doc.doc_number}>
+                        {t('products:documents.numberLabel', { n: doc.doc_number })}
+                      </span>
+                    )}
                     <span className="text-sm text-muted-foreground">{documentDate(doc.doc_date)}</span>
                   </button>
 
@@ -331,25 +404,55 @@ export default function StockDocumentsList({
                         </Badge>
                       )
                     })()}
-                    {state.reason === 'alreadyReversed' && (
-                      <Badge variant="outline">{t('products:documents.reversedBadge')}</Badge>
+                    {/* 🔴 **المدفوعُ يُعرَض، وهذا أوّلُ قارئٍ لهذا العمود
+                        إطلاقًا** — قِيس في جولة الإرجاع أنه يُكتب ولا يقرؤه
+                        أحد. **وقراءةٌ فقط، فخطرُها صفر.**
+                        ⚠️ **والفراغُ يبقى فراغًا**: `numberOrNull` قبل
+                        `toLocaleString`، وإلّا قرأ مستندٌ بلا دفعٍ «٠٫٠٠ ₪»
+                        وهو الصنفُ المؤجَّلُ على أربع شاشاتٍ أخرى. */}
+                    {(() => {
+                      const paid = numberOrNull(doc.paid_amount)
+                      if (paid === null) return null
+                      return (
+                        <Badge variant="outline" data-paid-for={doc.id}>
+                          {t('products:documents.paidBadge', {
+                            total: paid.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                          })}
+                        </Badge>
+                      )
+                    })()}
+                    {/* 🔴 **عمودُ الحالة — والزوجُ يقول أيَّ نصفٍ هو.**
+                        «ملغى» على الأصل و«تصحيح» على العاكس، **فلا يُقرأ
+                        العاكسُ عمليّةً مستقلّة.** */}
+                    {cancel.kind === 'original' && (
+                      <Badge variant="destructive" data-status="cancelled">
+                        {t('products:documents.cancelledBadge')}
+                      </Badge>
                     )}
-                    {state.reason === 'isReversal' && (
-                      <Badge variant="outline">{t('products:documents.isReversalBadge')}</Badge>
+                    {cancel.kind === 'reversal' && (
+                      <Badge variant="outline" data-status="reversal">
+                        {t('products:documents.isReversalBadge')}
+                      </Badge>
                     )}
                   </div>
 
-                  {/* One action, and it is not offered twice: a document
-                      already undone would swing the balance the other way. */}
-                  <Button
-                    type="button" variant="outline" size="sm"
-                    data-reverse-for={doc.id}
-                    disabled={!state.canReverse || busy}
-                    onClick={() => { setConfirming(doc); setActionError('') }}
-                  >
-                    <Undo2 className="size-3.5" />
-                    {t('products:documents.reverseButton')}
-                  </Button>
+                  {/* 🔴 **يُخفى لا يُعطَّل** — قرارُ المالك على الأنواع التي
+                      لا تُعكَس (`sale` · `service_consumption` · `reversal`)
+                      وعلى الملغى.
+                      ⚠️ **والفرقُ حقيقيّ:** زرٌّ معطَّلٌ يقول «هذا ممكنٌ
+                      لكن ليس الآن» فيُجرَّب مرارًا، **وغيابُه يقول «ليس من
+                      هنا»** — وهذه الأنواعُ لها مسارُ تصحيحٍ آخرُ بالكامل. */}
+                  {state.canReverse && (
+                    <Button
+                      type="button" variant="outline" size="sm"
+                      data-reverse-for={doc.id}
+                      disabled={busy}
+                      onClick={() => openConfirm(doc)}
+                    >
+                      <Undo2 className="size-3.5" />
+                      {t('products:documents.reverseButton')}
+                    </Button>
+                  )}
                 </div>
 
                 {isOpen && (
@@ -410,7 +513,7 @@ export default function StockDocumentsList({
         </div>
       )}
 
-      <Dialog open={!!confirming} onOpenChange={(o) => { if (!o) { setConfirming(null); setActionError('') } }}>
+      <Dialog open={!!confirming} onOpenChange={(o) => { if (!o) closeConfirm() }}>
         {/* The box says which document it is about, in machine-readable form
             as well as in words. Without it a check can only ask "did a box
             open", which is true of the wrong box too. */}
@@ -456,14 +559,43 @@ export default function StockDocumentsList({
               )
             })()}
             <p className="text-muted-foreground">{t('products:documents.reverseMessage')}</p>
+
+            {/* 🔴 **السببُ إلزاميٌّ ويُحفظ مع المستند** — يسافر في `p_note`
+                إلى مستند العكس، **فيبقى مقروءًا بعد أشهرٍ بجانب الحدث نفسِه**
+                لا في ذاكرة مَن ضغط.
+                ⚠️ **والزرُّ معطَّلٌ حتى يُكتب، والسببُ مكتوبٌ بجانبه** — تعطيلٌ
+                بلا تفسيرٍ يجعل المستخدمَ يجرّب الحقولَ واحدًا واحدًا. */}
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">
+                {t('products:documents.reasonLabel')}
+              </span>
+              <input
+                data-cancel-reason
+                autoFocus
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-sm"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+
             {actionError && <div className="text-destructive">{actionError}</div>}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setConfirming(null); setActionError('') }}>
+            {/* ⚠️ يُقاس على المقصوص لا الخام: مسافةٌ ليست سببًا. */}
+            {reason.trim() === '' && (
+              <span className="me-auto text-xs text-muted-foreground" data-reason-required>
+                {t('products:documents.reasonRequired')}
+              </span>
+            )}
+            <Button variant="outline" onClick={closeConfirm}>
               {t('common:discard')}
             </Button>
-            <Button variant="destructive" disabled={busy} onClick={confirmReverse}>
+            <Button
+              variant="destructive"
+              disabled={busy || reason.trim() === ''}
+              onClick={confirmReverse}
+            >
               {busy ? t('common:saving') : t('products:documents.reverseConfirm')}
             </Button>
           </DialogFooter>
