@@ -33,12 +33,30 @@ function timeOf(iso) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+// ⚠️ **و`rows` مدخلٌ اختياريٌّ يجعل مصدرَ الصفوف قابلًا للحقن**، أُضيف حين احتاجت
+// شاشةُ الشطب **مستنداتِ التوريد** لا الطلبيّات: اختيارُ فاتورةِ توريدٍ هو اختيارٌ
+// للدفعات التي ولّدها.
+//
+// 🔴 **والبديلُ كان نسخةً ثانيةً من النافذة** — بنفس المرشِّحات الأربعة ونفس
+// `Shift/Ctrl` ونفس الجدول. **ونسختان تتباعدان**، وأوّلُ ما يتباعد فيهما سلوكُ
+// التحديد المتعدّد لأنه الأدقّ والأقلُّ استعمالًا.
+//
+// ⚠️ **ولا يتغيّر شيءٌ لمن لا يمرّرها:** شاشةُ التوريد تمرّ كما كانت، والصفوفُ
+// تُشتقّ من الطلبيّات.
 export default function InvoicePickerDialog({
-  orders, orderLines, suppliers, onCancel, onSelect,
+  orders, orderLines, suppliers, rows: injectedRows, kind = 'order', onCancel, onSelect,
 }) {
   const { t } = useTranslation(['products', 'common'])
 
-  const [period, setPeriod] = useState('day')
+  // 🔴 **«اليوم» للطلبيّة و«الكلّ» للتوريد، والفرقُ ليس ذوقًا.**
+  //
+  // الطلبيّةُ تُستدعى بعد كتابتها بدقائق، **وفاتورةُ التوريد التي يُشطب منها
+  // قد تكون من الشهر الماضي** — والدفعةُ تعيش حتى تنفد لا حتى ينتهي يومُها.
+  //
+  // ⚠️ **ووقعت فعلًا:** فُتح المنتقي على «اليوم» فرشّح كلَّ فواتير التوريد
+  // خارجًا، **فبدت النافذةُ فارغةً ورسالتُها تقول «ما في طلبيّات»** — ثلاثةُ
+  // أخطاءٍ تُقرأ خطأً واحدًا.
+  const [period, setPeriod] = useState(kind === 'supply' ? 'all' : 'day')
   const [anchorDate, setAnchorDate] = useState(today())
   const [invoiceNo, setInvoiceNo] = useState('')
   const [supplierId, setSupplierId] = useState('')
@@ -46,8 +64,8 @@ export default function InvoicePickerDialog({
   const [anchorId, setAnchorId] = useState(null)
 
   const all = useMemo(
-    () => pickerRows({ orders, orderLines, suppliers }),
-    [orders, orderLines, suppliers]
+    () => injectedRows || pickerRows({ orders, orderLines, suppliers }),
+    [injectedRows, orders, orderLines, suppliers]
   )
 
   const rows = useMemo(() => {
@@ -81,16 +99,30 @@ export default function InvoicePickerDialog({
             )}
           </label>
 
-          <label className="flex items-center gap-1.5">
-            {t('products:invoicePicker.type')}
-            <select className={FIELD} defaultValue="order">
-              <option value="all">{t('products:invoicePicker.type_all')}</option>
-              <option value="order">{t('products:invoicePicker.type_order')}</option>
-              {/* 🔴 مرسومٌ ومعطَّلٌ ويقول لماذا — مؤجَّلٌ بقرار المالك لأنه ينسخ
-                  أسعارًا دُفعت فعلًا. */}
-              <option value="supply" disabled>{t('products:invoicePicker.type_supply')}</option>
-            </select>
-          </label>
+          {/* 🔴 **يُحذف كلّيًّا عند التوريد** — قرارُ المالك، وسببُه أن الطلبيّةَ
+              **لا تولّد دفعةً** فلا شيءَ يُشطب منها. وخيارٌ لا يعني شيئًا مرسومٌ
+              فوق نافذةِ شطبٍ يقود إلى اختيارٍ لا يفعل.
+
+              ⚠️ **وهو لم يكن يرشّح أصلًا:** `defaultValue` بلا حالةٍ ولا
+              `onChange` — **يرسم ولا يفعل.** فبقاؤه للطلبيّة شكلٌ مطابقٌ للمرجع
+              **وبقاؤه هنا كذب**، لأنه يعرض «توريد» موسومًا «لساتها ما انبنت»
+              في نافذةٍ صفوفُها توريدٌ كلُّها. */}
+          {kind !== 'supply' && (
+            <label className="flex items-center gap-1.5">
+              {t('products:invoicePicker.type')}
+              <select className={FIELD} defaultValue="order">
+                <option value="all">{t('products:invoicePicker.type_all')}</option>
+                <option value="order">{t('products:invoicePicker.type_order')}</option>
+                {/* ⚠️ **مفتاحٌ خاصٌّ بهذا الخيار، لا `type_supply`.** كان يتقاسمان
+                    مفتاحًا واحدًا نصُّه «توريد بضاعة (لساتها ما انبنت)» — كُتب
+                    لخيارٍ معطَّل. **فلمّا صار عمودُ النوع يشتقّ عنوانَه من
+                    `row.kind` طبع الملاحظةَ على كلّ صفِّ توريدٍ حقيقيّ.**
+                    ⇒ **اسمُ النوع شيءٌ، وحالةُ الخيار شيءٌ آخر** — ومفتاحٌ واحدٌ
+                    لهما يجعل تغييرَ أحدِهما يكتب الآخر. */}
+                <option value="supply" disabled>{t('products:invoicePicker.type_supply_disabled')}</option>
+              </select>
+            </label>
+          )}
 
           <label className="flex items-center gap-1.5">
             {t('products:invoicePicker.invoiceNo')}
@@ -135,7 +167,11 @@ export default function InvoicePickerDialog({
                     if (!e.shiftKey) setAnchorId(row.id)
                   }}
                 >
-                  <RefTd>{t('products:invoicePicker.type_order')}</RefTd>
+                  {/* 🔴 **من `row.kind` لا ثابتًا.** كان مكتوبًا `type_order`
+                      حرفيًّا، **فعرض ثلاثةَ سنداتِ توريدٍ حقيقيّةٍ على أنها
+                      «طلب بضاعة»** — وعمودٌ يقول قيمةً واحدةً لكلّ صفّ لا يقول
+                      شيئًا، **ويكذب حين تختلف الصفوف.** */}
+                  <RefTd>{t(`products:invoicePicker.type_${row.kind || 'order'}`)}</RefTd>
                   <RefTd>{row.invoiceNo || '—'}</RefTd>
                   <RefTd>{row.date}</RefTd>
                   <RefTd>{timeOf(row.createdAt)}</RefTd>
@@ -153,7 +189,9 @@ export default function InvoicePickerDialog({
         {rows.length === 0 && (
           <p data-picker-empty className="text-xs text-muted-foreground">
             {all.length === 0
-              ? t('products:invoicePicker.noOrders')
+              // ⚠️ **ورسالةُ الفراغ تتبع النوع**: «ما في طلبيّات» فوق منتقي
+              // توريدٍ ترسل صاحبَها ليكتب طلبيّةً لن تحلّ شيئًا.
+              ? t(kind === 'supply' ? 'products:invoicePicker.noSupplies' : 'products:invoicePicker.noOrders')
               : t('products:invoicePicker.noMatches')}
           </p>
         )}
