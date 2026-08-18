@@ -22,9 +22,12 @@ import { useProductCatalog } from '../../hooks/useProductCatalog'
 import { useEmployees } from '../../hooks/useEmployees'
 import { useStockDocuments } from '../../hooks/useStockDocuments'
 import { useProductBalances } from '../../hooks/useProductBalances'
+import { useStockLots } from '../../hooks/useStockLots'
 import { useProductOrders } from '../../hooks/useProductOrders'
 import { productsQuery, usesSharedDocumentScreen } from '../../lib/productsView'
 import SupplyProductsScreen from '../../components/SupplyProductsScreen'
+import WriteOffProductsScreen from '../../components/WriteOffProductsScreen'
+import ReturnToSupplierScreen from '../../components/ReturnToSupplierScreen'
 import { OPERATION_LABEL_KEY, productsOperationFromQuery } from '../../lib/productsOperations'
 import { currentLens, lensChoices, lensMayWiden } from '../../lib/storageLens'
 import { useStocktakeSession } from '../../hooks/useStocktakeSession'
@@ -98,6 +101,7 @@ export default function ProductsPage() {
   const catalogue = useProductCatalog()
   const stockDocuments = useStockDocuments()
   const balances = useProductBalances()
+  const stockLots = useStockLots()
   // ⚠️ Read at the page and not inside the order screen, for the same reason
   // the catalogue is: the supply screen fills FROM these.
   const productOrders = useProductOrders()
@@ -281,6 +285,51 @@ export default function ProductsPage() {
                 loading={catalogue.loading || directories.loading || balances.loading || productOrders.loading}
                 error={catalogue.error || directories.error || balances.error || productOrders.error}
                 onPosted={() => { catalogue.reload(); stockDocuments.reload(); balances.reload() }}
+                onClose={closeOperation}
+              />
+            )}
+            {op === 'write_off' && (
+              <WriteOffProductsScreen
+                // ⚠️ مفتاحُه العدسة كأختيه: تبديلُ المستودع يبدأ شطبًا جديدًا
+                // **بإعادة التركيب** — وإلّا بقي اختيارُ دفعةٍ من مستودعٍ فوق
+                // مستودعٍ آخر، **وذلك يُرفض بـ`lot_not_in_storage` بلا سببٍ ظاهر.**
+                key={lensId}
+                storageId={lensId}
+                categories={catalogue.categories}
+                products={catalogue.products}
+                storageCategories={directories.storageCategories}
+                lots={stockLots.lots}
+                movements={stockLots.movements}
+                // 🔴 «إدخال من فاتورة» — مستنداتُ التوريد ومورّدوها.
+                //
+                // ⚠️ **غابت هاتان مرّةً، وبدت النافذةُ فارغةً عن مستودعٍ فيه ثلاثةُ
+                // سنداتِ توريدٍ حقيقيّة.** والسببُ أن `documents` وصلت `undefined`،
+                // و`(undefined || []).filter(…)` تعطي `[]` — **فقرأت الشاشةُ
+                // «ما في فواتير» عن قاعدةٍ فيها فواتير.**
+                documents={stockDocuments.documents}
+                suppliers={directories.suppliers}
+                loading={catalogue.loading || directories.loading || stockLots.loading || stockDocuments.loading}
+                error={catalogue.error || directories.error || stockLots.error || stockDocuments.error}
+                onSaved={() => { stockLots.reload(); stockDocuments.reload(); balances.reload() }}
+                onClose={closeOperation}
+              />
+            )}
+            {op === 'return_to_supplier' && (
+              <ReturnToSupplierScreen
+                // نفسُ مفتاح العدسة، ولنفس السبب: دفعةٌ مختارةٌ من مستودعٍ فوق
+                // مستودعٍ آخر تُرفض بـ`lot_not_in_storage` بلا سببٍ ظاهر.
+                key={lensId}
+                storageId={lensId}
+                categories={catalogue.categories}
+                products={catalogue.products}
+                storageCategories={directories.storageCategories}
+                lots={stockLots.lots}
+                movements={stockLots.movements}
+                documents={stockDocuments.documents}
+                suppliers={directories.suppliers}
+                loading={catalogue.loading || directories.loading || stockLots.loading || stockDocuments.loading}
+                error={catalogue.error || directories.error || stockLots.error || stockDocuments.error}
+                onSaved={() => { stockLots.reload(); stockDocuments.reload(); balances.reload() }}
                 onClose={closeOperation}
               />
             )}

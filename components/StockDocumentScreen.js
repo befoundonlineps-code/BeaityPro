@@ -15,6 +15,7 @@ import { hasSupplier, duplicateDocNumber } from '../lib/documentFilters'
 import {
   DISCOUNT_KINDS, PAYMENT_METHODS, TRANSPORT_PAID_TO,
   lineDisplay, supplierBalanceEffect, isOnAccount,
+  PAYMENT_CHOICES, ON_ACCOUNT, paymentChoiceOf, applyPaymentChoice,
 } from '../lib/documentMoney'
 import { supplierChoices } from '../lib/supplierForm'
 import { baseUnitsFor } from '../lib/stockDocument'
@@ -673,17 +674,41 @@ export default function StockDocumentScreen({
                     onChange={(e) => { setPaidAmount(e.target.value); setPosted(false) }} />
                 </label>
 
-                {Number(paidAmount) > 0 && (
-                  <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                    {t('products:docs.paymentMethodLabel')}
-                    <select className={FIELD + ' h-8 w-32'} value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}>
-                      {PAYMENT_METHODS.map((k) => (
-                        <option key={k} value={k}>{t(`products:docs.paymentMethod_${k}`)}</option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+                {/* 🔴 **مرسومةٌ دائمًا، ولم تكن.** كان الشرطُ `Number(paidAmount) > 0`،
+                    **فاختيارُ «على الحساب» يصفّر المبلغَ فتختفي القائمةُ التي فيها
+                    الاختيار** — أي خيارٌ يمحو نفسَه لحظةَ اختياره.
+                    ⚠️ **و«على حساب المورّد» عنصرٌ رابعٌ في الشكل لا قيمةٌ رابعةٌ في
+                    العمود:** `stock_documents_payment_method_check` يقصره على
+                    الثلاثة، **وتوسيعُه يجعل مستندًا نصفُه نقدٌ ونصفُه مؤجَّل
+                    مستحيلَ الوصف.** فاختيارُه يصفّر المبلغَ ويترك الطريقةَ عدمًا —
+                    وهو حرفيًّا ما يفعله زرُّ «الكلّ على الحساب» بجانبه. */}
+                <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                  {t('products:docs.paymentMethodLabel')}
+                  <select
+                    className={FIELD + ' h-8 w-40'}
+                    data-payment-choice
+                    value={paymentChoiceOf({ paidAmount, paymentMethod })}
+                    onChange={(e) => {
+                      const patch = applyPaymentChoice(e.target.value)
+                      if (patch.paidAmount !== undefined) setPaidAmount(patch.paidAmount)
+                      setPaymentMethod(patch.paymentMethod)
+                      setPosted(false)
+                    }}
+                  >
+                    {/* «مبلغٌ موجبٌ بلا طريقةٍ بعد» حالةٌ ثالثةٌ يرفضها
+                        `validateDocumentMoney` — **تُعرض ولا تُبتلع في «على الحساب».** */}
+                    {paymentChoiceOf({ paidAmount, paymentMethod }) === '' && (
+                      <option value="">{t('products:returnSupplier.paymentPlaceholder')}</option>
+                    )}
+                    {PAYMENT_CHOICES.map((k) => (
+                      <option key={k} value={k}>
+                        {k === ON_ACCOUNT
+                          ? t('products:returnSupplier.payment_on_account')
+                          : t(`products:docs.paymentMethod_${k}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
                 <Button type="button" variant="outline" size="sm"
                   onClick={() => { setPaidAmount(''); setPosted(false) }}>

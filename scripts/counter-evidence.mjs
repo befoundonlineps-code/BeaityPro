@@ -181,9 +181,63 @@ function discard() {
   for (const e of manifest.files) console.log(`    ${e.rel}`)
 }
 
+// 🔴 الحقنُ نفسُه — **وسببُ وجوده أن الطريقَ الآمنَ كان أطولَ من الخطر.**
+//
+// ⚠️ **العادةُ لم تثبت، والفحصُ كان يمسكها بعد لا قبل:** ثلاثَ مرّاتٍ في يومٍ
+// واحدٍ فسّرت الصدفةُ علاماتٍ خلفيّةً في `node -e "…"` — مرّةً أفرغت أعمدةَ
+// ستّةِ صفوفٍ من سجلٍّ، ومرّتين أفسدت أمرَ حقنٍ أو قراءة.
+//
+// **والقاعدةُ المكتوبة («المحتوى بأداة الكتابة لا بوسيطِ سطر أمر») صحيحةٌ
+// وكانت تُخرَق**، لأن `node -e` سطرٌ واحدٌ والكتابةُ بملفٍّ خطوتان. **فالمنعُ
+// لا يكون بمزيدِ انتباه بل بتقصير الطريق الآمن:** الحقنُ صار فعلًا في هذه
+// الأداة، ورقعتُه تُقرأ **من ملفِّ JSON** يكتبه محرِّرٌ لا صدفة.
+//
+// ⚠️ **ويرفض الحقنَ بلا نسخةٍ معلَّقة** — الحقنُ بلا `snapshot` هو الطريقةُ
+// الوحيدةُ لخسارة الشجرة، **وكانت ممكنةً بالأداة القديمة.**
+//
+// ⚠️ **وفاصلُ السطر يُكتشف ولا يُفترض:** ملفّاتُ JS هنا `CRLF` وملفّاتُ SQL
+// `LF`، **ورقعةٌ مكتوبةٌ بـ`\n` لا تطابق سطرًا ينتهي بـ`\r\n`** — وهي بالضبط
+// المرّةُ التي طبعت «ما لقيت السطر» وأنا أظنّ الحارسَ لا يعضّ.
+function inject(target, patchFile) {
+  if (!target || !patchFile) die('inject <ملفُّ الهدف> <رقعة.json>')
+
+  const pending = readManifest()
+  if (!pending) die('ولا نسخةَ معلَّقة. شغّل snapshot أوّلًا — الحقنُ بلا نسخةٍ يخسر الشجرة.')
+  // ⚠️ **المقارنةُ على المسار المطلق لا على النصّ المكتوب.** أوّلُ صيغةٍ قارنت
+  // `f.path` — وحقلُ البيان اسمُه `rel` — **فردّت الأداةُ «مش ضمن النسخة» عن
+  // ملفٍّ محفوظٍ فعلًا.** وهي نفسُ عائلةِ العطل التي تُبنى هذه الأداةُ لكشفها:
+  // **حارسٌ يقرأ الحقلَ الخطأ فيمنع الصحيحَ بثقة.**
+  const abs = path.resolve(ROOT, target)
+  const rel = path.relative(ROOT, abs).split(path.sep).join('/')
+  if (!pending.files.some((f) => path.resolve(ROOT, f.rel) === abs)) {
+    die(`«${rel}» مش ضمن النسخة المعلَّقة. أضِفه بـsnapshot قبل الحقن.`)
+  }
+
+  const patch = JSON.parse(fs.readFileSync(path.resolve(patchFile), 'utf8'))
+  if (typeof patch.find !== 'string') die('الرقعة لازمها حقل `find` نصّيّ')
+  const full = abs
+  const before = fs.readFileSync(full, 'utf8')
+
+  if (!before.includes(patch.find)) {
+    // 🔴 **ويموت صاخبًا ولا يطبع «تمّ».** أوّلُ عطلٍ من هذا الصنف كان
+    // `replace()` لا يطابق شيئًا **ويطبع «wired»** — فقُرئ نجاحًا.
+    die('ما لقيتُ نصَّ `find` في الهدف — ولا شيءَ تغيّر.')
+  }
+
+  const replace = typeof patch.replace === 'string' ? patch.replace : ''
+  const after = before.split(patch.find).join(replace)
+  if (after === before) die('المطابقةُ وقعت والنتيجةُ لم تتغيّر — رقعةٌ بلا أثر.')
+
+  fs.writeFileSync(full, after)
+  const hits = before.split(patch.find).length - 1
+  console.log(`✓ حُقن في ${rel} — ${hits} موضعًا`)
+  console.log('  شغّل الفحصَ الآن. وللإرجاع: node scripts/counter-evidence.mjs restore')
+}
+
 const [command, ...rest] = process.argv.slice(2)
 if (command === 'snapshot') snapshot(rest)
 else if (command === 'restore') restore()
 else if (command === 'discard') discard()
 else if (command === 'status') status()
-else die('الأوامر: snapshot <files…> | restore | discard | status')
+else if (command === 'inject') inject(rest[0], rest[1])
+else die('الأوامر: snapshot <files…> | inject <هدف> <رقعة.json> | restore | discard | status')
