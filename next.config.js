@@ -35,6 +35,42 @@ const nextConfig = {
   // Same shape as translationKeys being limited by folder and the guard that
   // matched variable names: the rule was right and its reach was not.
   eslint: { dirs: ['app', 'pages', 'components', 'lib', 'hooks'] },
+
+  // 🔴 بلا هذا، **التطبيقُ الحيُّ يعرض مفاتيحَ الترجمة الخامّة بدل الكلمات** —
+  // `sections.employees` و`appName` وعشراتٍ غيرها، على كلّ صفحة.
+  //
+  // ⚠️ **والعطلُ لا يظهر محلّيًّا إطلاقًا**، ولهذا عاش من أوّل نشرةٍ ولم يُرَ:
+  // `next dev` و`next start` يقرآن من الشجرة نفسِها، **والدالّةُ الخادمةُ على
+  // Vercel تُحزَم وحدَها.**
+  //
+  // **والآليّةُ مقيسةٌ لا مرجَّحة، بثلاثة قياسات:**
+  //
+  //   ١. الصفحةُ الحيّةُ تشحن `initialI18nStore` بالنطاقات الستّة **وكلُّها
+  //      صفرُ مفاتيح** — فالدالّةُ عملت ولم تقرأ شيئًا.
+  //   ٢. `https://…/locales/ar/products.json` يردّ **200 بـ69901 بايت** —
+  //      فالملفّاتُ مرفوعةٌ ومخدومةٌ من الـCDN.
+  //   ٣. `products.js.nft.json` بعد البناء **صفرُ ذكرٍ لـ`locales`** — فهي
+  //      ليست في حزمة الدالّة.
+  //
+  //   ⇒ مرفوعةٌ أصولًا ساكنة، وغائبةٌ عن نظام ملفّات الدالّة. و
+  //   `serverSideTranslations` تقرأ بـ`fs` من `process.cwd()/public/locales`
+  //   **وقتَ الطلب**، لأن الصفحاتِ السبعَ كلَّها `getServerSideProps` ولا
+  //   `getStaticProps` فيها واحدة — **فلا شيءَ يُخبز وقتَ البناء.**
+  //
+  // ⚠️ **وتتبّعُ الملفّات لا يستطيع اكتشافَها بنفسه:** `next-i18next` يقرأ
+  // بمسارٍ مبنيٍّ وقتَ التشغيل، والتتبّعُ ساكنٌ يقرأ `require` الظاهرة. **فما
+  // لا يُذكر صراحةً لا يُحزَم**، ولا شيءَ يشتكي — لا في البناء ولا في السجلّ.
+  //
+  // 🔴 **وهذا ليس من دمج اليوم:** `login.json` و`topBar.json` فارغتان في
+  // المتجر كذلك، ولم يمسّهما شيءٌ منذ ٢٨ تمّوز. **العطلُ من أوّل نشرة، وأوّلُ
+  // مَن فتح الرابطَ الحيَّ رآه.**
+  //
+  // و`experimental` هو موضعُه في Next 14 (صار جذريًّا في 15).
+  experimental: {
+    outputFileTracingIncludes: {
+      '/**': ['./public/locales/**/*.json'],
+    },
+  },
 }
 
 module.exports = nextConfig
