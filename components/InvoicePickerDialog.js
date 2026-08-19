@@ -7,6 +7,7 @@ import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow } from './ref/Ref
 import { RefActionButton, RefCancelButton } from './ref/RefModal'
 import { Input } from '@/components/ui/input'
 import { today } from '../lib/documentDate'
+import { documentTime } from '../lib/stockDocumentList'
 
 // نافذةُ «اختيار الفاتورة» — تُفتح فوق شاشة التوريد، كما في المرجع.
 //
@@ -22,16 +23,13 @@ import { today } from '../lib/documentDate'
 
 const FIELD = 'h-7 rounded-none border border-[var(--rule)] bg-transparent px-1.5 text-xs outline-none focus-visible:border-ring'
 
-// الوقتُ من الطابع الزمنيّ، بلا تاريخ.
-//
 // ⚠️ **ولا يُبنى مدًى بشرطةٍ مكتوبةٍ بالإيد في أيِّ خليّة.** التاريخُ والوقتُ
 // عمودان منفصلان في المرجع، وهذا يوافق قاعدةَ الاتّجاه عندنا بدل أن يصادمها.
-function timeOf(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
+//
+// 🔴 **و`timeOf` المحلّيّةُ رُفعت إلى `documentTime` المشتركة** حين احتاجتها
+// قائمةُ المستندات. **ونسخُها هناك كان سيصنع النسخةَ الثانية** — وهو الصنفُ
+// المسجَّلُ مؤجَّلًا في `CLAUDE.md` بأربع نسخٍ من قاعدةِ «الفراغُ عدمٌ لا صفر»،
+// **حيث نسختان تحملان الاسمَ نفسَه وتختلفان في السلوك.**
 
 // ⚠️ **و`rows` مدخلٌ اختياريٌّ يجعل مصدرَ الصفوف قابلًا للحقن**، أُضيف حين احتاجت
 // شاشةُ الشطب **مستنداتِ التوريد** لا الطلبيّات: اختيارُ فاتورةِ توريدٍ هو اختيارٌ
@@ -174,7 +172,7 @@ export default function InvoicePickerDialog({
                   <RefTd>{t(`products:invoicePicker.type_${row.kind || 'order'}`)}</RefTd>
                   <RefTd>{row.invoiceNo || '—'}</RefTd>
                   <RefTd>{row.date}</RefTd>
-                  <RefTd>{timeOf(row.createdAt)}</RefTd>
+                  <RefTd>{documentTime(row.createdAt)}</RefTd>
                   <RefTd>{row.from || '—'}</RefTd>
                   {/* الطلبيّةُ بلا مستودع — فارغٌ صحيحٌ لا ناقص. */}
                   <RefTd>—</RefTd>

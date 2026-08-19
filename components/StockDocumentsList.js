@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
-import { AlertTriangle, Undo2, ChevronDown, ChevronLeft } from 'lucide-react'
+import { AlertTriangle, Undo2, Eye, ArrowRight } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { numberOrNull } from '../lib/decimalPlaces'
 import { reverseStockDocument } from '../lib/stockIO'
@@ -10,10 +10,22 @@ import {
 } from '../lib/documentFilters'
 import {
   sortDocuments, movementsOf, movementFrames, reversalState,
-  documentProductNames, documentDate, costFrames, documentValue, documentValueLabel,
+  documentProductNames, documentDate, documentTime, documentParties,
+  costFrames, documentValue, documentValueLabel,
   cancellationState, visibleDocuments,
 } from '../lib/stockDocumentList'
 import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION } from '../lib/stockDocument'
+import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from './ref/RefGrid'
+// 🔴 **`RefCancelButton` وحدَه — ولا `RefModal` ثانية، وهذا تصحيحٌ لخطّةٍ
+// أُقرّت.** طُلبت النافذةُ بـ`RefModal` ووافقتُ، **ثمّ قِيس أن الصفحةَ تلفّ كلَّ
+// عمليّةٍ بـ`RefModal` واحدةٍ أصلًا** (`pages/products/index.js:227`) — فهذه
+// الشاشةُ **داخلها**، ونافذةٌ ثانيةٌ فوقها تعشيشُ حوارٍ في حوار.
+//
+// ⚠️ **وترويسةُ `InvoicePickerDialog` تقول إن ذلك كلّف جولةً كاملةً في هذا
+// المشروع:** «تعشيشُ حوارٍ داخل حوارٍ يتنازع على بؤرة اللوحة». **وهي نفسُها
+// حلّت هذه الحالةَ بلوحٍ مطلقِ الموضع لا بحوارٍ ثانٍ** — فالمظهرُ هو المطلوب
+// والآليّةُ آمنة. ⇒ **نفسُ نمطها هنا: النيّةُ لم تتغيّر، والوسيلةُ فقط.**
+import { RefCancelButton } from './ref/RefModal'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -24,6 +36,28 @@ import {
 // what a document can be, plus the three with their own functions — rather
 // than a fourth hand-typed list that drifts from them.
 const DOC_TYPE_OPTIONS = [...RECEIPT_TYPES, ...ISSUE_TYPES, ...OWN_FUNCTION]
+
+// 🔴 **شبكةٌ لا بطاقات — والشبكةُ هي `RefGrid` القائمة، لا جدولٌ جديد.**
+//
+// ستُّ شاشاتٍ تستعملها اليوم (`ProductsBrowser` · الثلاثُ شاشاتِ إدخالٍ ·
+// `OrderProductsScreen` · `InvoicePickerDialog`)، **وهذه آخرُ من بقي على
+// البطاقات.** ⚠️ **وألوانُها زرقاءُ بحكم البنية لا بالمصادفة:**
+// `--chrome: var(--primary)` **مربوطٌ لا منسوخ**، وبقيّةُ رموزها على درجةِ
+// الأزرق نفسِها — **فشرطُ «شكلُ المرجع بألواننا» بنيةٌ قائمةٌ لا عملٌ يُطلب.**
+//
+// ⚠️ **والعددُ مُعلَنٌ مرّةً واحدةً** لأن `RefFillerRow` والخليّةَ الممتدّةَ
+// يحتاجانه: رقمان متقابلان يتباعدان بصمت، **فتُرسم خانةٌ ناقصةٌ ولا شيءَ يشتكي.**
+// **وصار ١١ بفصل «من/إلى» إلى عمودين**، وحارسُ التطابق مع عدد `<RefTh>` يمسك
+// الفارقَ فورًا.
+const COLUMNS = 11
+
+// أزرارُ الإجراءات — أيقونةٌ بلا نصّ، **واسمُها مكتوبٌ لمن لا يرى الأيقونة.**
+//
+// 🔴 **زرٌّ بأيقونةٍ وحدَها بلا اسمٍ مقروءٍ هو زرٌّ بلا اسم** — والنصُّ كان
+// ظاهرًا («عكس») قبل الشبكة. **فالمفتاحُ نفسُه يذهب إلى `aria-label` و`title`
+// معًا**: الأوّلُ لقارئ الشاشة والثاني للتحويم، **ولا كلمةَ عربيّةٌ جديدةٌ
+// تُخترع للأيقونة.**
+const ICON_BUTTON = 'inline-flex size-5 items-center justify-center border border-[var(--rule)] text-muted-foreground hover:text-foreground disabled:opacity-40'
 
 // The documents that have been posted, newest first, and one thing to do with
 // them: undo one.
@@ -40,9 +74,16 @@ const DOC_TYPE_OPTIONS = [...RECEIPT_TYPES, ...ISSUE_TYPES, ...OWN_FUNCTION]
 // one.
 export default function StockDocumentsList({
   documents, movements, products, storages, suppliers, storageId, loading, error, reload,
+  // 🔴 **مقبضُ الخروج كان موجودًا وغيرَ موصولٍ بهذه الشاشة وحدَها.**
+  // `closeOperation` مبنيٌّ في الصفحة وتأخذه كلُّ عمليّةٍ أخرى — **وهذه لم
+  // تأخذه**، وهو الصنفُ نفسُه الذي جعل `return_to_supplier` ترسم شاشتين.
+  onClose,
 }) {
   const { t } = useTranslation(['products', 'common'])
-  const [expanded, setExpanded] = useState(() => new Set())
+
+  // 🔴 **مستندٌ واحدٌ معروضٌ لا مجموعةُ مفتوحين.** كان `Set` لأن الطيَّ كان في
+  // مكانه، **واللوحُ يعرض واحدًا** — فمجموعةٌ هنا تعني حالةً لا يمكن أن تُرسم.
+  const [viewing, setViewing] = useState(null)
   const [confirming, setConfirming] = useState(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState('')
@@ -100,14 +141,9 @@ export default function StockDocumentsList({
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const nameOf = (list, id) => (list || []).find((x) => x.id === id)?.name || '—'
 
-  function toggle(id) {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
+  // المستندُ المعروضُ يُقرأ من المجموعة الكاملة لا من الصفوف — فتغييرُ مرشِّحٍ
+  // واللوحُ مفتوحٌ لا يُفرّغه من محتواه.
+  const viewed = viewing ? (documents || []).find((d) => d && d.id === viewing) : null
 
   async function confirmReverse() {
     if (!confirming) return
@@ -193,7 +229,10 @@ export default function StockDocumentsList({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // ⚠️ `relative` **حاملةٌ لا تزيين:** لوحُ «مشاهدة» أدناه `absolute inset-0`،
+    // **وبلا أبٍ موضَّعٍ يقيس نفسَه على `RefModal`** فيغطّي شريطَ عنوانها
+    // وزرَّ إغلاقها معًا.
+    <div className="relative flex flex-col gap-4">
       {error && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3">
           <AlertTriangle className="size-4 shrink-0 text-destructive" />
@@ -203,6 +242,23 @@ export default function StockDocumentsList({
           </span>
           <Button type="button" variant="outline" size="sm" className="ms-auto" onClick={reload}>
             {t('products:retry')}
+          </Button>
+        </div>
+      )}
+
+      {/* 🔴 **مَخرجٌ مُسمًّى — و`×` كان موجودًا ولم يُقرأ مَخرجًا.**
+          `RefModal` تضع زرَّ إغلاقٍ في شريطها بـ`aria-label` صحيح، **فالشاشةُ
+          لم تكن بلا مَخرجٍ قطّ** — لكنّ أيقونةً في شريطٍ ملوّنٍ تُقرأ زينةً،
+          والمالكُ خرج بالضغط خارج اللوح. ⇒ **زرٌّ بكلمةٍ لا يلغي `×` بل يسمّيه**،
+          وأثرُهما واحد: `closeOperation` نفسُها.
+          ⚠️ **ولا `router.back()`:** العمليّةُ محمولةٌ في `?op=`، فالإغلاقُ
+          يعيد إلى الكتالوج بالبنية — **ودخولٌ مباشرٌ أو تحديثٌ لا يتركان تاريخًا
+          يُرجَع إليه**، وهو الفخُّ الذي حذّرت منه المراجعة. */}
+      {onClose && (
+        <div>
+          <Button type="button" variant="outline" size="sm" data-documents-back onClick={onClose}>
+            <ArrowRight className="size-3.5" />
+            {t('products:documents.backButton')}
           </Button>
         </div>
       )}
@@ -256,25 +312,33 @@ export default function StockDocumentsList({
             المرشِّحات» يوسّع البحث، **وإظهارُ الملغاة ليس توسيعًا بل تبديلُ
             سؤال.** ولو كانت فيها لأعادها المسحُ إلى «مخفيّة» فبدت الخانةُ
             تُلغي نفسَها. */}
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            data-hide-cancelled
-            checked={hideCancelled}
-            onChange={(e) => setHideCancelled(e.target.checked)}
-          />
-          {t('products:documents.hideCancelled')}
-        </label>
-        <Button type="button" variant="outline" size="sm"
-          onClick={() => setFilters(EMPTY_FILTERS)}>
-          {t('products:documents.filterClear')}
-        </Button>
+        {/* ⚠️ **الاثنان معًا في طرفٍ واحد، و`ms-auto` هي التي تدفعهما** — لا
+            عرضٌ مثبَّتٌ ولا ترتيبٌ يعتمد على عدد الحقول قبلهما. **وفي RTL يقع
+            الطرفُ يسارًا** كما طُلب، بلا `left` مكتوبةٍ بيدٍ تنقلب لو صار
+            للشاشة اتّجاهٌ ثانٍ يومًا. */}
+        <div className="ms-auto flex flex-wrap items-center gap-3">
+          <Button type="button" variant="outline" size="sm"
+            onClick={() => setFilters(EMPTY_FILTERS)}>
+            {t('products:documents.filterClear')}
+          </Button>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              data-hide-cancelled
+              checked={hideCancelled}
+              onChange={(e) => setHideCancelled(e.target.checked)}
+            />
+            {t('products:documents.hideCancelled')}
+          </label>
+        </div>
         {/* ⚠️ **العددُ المخفيُّ يُقال، وإلّا بدا الإخفاءُ نقصًا في البيانات.**
-            وهو الفرقُ بين «ما في مستندات» و«في مستنداتٌ لا تراها الآن». */}
+            وهو الفرقُ بين «ما في مستندات» و«في مستنداتٌ لا تراها الآن».
+            **وسطرٌ كاملٌ له لا ذيلٌ في صفّ المرشِّحات** — جملةٌ تُقرأ لا وسمٌ
+            يتزحلق بين حقلين. */}
         {hideCancelled && hiddenCount > 0 && (
-          <span className="text-xs text-muted-foreground" data-hidden-count={hiddenCount}>
+          <p className="w-full text-xs text-muted-foreground" data-hidden-count={hiddenCount}>
             {t('products:documents.hiddenCancelled', { n: hiddenCount })}
-          </span>
+          </p>
         )}
       </div>
 
@@ -302,214 +366,322 @@ export default function StockDocumentsList({
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {rows.map((doc) => {
-            const lines = movementsOf(movements, doc.id)
-            const state = reversalState(doc, documents)
-            const cancel = cancellationState(doc, documents)
-            const isOpen = expanded.has(doc.id)
+        <div className="min-h-[220px] overflow-auto border border-[var(--rule)]">
+          <RefTable>
+            <RefHead>
+              <tr>
+                <RefTh>{t('products:documents.colType')}</RefTh>
+                <RefTh>{t('products:documents.colNumber')}</RefTh>
+                <RefTh>{t('products:documents.colDate')}</RefTh>
+                {/* 🔴 **عمودان صريحان لا خليّةٌ واحدة** — والاتّجاهُ هو المعنى:
+                    «من مورّدٍ إلى مستودع» و«من مستودعٍ إلى مورّد» يرسمان نفسَ
+                    الاسمين ويقولان شيئين متضادّين. */}
+                <RefTh>{t('products:documents.colFrom')}</RefTh>
+                <RefTh>{t('products:documents.colTo')}</RefTh>
+                <RefTh>{t('products:documents.colNote')}</RefTh>
+                <RefTh>{t('products:documents.colValue')}</RefTh>
+                <RefTh>{t('products:documents.colPaid')}</RefTh>
+                {/* 🔴 **بعيدًا عن عمود التاريخ عمدًا.** مجاورتُهما تجعلهما
+                    يُقرآن نصفَي ختمٍ زمنيٍّ واحد **وهما سؤالان مختلفان**:
+                    التاريخُ يومٌ اختاره إنسانٌ وقابلٌ للتأريخ للوراء، وهذا
+                    لحظةُ التسجيل. **وملاصقتُهما تعرض لحظةً لم توجد قطّ.** */}
+                <RefTh>{t('products:documents.colRecordedAt')}</RefTh>
+                <RefTh>{t('products:documents.colStatus')}</RefTh>
+                <RefTh>{t('products:documents.colActions')}</RefTh>
+              </tr>
+            </RefHead>
+            <tbody>
+              {rows.map((doc) => {
+                const lines = movementsOf(movements, doc.id)
+                const state = reversalState(doc, documents)
+                const cancel = cancellationState(doc, documents)
+                // ⚠️ **المجموعةُ كاملةً لا الصفوف** — العاكسُ يقرأ أصلَه عبر
+                // `reverses_document_id`، **وأصلٌ رشّحه مرشِّحُ النوعِ خارجًا
+                // يجعل العاكسَ بلا اتّجاه.** نفسُ سبب `cancellationState`.
+                const parties = documentParties(doc, { storages, suppliers, allDocuments: documents })
+                const value = documentValue(movements, doc.id, productsById)
+                // 🔴 **الغيابُ يُفحَص قبل `toLocaleString`** — `Number(null)`
+                // ترجع «٠٫٠٠ ₪»، وهو الصنفُ المؤجَّلُ على أربع شاشاتٍ أخرى.
+                const paid = numberOrNull(doc.paid_amount)
 
-            return (
-              // ⚠️ Identity on the row, not position. Every false check this
-              // session came from the browser drive, and the last one named the
-              // cause exactly: it pressed "the first enabled reverse button",
-              // which describes where a thing is rather than which thing it is —
-              // so it targeted the wrong document and reported a defect in
-              // working code. Worse in the other direction: the same selection
-              // can find what it expected on a document it did not mean and
-              // announce a success that never happened.
-              //
-              // This is "write the condition, not the count" applied to the DOM.
-              // 🔴 **الملغى مميَّزٌ بصريًّا ولا يُلخبط بالشغّال** — باهتٌ
-              // ومشطوبُ العنوان، **وليس مخفيًّا حين يُطلَب عرضُه.**
-              <div
-                key={doc.id}
-                data-doc-id={doc.id}
-                data-doc-type={doc.doc_type}
-                data-cancelled={cancel.cancelled ? cancel.kind : undefined}
-                className={`rounded-xl border ${cancel.cancelled ? 'border-dashed border-border/60 bg-muted/30 opacity-70' : 'border-border'}`}
-              >
-                <div className="flex flex-wrap items-center gap-3 p-3">
-                  <button
-                    type="button"
-                    className="flex min-w-0 flex-1 items-center gap-2 text-start"
-                    onClick={() => toggle(doc.id)}
+                return (
+                  <RefRow
+                    key={doc.id}
+                    data-doc-id={doc.id}
+                    data-doc-type={doc.doc_type}
+                    data-cancelled={cancel.cancelled ? cancel.kind : undefined}
+                    className={cancel.cancelled ? 'opacity-60' : ''}
                   >
-                    {isOpen ? <ChevronDown className="size-4 shrink-0" /> : <ChevronLeft className="size-4 shrink-0" />}
-                    <span className={`font-medium ${cancel.cancelled ? 'line-through' : ''}`}>
-                      {t(`products:docs.${doc.doc_type}.title`)}
-                    </span>
-                    {/* ⚠️ **رقمُ المستند على الصفّ، لا في التفاصيل وحدَها.**
-                        كان لا يُعرض إطلاقًا، **وهو المقبضُ البشريُّ الوحيد**
-                        الذي بُني ٠٩٨ لأجله — ومستندان بنفس التاريخ والمستودع
-                        والمورّد لا يفترقان بغيره. */}
-                    {doc.doc_number && (
-                      <span className="text-xs text-muted-foreground" data-doc-number={doc.doc_number}>
-                        {t('products:documents.numberLabel', { n: doc.doc_number })}
-                      </span>
-                    )}
-                    <span className="text-sm text-muted-foreground">{documentDate(doc.doc_date)}</span>
-                  </button>
+                    {/* ⚠️ Identity on the row, not position. Every false check
+                        this session came from the browser drive, and the last
+                        one named the cause exactly: it pressed "the first
+                        enabled reverse button", which describes where a thing
+                        is rather than which thing it is — so it targeted the
+                        wrong document and reported a defect in working code.
+                        Worse in the other direction: the same selection can
+                        find what it expected on a document it did not mean and
+                        announce a success that never happened.
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="secondary">
-                      {doc.to_storage_id
-                        ? t('products:documents.fromStorage', { name: nameOf(storages, doc.storage_id) })
-                        : nameOf(storages, doc.storage_id)}
-                    </Badge>
-                    {doc.to_storage_id && (
-                      <Badge variant="secondary">
-                        {t('products:documents.toStorage', { name: nameOf(storages, doc.to_storage_id) })}
-                      </Badge>
-                    )}
-                    {doc.supplier_id && <Badge variant="outline">{nameOf(suppliers, doc.supplier_id)}</Badge>}
-                    {/* Named on the row too, so two documents that share a
-                        date, a storage and a supplier can be told apart before
-                        anybody presses anything — the list was as ambiguous as
-                        the confirmation was. */}
-                    {(() => {
-                      const { names, more } = documentProductNames(movements, doc.id, productsById)
-                      if (names.length === 0) return null
-                      return (
-                        <Badge variant="outline">
-                          {t('products:documents.contains', {
-                            names: names.join('، ') + (more > 0 ? '…' : ''),
-                          })}
-                        </Badge>
-                      )
-                    })()}
-                    <Badge variant="outline">
-                      {t('products:documents.lineCount', { n: lines.length })}
-                    </Badge>
-                    {/* ⚠️ What it was worth, and the WORD says worth of what.
-                        The entry screen shows a running total while somebody
-                        types and then it disappears forever, so the number
-                        that matters most on a supply was visible only while
-                        writing it — nobody opens a document list looking for a
-                        line count.
-                        "الإجمالي" was "الوحدة" one level up: it said "a sum"
-                        and never said a sum of what, so a transfer's 0 and a
-                        poisoned supply's 0 drew the same badge with opposite
-                        meanings. Naming it removes the collision without
-                        hiding anything — and the poisoned 0 must stay visible,
-                        it is the fault's own signature. */}
-                    {(() => {
-                      const value = documentValue(movements, doc.id, productsById)
-                      if (value === null) return null
-                      return (
-                        <Badge variant="secondary">
-                          {t(documentValueLabel(doc.doc_type), {
-                            total: value.toLocaleString('ar', { maximumFractionDigits: 2 }),
-                          })}
-                        </Badge>
-                      )
-                    })()}
-                    {/* 🔴 **المدفوعُ يُعرَض، وهذا أوّلُ قارئٍ لهذا العمود
-                        إطلاقًا** — قِيس في جولة الإرجاع أنه يُكتب ولا يقرؤه
-                        أحد. **وقراءةٌ فقط، فخطرُها صفر.**
-                        ⚠️ **والفراغُ يبقى فراغًا**: `numberOrNull` قبل
-                        `toLocaleString`، وإلّا قرأ مستندٌ بلا دفعٍ «٠٫٠٠ ₪»
-                        وهو الصنفُ المؤجَّلُ على أربع شاشاتٍ أخرى. */}
-                    {(() => {
-                      const paid = numberOrNull(doc.paid_amount)
-                      if (paid === null) return null
-                      return (
-                        <Badge variant="outline" data-paid-for={doc.id}>
-                          {t('products:documents.paidBadge', {
-                            total: paid.toLocaleString('ar', { maximumFractionDigits: 2 }),
-                          })}
-                        </Badge>
-                      )
-                    })()}
-                    {/* 🔴 **عمودُ الحالة — والزوجُ يقول أيَّ نصفٍ هو.**
-                        «ملغى» على الأصل و«تصحيح» على العاكس، **فلا يُقرأ
-                        العاكسُ عمليّةً مستقلّة.** */}
-                    {cancel.kind === 'original' && (
-                      <Badge variant="destructive" data-status="cancelled">
-                        {t('products:documents.cancelledBadge')}
-                      </Badge>
-                    )}
-                    {cancel.kind === 'reversal' && (
-                      <Badge variant="outline" data-status="reversal">
-                        {t('products:documents.isReversalBadge')}
-                      </Badge>
-                    )}
-                  </div>
+                        This is "write the condition, not the count" on the DOM.
+                        🔴 **والملغى مميَّزٌ بصريًّا ولا يُلخبط بالشغّال** —
+                        باهتٌ ومشطوبُ العنوان، **وليس مخفيًّا حين يُطلَب
+                        عرضُه.** */}
+                      <RefTd>
+                        <span className={cancel.cancelled ? 'line-through' : ''}>
+                          {t(`products:docs.${doc.doc_type}.title`)}
+                        </span>
+                        {/* ⚠️ **لاحقةٌ لا عمود.** «كم سطرًا» ليس ما يبحث عنه
+                            أحدٌ يفتح قائمةَ مستندات، **وعمودٌ كاملٌ له يزاحم
+                            ما يُبحَث عنه فعلًا.** */}
+                        {' '}
+                        <span className="text-[10px] text-muted-foreground">
+                          {t('products:documents.lineCount', { n: lines.length })}
+                        </span>
+                      </RefTd>
 
-                  {/* 🔴 **يُخفى لا يُعطَّل** — قرارُ المالك على الأنواع التي
-                      لا تُعكَس (`sale` · `service_consumption` · `reversal`)
-                      وعلى الملغى.
-                      ⚠️ **والفرقُ حقيقيّ:** زرٌّ معطَّلٌ يقول «هذا ممكنٌ
-                      لكن ليس الآن» فيُجرَّب مرارًا، **وغيابُه يقول «ليس من
-                      هنا»** — وهذه الأنواعُ لها مسارُ تصحيحٍ آخرُ بالكامل. */}
-                  {state.canReverse && (
-                    <Button
-                      type="button" variant="outline" size="sm"
-                      data-reverse-for={doc.id}
-                      disabled={busy}
-                      onClick={() => openConfirm(doc)}
-                    >
-                      <Undo2 className="size-3.5" />
-                      {t('products:documents.reverseButton')}
-                    </Button>
-                  )}
-                </div>
+                      {/* 🔴 **رقمُ المستند عمودًا** — كان لا يُعرض إطلاقًا قبل
+                          جولةٍ واحدة، **وهو المقبضُ البشريُّ الذي بُني ٠٩٨
+                          لأجله**: مستندان بنفس التاريخ والمستودع والمورّد لا
+                          يفترقان بغيره. */}
+                      <RefTd data-doc-number={doc.doc_number || undefined}>
+                        {doc.doc_number || '—'}
+                      </RefTd>
 
-                {isOpen && (
-                  <div className="border-t border-border/60 p-3">
-                    {doc.note && (
-                      <p className="mb-2 text-sm text-muted-foreground">{doc.note}</p>
-                    )}
-                    <table className="w-full text-sm">
-                      <tbody>
-                        {lines.map((m) => (
-                          <tr key={m.id} className="border-b border-border/40 last:border-0">
-                            <td className="py-1.5">{productsById[m.product_id]?.name || '—'}</td>
-                            <td className="py-1.5 text-muted-foreground">
-                              {nameOf(storages, m.storage_id)}
-                            </td>
-                            {/* ⚠️ Direction on every line, as a word. Without
-                                it a write-off line reads exactly like a supply
-                                line, and a reversal — whose lines are the
-                                exact opposite of the document it undoes, shown
-                                right beside it — reads as a copy of the
-                                mistake rather than its correction. A word and
-                                not a sign, because a minus inside an Arabic
-                                line is a neutral character between two
-                                directions. */}
-                            <td className="py-1.5">
-                              {movementFrames(m, productsById[m.product_id]).direction && (
-                                <Badge
-                                  variant={movementFrames(m, productsById[m.product_id]).direction === 'in'
-                                    ? 'secondary' : 'outline'}
-                                >
-                                  {t(`products:documents.direction_${movementFrames(m, productsById[m.product_id]).direction}`)}
-                                </Badge>
-                              )}
-                            </td>
-                            <td className="py-1.5">{quantityText(m)}</td>
-                            <td className="py-1.5 text-muted-foreground">
-                              {/* A stamped cost of zero is a real number here,
-                                  not a blank — and it is exactly what the two
-                                  bad documents carried. */}
-                              {costText(m) || '—'}
-                            </td>
-                          </tr>
-                        ))}
-                        {lines.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="py-3 text-center text-muted-foreground">
-                              {t('products:documents.noLines')}
-                            </td>
-                          </tr>
+                      <RefTd>{documentDate(doc.doc_date) || '—'}</RefTd>
+
+                      {/* 🔴 **والجردُ يمتدّ على العمودين بخليّةٍ واحدة** — لأنه
+                          يحمل الاتّجاهين في مستندٍ واحد (شامبو −٢ وباكيج +٥
+                          بنفس المستند، مقيسًا)، **فوضعُ مستودعه في «من» يجعله
+                          يُقرأ صادرًا وهو نصفُه وارد.**
+                          ⚠️ **والامتدادُ يُشرَح ولا يُترك يُقرأ خللَ رسم** —
+                          «الاتّجاه في السطور» جملةٌ تقول لماذا اختفى العمود.
+                          ⚠️ **ولا سهمَ بين اسمين:** السهمُ محايدٌ فيأخذ اتّجاهَ
+                          الفقرة **وينقلب النصفان على الشاشة والـDOM سليم** —
+                          وهو ما بُني `timeRangeDirection` لأجله. فالعمودان
+                          يفصلان بلا حرفٍ بينهما. */}
+                      {parties.directional ? (
+                        <>
+                          <RefTd data-party-from={parties.from || undefined}>
+                            {parties.from || '—'}
+                          </RefTd>
+                          <RefTd data-party-to={parties.to || undefined}>
+                            {parties.to || '—'}
+                          </RefTd>
+                        </>
+                      ) : (
+                        <RefTd colSpan={2} data-party-perline={doc.id}>
+                          {parties.from || '—'}
+                          {' '}
+                          <span className="text-[10px] text-muted-foreground">
+                            {t('products:documents.directionInLines')}
+                          </span>
+                        </RefTd>
+                      )}
+
+                      {/* 🔴 **وعلى صفِّ العاكس هذه الخانةُ هي سببُ الإلغاء** —
+                          السببُ الإلزاميُّ يسافر في `p_note` إلى مستند
+                          التصحيح، **فيصير مقروءًا في القائمة بلا فتحِ شيء.**
+                          وهو حرفيًّا ما وعدت به رسالةُ الإلزام: «بينحفظ مع
+                          مستند التصحيح وبينقرا بعد أشهر». */}
+                      <RefTd className="max-w-[16rem] truncate" title={doc.note || undefined}>
+                        {doc.note || '—'}
+                      </RefTd>
+
+                      {/* 🔴 **الترويسةُ «القيمة» والكلمةُ الخاصّةُ داخلَ
+                          الخليّة.** الرقمُ متطابقُ الشكل في كلّ الأنواع
+                          (`documentValue` تُرجع الجانبَ الأثقل)، **فالكلمةُ
+                          وحدَها تمنع صفرَ النقل وصفرَ التوريد المسموم من أن
+                          يُقرآ الشيءَ نفسَه** — والثاني توقيعُ العطل الذي
+                          استهلك الموديولَ كلَّه.
+                          ⚠️ **وترويسةٌ تقول «مبلغ» تدّعي مالًا دُفع** — ولا
+                          مالَ في نقلٍ ولا في جرد. */}
+                      <RefTd>
+                        {value === null ? '—' : (
+                          <span className="flex flex-col leading-tight">
+                            <span>
+                              {t('products:documents.money', {
+                                total: value.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                              })}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {t(documentValueLabel(doc.doc_type))}
+                            </span>
+                          </span>
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                      </RefTd>
+
+                      <RefTd data-paid-for={paid === null ? undefined : doc.id}>
+                        {paid === null ? '—' : t('products:documents.money', {
+                          total: paid.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                        })}
+                      </RefTd>
+
+                      <RefTd>{documentTime(doc.created_at) || '—'}</RefTd>
+
+                      {/* 🔴 **والزوجُ يقول أيَّ نصفٍ هو** — «ملغى» على الأصل
+                          و«تصحيح» على العاكس، **فلا يُقرأ العاكسُ عمليّةً
+                          مستقلّة.** */}
+                      <RefTd>
+                        {cancel.kind === 'original' && (
+                          <span data-status="cancelled">
+                            <RefTag className="border-destructive/50 text-destructive">
+                              {t('products:documents.cancelledBadge')}
+                            </RefTag>
+                          </span>
+                        )}
+                        {cancel.kind === 'reversal' && (
+                          <span data-status="reversal">
+                            <RefTag>{t('products:documents.isReversalBadge')}</RefTag>
+                          </span>
+                        )}
+                        {!cancel.cancelled && '—'}
+                      </RefTd>
+
+                      <RefTd>
+                        <span className="flex items-center gap-1">
+                          {/* 👁 يفتح لوحًا لا يوسّع الصفَّ — **ومستندٌ بعشرين
+                              سطرًا كان يدفع كلَّ ما بعده خارج الشاشة.** */}
+                          <button
+                            type="button"
+                            data-view-for={doc.id}
+                            aria-label={t('products:documents.viewButton')}
+                            title={t('products:documents.viewButton')}
+                            className={ICON_BUTTON}
+                            onClick={() => setViewing(doc.id)}
+                          >
+                            <Eye className="size-3" />
+                          </button>
+
+                          {/* 🔴 **يُخفى لا يُعطَّل** — قرارُ المالك على الأنواع
+                              التي لا تُعكَس (`sale` · `service_consumption` ·
+                              `reversal`) وعلى الملغى.
+                              ⚠️ **والفرقُ حقيقيّ:** زرٌّ معطَّلٌ يقول «هذا
+                              ممكنٌ لكن ليس الآن» فيُجرَّب مرارًا، **وغيابُه
+                              يقول «ليس من هنا»** — ولهذه الأنواع مسارُ تصحيحٍ
+                              آخرُ بالكامل. */}
+                          {state.canReverse && (
+                            <button
+                              type="button"
+                              data-reverse-for={doc.id}
+                              disabled={busy}
+                              aria-label={t('products:documents.reverseButton')}
+                              title={t('products:documents.reverseButton')}
+                              className={ICON_BUTTON}
+                              onClick={() => openConfirm(doc)}
+                            >
+                              <Undo2 className="size-3" />
+                            </button>
+                          )}
+                        </span>
+                      </RefTd>
+                  </RefRow>
+                )
+              })}
+              {/* 🔴 **المساحةُ الفارغةُ تحتفظ بأعمدتها** — بلا هذا الصفّ تقف
+                  الخطوطُ عند آخر مستندٍ فتُقرأ شبكةٌ نصفَ محمَّلةٍ لوحًا أبيض،
+                  **وهي نفسُ صورةِ شاشةٍ فشل تحميلُها.** */}
+              <RefFillerRow columns={COLUMNS} />
+            </tbody>
+          </RefTable>
+        </div>
+      )}
+
+      {/* 🔴 **لوحُ «مشاهدة» — للقراءة فقط، وصفرُ حقولِ إدخال.**
+          والطيُّ في مكانه كان يدفع كلَّ ما بعد المستند خارجَ الشاشة على مستندٍ
+          بعشرين سطرًا. **وتعديلُ مستندٍ مرحَّلٍ محرَّمٌ من الأصل** (ADR-051:
+          «الرصيد مجموع حركات، لا عمودًا يُصحَّح») — فهذا امتدادُ الحدّ لا شكلُه.
+          ⚠️ **ولوحٌ لا حوارٌ ثانٍ:** الصفحةُ تلفّ العمليّةَ بـ`RefModal` أصلًا،
+          **وحوارٌ داخل حوارٍ كلّف جولةً في هذا المشروع.** فهذا نفسُ نمط
+          `InvoicePickerDialog` — مطلقُ الموضع فوق أبيه، بمصيدةِ بؤرةٍ واحدة. */}
+      {viewed && (
+        <div
+          data-document-view={viewed.id}
+          className="absolute inset-0 z-10 flex items-center justify-center bg-black/5 p-4"
+        >
+          <div className="flex max-h-full w-full max-w-[900px] flex-col gap-2 border border-[var(--rule)] bg-background p-3 shadow-lg">
+            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+              <span>{t(`products:docs.${viewed.doc_type}.title`)}</span>
+              {viewed.doc_number && <RefTag>{viewed.doc_number}</RefTag>}
+              <span className="text-xs font-normal text-muted-foreground">
+                {documentDate(viewed.doc_date)}
+              </span>
+            </p>
+
+            {/* 🔴 **«فيه: أسماءُ المنتجات» مكانُها هنا.** بُنيت على واقعةٍ
+                حقيقيّة: لبشّار مستندا توريدٍ بنفس التاريخ والمستودع والمورّد
+                وعددِ السطور **فلم يفرّقهما بعد ساعةٍ من ترحيلهما.**
+                ⚠️ **وحجّتُها ضعُفت ولم تسقط:** `doc_number` صار عمودًا مستقلًّا
+                وهو مقبضٌ أدقّ، **فبقيت حيث تُطلَب لا على صفٍّ تزاحم فيه ما
+                يُبحَث عنه.** */}
+            {(() => {
+              const { names, more } = documentProductNames(movements, viewed.id, productsById)
+              if (names.length === 0) return null
+              return (
+                <p className="text-xs text-muted-foreground">
+                  {t('products:documents.contains', {
+                    names: names.join('، ') + (more > 0 ? '…' : ''),
+                  })}
+                </p>
+              )
+            })()}
+
+            {/* ⚠️ **والملاحظةُ كاملةً هنا** — خليّتُها في الصفّ تقصُّ الطويلَ
+                منها، **و`title` لا يُقرأ بلمسة.** */}
+            {viewed.note && <p className="text-xs text-muted-foreground">{viewed.note}</p>}
+
+            <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
+              <table className="w-full text-xs">
+                <tbody>
+                  {movementsOf(movements, viewed.id).map((m) => (
+                    <tr key={m.id} className="border-b border-[var(--rule)] last:border-0">
+                      <td className="px-1.5 py-1">{productsById[m.product_id]?.name || '—'}</td>
+                      <td className="px-1.5 py-1 text-muted-foreground">
+                        {nameOf(storages, m.storage_id)}
+                      </td>
+                      {/* ⚠️ Direction on every line, as a word. Without it a
+                          write-off line reads exactly like a supply line, and a
+                          reversal — whose lines are the exact opposite of the
+                          document it undoes — reads as a copy of the mistake
+                          rather than its correction. A word and not a sign,
+                          because a minus inside an Arabic line is a neutral
+                          character between two directions.
+                          🔴 **وهذه الكلمةُ هي التي كشفت أن الترويسةَ كانت
+                          مقلوبة** — وحارسٌ دائمٌ يقارنهما الآن. */}
+                      <td className="px-1.5 py-1">
+                        {movementFrames(m, productsById[m.product_id]).direction && (
+                          <RefTag>
+                            {t(`products:documents.direction_${movementFrames(m, productsById[m.product_id]).direction}`)}
+                          </RefTag>
+                        )}
+                      </td>
+                      <td className="px-1.5 py-1">{quantityText(m)}</td>
+                      <td className="px-1.5 py-1 text-muted-foreground">
+                        {/* A stamped cost of zero is a real number here, not a
+                            blank — and it is exactly what the two bad documents
+                            carried. */}
+                        {costText(m) || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                  {movementsOf(movements, viewed.id).length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-3 text-center text-muted-foreground">
+                        {t('products:documents.noLines')}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ⚠️ **مَخرجٌ صريحٌ لا اعتمادٌ على الضغط خارجَ اللوح** — نفسُ
+                ملاحظة زرّ الرجوع، على مستوى اللوح. */}
+            <div className="flex justify-end">
+              <RefCancelButton onClick={() => setViewing(null)}>
+                {t('common:close')}
+              </RefCancelButton>
+            </div>
+          </div>
         </div>
       )}
 
