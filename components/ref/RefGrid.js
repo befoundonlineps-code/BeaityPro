@@ -141,9 +141,12 @@ export function RefGroupRow({ columns, children, ...rest }) {
 // complete replacement rather than a selective one. Same information, drawn the
 // way everything else in here is drawn: square, flat, on the grid's own rule
 // colour.
-export function RefTag({ children }) {
+// ⚠️ **و`className` مدخلٌ اختياريٌّ بلا نبرةٍ افتراضيّةٍ جديدة:** «ملغى» يحتاج
+// نبرةَ رفضٍ بينما «مؤرشف» لا، **والشكلُ واحدٌ في الحالتين.** فالنبرةُ وحدَها
+// تُمرَّر، ولا يصير للوسم صنفان يتباعدان.
+export function RefTag({ children, className = '' }) {
   return (
-    <span className="shrink-0 whitespace-nowrap border border-[var(--rule)] px-1 py-px text-[10px] leading-none text-muted-foreground">
+    <span className={`shrink-0 whitespace-nowrap border border-[var(--rule)] px-1 py-px text-[10px] leading-none text-muted-foreground ${className}`}>
       {children}
     </span>
   )

@@ -410,6 +410,10 @@ export default function ProductsPage() {
                 loading={stockDocuments.loading || catalogue.loading}
                 error={stockDocuments.error}
                 reload={stockDocuments.reload}
+                // 🔴 **كانت العمليّةَ الوحيدةَ بلا `onClose`** — و`×` في شريط
+                // `RefModal` كان مَخرجَها الوحيد، **فقُرئ زينةً وخرج المالكُ
+                // بالضغط خارج اللوح.** نفسُ صنف الفرع الذي لم يدخل قائمتَه.
+                onClose={closeOperation}
               />
             )}
             {op === 'balances' && (
