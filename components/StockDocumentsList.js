@@ -15,6 +15,8 @@ import {
   cancellationState, visibleDocuments,
 } from '../lib/stockDocumentList'
 import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION, ORDER_DOC_TYPE } from '../lib/stockDocument'
+// 🔴 **نفسُ الخريطة التي تقرأ منها الصفحةُ عنوانَ شريط شاشة الإنشاء.**
+import { OPERATION_LABEL_KEY } from '../lib/productsOperations'
 import { mergedRows, rowIsOrder, rowValue, orderViewLines } from '../lib/documentsWithOrders'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from './ref/RefGrid'
 // 🔴 **`RefCancelButton` وحدَه — ولا `RefModal` ثانية، وهذا تصحيحٌ لخطّةٍ
@@ -189,19 +191,37 @@ export default function StockDocumentsList({
   // واللوحُ مفتوحٌ لا يُفرّغه من محتواه.
   const viewed = viewing ? all.find((d) => d && d.id === viewing) : null
 
-  // 🔴 **هل لهذا النوع شاشةُ عرضٍ خاصّةٌ به؟** — يُحسب مرّةً ويُقرأ مرّتين:
-  // مرّةً لرسم الشاشة، ومرّةً لإخفاء زرّ الإغلاق السفليّ.
+  // 🔴 **أيُّ عمليّةٍ لهذا الصفّ شاشةُ عرضٍ خاصّة؟** — تُحسب مرّةً وتُقرأ مرّتين:
+  // للعنوان، ولإخفاء زرّ الإغلاق السفليّ.
   //
-  // ⚠️ **والسببُ أن الشاشاتِ الأربعَ ترسم أزرارَها هي** (ديكورًا بلا وظيفة،
-  // بقرار المالك) — **فزرُّ إغلاقٍ حقيقيٌّ تحتها زرٌّ خامسٌ لا وجودَ له في شاشة
-  // الإنشاء.** والمَخرجُ الحقيقيُّ صار `×` في الشريط.
+  // ⚠️ **والقيمةُ اسمُ العمليّة لا نوعُ المستند** (`orders` لا `order`)، لأنها
+  // مفتاحُ `OPERATION_LABEL_KEY` — **وهو ما تقرأ منه الصفحةُ عنوانَ شريط شاشة
+  // الإنشاء** (`pages/products/index.js:231`). ⇒ **مصدرٌ واحدٌ للعنوانين.**
   //
-  // ⚠️ **ويُشتقّ من نفس الشرط الذي يرسم الشاشة، لا من قائمةِ أنواعٍ ثانية** —
-  // نسختان من «أيُّ الأنواع لها شاشة» فرصتان لتتباعدا.
-  const dedicatedView = !viewed ? null
-    : rowIsOrder(viewed) ? 'order'
+  // ⚠️ **والسببُ الثاني أن الشاشاتِ الأربعَ ترسم أزرارَها هي** (ديكورًا بلا
+  // وظيفة، بقرار المالك) — **فزرُّ إغلاقٍ حقيقيٌّ تحتها زرٌّ خامسٌ لا وجودَ له
+  // في شاشة الإنشاء.** والمَخرجُ الحقيقيُّ صار `×` في الشريط.
+  const dedicatedOperation = !viewed ? null
+    : rowIsOrder(viewed) ? 'orders'
       : ['write_off', 'supply', 'return_to_supplier'].includes(viewed.doc_type) ? viewed.doc_type
         : null
+
+  // 🔴 **عنوانُ اللوح = نصُّ شريط شاشة الإنشاء نفسِه، لا نصٌّ ثانٍ يشبهه.**
+  //
+  // **قرارُ المالك:** «العنوان = نص شريط شاشة الإدخال الحقيقي بالضبط».
+  //
+  // ⚠️ **وكان يُقرأ من `docs.<type>.title` — فتطابق ثلاثةٌ وافترقت الطلبيّة:**
+  // «طلب بضاعة» مقابل «الطلبيّات». **والمصدرُ الواحدُ يُلغي الافتراقَ بنيويًّا
+  // بدل أن يُعلنه ويحرسه** — فلا مقارنةَ تُكتب ولا حارسَ يُنتظر منه أن يُمسك
+  // تباعدًا، **لأن التباعدَ غيرُ ممكن.**
+  //
+  // ⚠️ **و`docs.<type>.title` يبقى حيث هو صحيح** — مرشِّحُ النوع (`:350`)
+  // وخليّةُ النوع في الصفّ (`:513`) ونافذةُ تأكيد العكس: **هناك «طلب بضاعة»
+  // اسمُ ما يُقرأ، وهنا «الطلبيّات» اسمُ الشاشة التي تُنشئه.**
+  const panelTitle = !viewed ? ''
+    : dedicatedOperation
+      ? t(`products:secondaryItems.${OPERATION_LABEL_KEY[dedicatedOperation]}`)
+      : t(`products:docs.${viewed.doc_type}.title`)
 
   async function confirmReverse() {
     if (!confirming) return
@@ -694,19 +714,19 @@ export default function StockDocumentsList({
                 المشروع** — فبنيةٌ ثانيةٌ تتنازع على بؤرة اللوحة، **والشكلُ
                 وحدَه لا يتنازع.**
 
-                ✅ **والعنوانُ نفسُ عنوان شريط شاشة الإنشاء** — مقيسًا:
-                `docs.write_off.title` و`secondaryItems.writeOff` متطابقان
-                حرفيًّا، وكذلك التوريدُ والإرجاع. **ومحروسٌ** في
-                `viewPanelTitle.test.js` فلا يتباعدان بصمت.
+                ✅ **والعنوانُ من `secondaryItems.<OPERATION_LABEL_KEY[op]>`** —
+                **وهو المفتاحُ نفسُه** الذي تقرأ منه الصفحةُ عنوانَ شريط شاشة
+                الإنشاء (`pages/products/index.js:231`). ⇒ **مصدرٌ واحد، فلا
+                افتراقَ ممكن.**
 
-                ⚠️ **والطلبيّةُ وحدَها تفترق، وبقرار المالك:** شريطُ شاشة
-                الإنشاء يقول «الطلبيّات» (اسمُ القسم)، **والمالكُ طلب «طلب
-                بضاعة»** — وهي `docs.order.title`. **فالمصدرُ واحدٌ للأربع
-                (`docs.<type>.title`)، والافتراقُ معلَنٌ ومحروس.** */}
+                ⚠️ **وكان يُقرأ من `docs.<type>.title` فافترقت الطلبيّة** —
+                «طلب بضاعة» مقابل «الطلبيّات». **والعلاجُ مصدرٌ واحدٌ لا حارسٌ
+                يعلن الافتراقَ ويحفظه:** «هذا يُلغي الانحرافَ كلّيًّا بدل ما
+                يعلنه ويحافظ عليه» (لفظُ المالك). */}
             <RefChromeBar
               title={(
                 <span className={`${CHROME_TITLE} flex items-center gap-2`}>
-                  {t(`products:docs.${viewed.doc_type}.title`)}
+                  {panelTitle}
                   {viewed.doc_number && <RefTag>{viewed.doc_number}</RefTag>}
                   <span className="font-normal opacity-80">{documentDate(viewed.doc_date)}</span>
                 </span>
@@ -847,7 +867,7 @@ export default function StockDocumentsList({
                 🔴 **ويُخفى عن الشاشات الأربع وحدَها:** هنّ يرسمن أزرارَهنّ
                 (ديكورًا)، **فزرٌّ حقيقيٌّ تحتها زرٌّ خامسٌ لا وجودَ له في شاشة
                 الإنشاء** — والمَخرجُ هناك هو `×` في الشريط. */}
-            {!dedicatedView && (
+            {!dedicatedOperation && (
               <div className="flex justify-end">
                 <RefCancelButton onClick={() => setViewing(null)}>
                   {t('common:close')}
