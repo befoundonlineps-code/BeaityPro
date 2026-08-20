@@ -34,6 +34,7 @@ import { RefCancelButton } from './ref/RefModal'
 import OrderDocumentView from './documentView/OrderDocumentView'
 import WriteOffDocumentView from './documentView/WriteOffDocumentView'
 import SupplyDocumentView from './documentView/SupplyDocumentView'
+import ReturnDocumentView from './documentView/ReturnDocumentView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -696,6 +697,15 @@ export default function StockDocumentsList({
                 products={products}
                 categories={categories}
                 storages={storages}
+                suppliers={suppliers}
+              />
+            ) : viewed.doc_type === 'return_to_supplier' ? (
+              <ReturnDocumentView
+                document={viewed}
+                movements={movements}
+                products={products}
+                categories={categories}
+                lots={lots}
                 suppliers={suppliers}
               />
             ) : (

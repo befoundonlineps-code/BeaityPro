@@ -436,6 +436,7 @@
     "inEntered": "بال{{uom}}: {{n}}",
     "inBase": "بال{{unit}}: {{n}}",
     "unitCost": "تكلفة ال{{unit}}: {{price}} ₪",
+    "returnPackagePrice": "سعر العبوة",
     "noLines": "المستند بلا سطور",
     "reversedBadge": "معكوس",
     "isReversalBadge": "مستند تصحيح",
