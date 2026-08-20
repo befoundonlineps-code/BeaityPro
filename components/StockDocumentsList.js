@@ -102,6 +102,9 @@ export default function StockDocumentsList({
   // ⚠️ **لشاشات العرض وحدَها** — التصنيفاتُ للتجميع، والدفعاتُ لتفصيل الشطب
   // (د/٣). **وكلتاهما محمَّلةٌ للصفحة أصلًا**، فلا استعلامَ جديد.
   categories, lots,
+  // ⚠️ **لعمود «الرصيد الحاليّ»/«المتوفر»** — يُعرض في شاشات العرض كما في
+  // شاشات الإنشاء بقرار المالك. **ومحمَّلةٌ للصفحة أصلًا.**
+  balances,
   // 🔴 **مقبضُ الخروج كان موجودًا وغيرَ موصولٍ بهذه الشاشة وحدَها.**
   // `closeOperation` مبنيٌّ في الصفحة وتأخذه كلُّ عمليّةٍ أخرى — **وهذه لم
   // تأخذه**، وهو الصنفُ نفسُه الذي جعل `return_to_supplier` ترسم شاشتين.
@@ -698,6 +701,7 @@ export default function StockDocumentsList({
                 categories={categories}
                 storages={storages}
                 suppliers={suppliers}
+                balances={balances}
               />
             ) : viewed.doc_type === 'return_to_supplier' ? (
               <ReturnDocumentView

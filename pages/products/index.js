@@ -416,6 +416,10 @@ export default function ProductsPage() {
                 // الشطب (د/٣). **وكلتاهما محمَّلةٌ لهذه الصفحة أصلًا.**
                 categories={catalogue.categories}
                 lots={stockLots.lots}
+                // ⚠️ **لعمود «الرصيد الحاليّ» في شاشات العرض** — يُعرض كما في
+                // شاشة الإنشاء بقرار المالك، **وبنفس `balanceIndex`** فلا
+                // يفترق الرقمان. **ومحمَّلةٌ للصفحة أصلًا**، فلا استعلامَ جديد.
+                balances={balances.balances}
                 loading={stockDocuments.loading || catalogue.loading || productOrders.loading}
                 // ⚠️ **وفشلُ أيٍّ منهما يفشل الشاشة:** قائمةٌ ينقصها مصدرٌ
                 // كاملٌ ليست قائمةً ناقصة — هي قائمةٌ تكذب بصمت.

@@ -86,6 +86,19 @@ export function StaticCancelButton({ children }) {
   )
 }
 
+// مربّعُ تأشيرٍ ساكن — **وشاشاتُ الإدخال ترسم بعضَه معطَّلًا أصلًا**
+// («تعديل السعر البيعي» مؤجَّلٌ بقرار المالك)، فالمظهرُ هنا هو مظهرُه هناك.
+export function StaticCheckbox({ checked = false }) {
+  return (
+    <span
+      aria-disabled="true"
+      className="inline-flex size-3.5 shrink-0 items-center justify-center border border-[var(--rule)] bg-[var(--group)] text-[10px] leading-none opacity-60"
+    >
+      {checked ? '✓' : ''}
+    </span>
+  )
+}
+
 // ضابطٌ بأيقونةٍ ونصّ — «إدخال من فاتورة» · «إكسل» · «الكل».
 // ⚠️ **وشاشةُ الإنشاء ترسم بعضَها معطَّلًا أصلًا** (`ShellControl`) وبعضَها
 // عاملًا، **وهنا يتساويان في المظهر المعطَّل** لأن أيًّا منهما لا يعمل.
