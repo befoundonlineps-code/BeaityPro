@@ -14,7 +14,8 @@ import {
   costFrames, documentValue, documentValueLabel,
   cancellationState, visibleDocuments,
 } from '../lib/stockDocumentList'
-import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION } from '../lib/stockDocument'
+import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION, ORDER_DOC_TYPE } from '../lib/stockDocument'
+import { mergedRows, rowIsOrder, rowValue, orderViewLines } from '../lib/documentsWithOrders'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from './ref/RefGrid'
 // 🔴 **`RefCancelButton` وحدَه — ولا `RefModal` ثانية، وهذا تصحيحٌ لخطّةٍ
 // أُقرّت.** طُلبت النافذةُ بـ`RefModal` ووافقتُ، **ثمّ قِيس أن الصفحةَ تلفّ كلَّ
@@ -35,7 +36,19 @@ import {
 // The types the filter offers. Derived from the two lists that already decide
 // what a document can be, plus the three with their own functions — rather
 // than a fourth hand-typed list that drifts from them.
-const DOC_TYPE_OPTIONS = [...RECEIPT_TYPES, ...ISSUE_TYPES, ...OWN_FUNCTION]
+//
+// 🔴 **وصارت قائمتين، والاشتقاقُ لم يعد كاملًا — وذلك مكتوبٌ لا مسكوتٌ عنه.**
+//
+// «طلب بضاعة» ليست قيمةً في `stock_doc_type` (التسعُ مقيسةٌ بـ٠٩٦ب)، **فلا
+// اشتقاقَ يبلغها.** واستثناؤها من المرشِّح يترك فجوةً يلاحظها أوّلُ من يسأل
+// «ليش ما بقدر أفلتر عالطلبيّات؟» — **وهي صفوفٌ كاملةُ الحقوق بقرار المالك.**
+//
+// ⚠️ **والثمنُ يُقال: تحديثٌ يدويٌّ إن أُضيف نوعٌ من خارج الـenum مستقبلًا.**
+// وقُبل مقابل فجوةِ استخدامٍ حقيقيّة، **ولم يُقايَض بصمت.**
+const DOC_TYPE_OPTIONS = [
+  ...RECEIPT_TYPES, ...ISSUE_TYPES, ...OWN_FUNCTION,   // المشتقّةُ من الـenum
+  ORDER_DOC_TYPE,                                      // وما ليس نوعَ مستندٍ أصلًا
+]
 
 // 🔴 **شبكةٌ لا بطاقات — والشبكةُ هي `RefGrid` القائمة، لا جدولٌ جديد.**
 //
@@ -74,6 +87,10 @@ const ICON_BUTTON = 'inline-flex size-5 items-center justify-center border borde
 // one.
 export default function StockDocumentsList({
   documents, movements, products, storages, suppliers, storageId, loading, error, reload,
+  // 🔴 **المصدرُ الثاني.** `product_orders` جدولٌ منفصلٌ تمامًا، **ومحمَّلٌ في
+  // الصفحة أصلًا** — فلا استعلامَ جديد. والمواصفةُ في
+  // `design/documents-with-orders-spec.md`.
+  orders, orderLines,
   // 🔴 **مقبضُ الخروج كان موجودًا وغيرَ موصولٍ بهذه الشاشة وحدَها.**
   // `closeOperation` مبنيٌّ في الصفحة وتأخذه كلُّ عمليّةٍ أخرى — **وهذه لم
   // تأخذه**، وهو الصنفُ نفسُه الذي جعل `return_to_supplier` ترسم شاشتين.
@@ -130,20 +147,31 @@ export default function StockDocumentsList({
   // disagree about which storage is in force.
   const inForce = { ...filters, storageId: storageInForce(storageId) }
 
+  // 🔴 **المصدران يُدمجان قبل كلِّ شيء، ثمّ لا يُسأل عنهما مرّةً أخرى.**
+  //
+  // الطلبيّةُ مقولَبةٌ على شكل المستند، **فالترشيحُ والترتيبُ والإخفاءُ
+  // والحالةُ الفارغةُ كلُّها تعمل عليها بلا فرعٍ يُكتب لها.** ⚠️ **ويُمرَّر
+  // `all` لا `documents` إلى ما يسأل عن المجموعة كاملةً** — وإلّا صار للشاشة
+  // مفهومان لكلمة «الكلّ».
+  const all = mergedRows({ documents, orders, orderLines })
+
   // ⚠️ **الإخفاءُ بعد الترشيح وقبل الحالة الفارغة**، فرسالةُ «لا نتائج» تصف ما
-  // يراه المستخدمُ فعلًا. ويُمرَّر `documents` كاملةً لا `rows` — عاكسٌ رشّحه
+  // يراه المستخدمُ فعلًا. ويُمرَّر `all` كاملةً لا `rows` — عاكسٌ رشّحه
   // مرشِّحُ النوعِ خارجًا يجعل أصلَه يبدو حيًّا.
-  const matched = sortDocuments(filterDocuments(documents, inForce))
-  const rows = visibleDocuments(matched, documents, hideCancelled)
+  const matched = sortDocuments(filterDocuments(all, inForce))
+  const rows = visibleDocuments(matched, all, hideCancelled)
   const hiddenCount = matched.length - rows.length
-  const emptyKind = filterEmptyReason({ documents, filtered: rows, filters: inForce })
+  const emptyKind = filterEmptyReason({ documents: all, filtered: rows, filters: inForce })
   const supplierUsable = supplierFilterApplies(filters.docType)
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const nameOf = (list, id) => (list || []).find((x) => x.id === id)?.name || '—'
 
-  // المستندُ المعروضُ يُقرأ من المجموعة الكاملة لا من الصفوف — فتغييرُ مرشِّحٍ
+  // متى يُقال للمستخدم إن الطلبيّاتِ غائبةٌ عمدًا — والشرحُ عند موضع الرسم.
+  const ordersHidden = !!inForce.storageId && (orders || []).length > 0
+
+  // الصفُّ المعروضُ يُقرأ من المجموعة الكاملة لا من الصفوف — فتغييرُ مرشِّحٍ
   // واللوحُ مفتوحٌ لا يُفرّغه من محتواه.
-  const viewed = viewing ? (documents || []).find((d) => d && d.id === viewing) : null
+  const viewed = viewing ? all.find((d) => d && d.id === viewing) : null
 
   async function confirmReverse() {
     if (!confirming) return
@@ -340,6 +368,19 @@ export default function StockDocumentsList({
             {t('products:documents.hiddenCancelled', { n: hiddenCount })}
           </p>
         )}
+        {/* 🔴 **شرطُ قرار د/١، لا زينةٌ بعده.** اختار المالكُ أن تختفي
+            الطلبيّاتُ مع مرشِّح المستودع كأيّ معاملةٍ أخرى — **وقرأ معه الشرطَ
+            المكتوبَ داخل الخيار: «يجب أن يقول شيءٌ للمستخدم لماذا اختفت،
+            وإلّا كان صمتًا».**
+            ⚠️ **والصياغةُ تقول سببَها لا حالتَها** — نصُّها في
+            `documents.ordersHiddenByStorage`، **ولا يُنسَخ هنا**: جملةٌ
+            مقتبسةٌ في تعليقٍ نسخةٌ ثانيةٌ تتباعد عن الأولى، **وتُقرأ ادّعاءً عن
+            طورِ المشروع بدل أن تُقرأ نصًّا للمستخدم.** */}
+        {ordersHidden && (
+          <p className="w-full text-xs text-muted-foreground" data-orders-hidden>
+            {t('products:documents.ordersHiddenByStorage')}
+          </p>
+        )}
       </div>
 
 
@@ -392,14 +433,20 @@ export default function StockDocumentsList({
             </RefHead>
             <tbody>
               {rows.map((doc) => {
+                // ⚠️ **والطلبيّةُ لا حركاتٍ لها إطلاقًا، فعددُ سطورها محفوظٌ
+                // على الصفّ** — و`movementsOf` كانت سترجع صفرًا صادقًا عن
+                // الحركات وكاذبًا عن السطور.
                 const lines = movementsOf(movements, doc.id)
-                const state = reversalState(doc, documents)
-                const cancel = cancellationState(doc, documents)
+                const lineCount = rowIsOrder(doc) ? doc.order_line_count : lines.length
+                const state = reversalState(doc, all)
+                const cancel = cancellationState(doc, all)
                 // ⚠️ **المجموعةُ كاملةً لا الصفوف** — العاكسُ يقرأ أصلَه عبر
                 // `reverses_document_id`، **وأصلٌ رشّحه مرشِّحُ النوعِ خارجًا
                 // يجعل العاكسَ بلا اتّجاه.** نفسُ سبب `cancellationState`.
-                const parties = documentParties(doc, { storages, suppliers, allDocuments: documents })
-                const value = documentValue(movements, doc.id, productsById)
+                const parties = documentParties(doc, { storages, suppliers, allDocuments: all })
+                // ⚠️ **مصدران، وفرعٌ واحدٌ في المكتبة لا في الخليّة** —
+                // المستندُ يشتقّها من حركاته والطلبيّةُ لا حركةَ لها إطلاقًا.
+                const value = rowValue(doc, documentValue(movements, doc.id, productsById))
                 // 🔴 **الغيابُ يُفحَص قبل `toLocaleString`** — `Number(null)`
                 // ترجع «٠٫٠٠ ₪»، وهو الصنفُ المؤجَّلُ على أربع شاشاتٍ أخرى.
                 const paid = numberOrNull(doc.paid_amount)
@@ -409,6 +456,11 @@ export default function StockDocumentsList({
                     key={doc.id}
                     data-doc-id={doc.id}
                     data-doc-type={doc.doc_type}
+                    // 🔴 **مميِّزُ الجدول — والخطرُ ليس التصادم.** `uuid` يجعل
+                    // تصادمَ المُعرِّفات مهملًا، **والخطرُ أن قارئَ `data-doc-id`
+                    // مجرَّدةً لا يعرف من أيّ جدولٍ هي** — ⚠️ **وذلك في كلِّ
+                    // مرّةٍ لا احتمالٌ نادر.** فالعلاجُ ضرورةٌ لا احتياط.
+                    data-row-kind={rowIsOrder(doc) ? 'order' : 'document'}
                     data-cancelled={cancel.cancelled ? cancel.kind : undefined}
                     className={cancel.cancelled ? 'opacity-60' : ''}
                   >
@@ -435,7 +487,7 @@ export default function StockDocumentsList({
                             ما يُبحَث عنه فعلًا.** */}
                         {' '}
                         <span className="text-[10px] text-muted-foreground">
-                          {t('products:documents.lineCount', { n: lines.length })}
+                          {t('products:documents.lineCount', { n: lineCount })}
                         </span>
                       </RefTd>
 
@@ -631,6 +683,41 @@ export default function StockDocumentsList({
 
             <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
               <table className="w-full text-xs">
+                {/* 🔴 **مصدران، ولا مستودعَ ولا اتّجاهَ للطلبيّة.**
+                    اللوحُ كان يقرأ `movementsOf` للصفَّين معًا — **والطلبيّةُ لا
+                    حركاتٍ لها إطلاقًا**، فرُسمت «المستند بلا سطور» على طلبيّةٍ
+                    لها سطور. ⚠️ **جملةٌ خاطئةٌ تُعرض على إنسان، لا ميزةٌ غائبة.**
+                    ولا عمودَ مستودعٍ ولا اتّجاهٍ هنا: **الطلبيّةُ لم تحرّك شيئًا
+                    بعد**، وعمودٌ فارغٌ في الاثنين يدّعي أنهما ينتميان. */}
+                {rowIsOrder(viewed) ? (
+                  <tbody>
+                    {orderViewLines(orderLines, viewed.id).map((l) => (
+                      <tr key={l.id} className="border-b border-[var(--rule)] last:border-0">
+                        <td className="px-1.5 py-1">{productsById[l.productId]?.name || '—'}</td>
+                        <td className="px-1.5 py-1">
+                          {l.quantity === null ? '—' : t('products:documents.inEntered', {
+                            uom: t(`products:docs.uom_${l.uom || 'unit'}`), n: l.quantity,
+                          })}
+                        </td>
+                        <td className="px-1.5 py-1 text-muted-foreground">
+                          {/* 🔴 **سعرٌ مطلوبٌ لا كلفة، والعدمُ يبقى عدمًا** —
+                              `entered_unit_price` يقبل العدم، **و«لا أحدَ اتّفق
+                              على السعر» ليست «هذا بلا ثمن».** */}
+                          {l.askingPrice === null ? '—' : t('products:documents.money', {
+                            total: l.askingPrice.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                    {orderViewLines(orderLines, viewed.id).length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="py-3 text-center text-muted-foreground">
+                          {t('products:documents.noLines')}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                ) : (
                 <tbody>
                   {movementsOf(movements, viewed.id).map((m) => (
                     <tr key={m.id} className="border-b border-[var(--rule)] last:border-0">
@@ -671,6 +758,7 @@ export default function StockDocumentsList({
                     </tr>
                   )}
                 </tbody>
+                )}
               </table>
             </div>
 
