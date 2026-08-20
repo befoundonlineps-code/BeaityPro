@@ -1,15 +1,23 @@
 import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
+import { Search, FileSpreadsheet, FileInput } from 'lucide-react'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from '../ref/RefGrid'
+import {
+  StaticField, StaticSelect, StaticArea, StaticCheckbox,
+  StaticActionButton, StaticCancelButton, StaticShellButton,
+} from '../ref/RefStatic'
 import { movementsOf, movementFrames } from '../../lib/stockDocumentList'
+import { lotsForLine, availableForWriteOff } from '../../lib/lotPicker'
 import { paymentChoiceOf, ON_ACCOUNT } from '../../lib/documentMoney'
 import { numberOrNull, roundToPlaces } from '../../lib/decimalPlaces'
 
-// مستندُ إرجاعٍ إلى مورّدٍ مرحَّلٌ يُقرأ **بشكل شاشته هي**، للقراءة فقط.
+// «إرجاع إلى مورّد» — **مشاهدةً.** صورةُ شاشة الإنشاء نفسِها، منزوعةَ الوظيفة.
 //
-// 🔴 **رسمٌ ساكنٌ بالبناء، لا شاشةُ إدخالٍ معطَّلة:** ٠٩٤ج سحب `UPDATE` عن
-// `stock_documents`، **فزرُّ إرسالٍ منسيٌّ لا يُرفَض كتعديل** — يُدرج مستندًا
-// جديدًا بالكامل عبر `INSERT`. ⇒ **مستندٌ شبحيٌّ بحركاتٍ حقيقيّة.**
+// **المعيارُ الموحَّد بلفظ المالك:** «شاشةُ العرض = نفسُ شاشة الإنشاء بصريًّا
+// بالحرف»، **وكلُّ الأزرار ديكورٌ بلا `onClick` بتاتًا، بلا استثناء.**
+//
+// 🔴 **وزرُّ «إرجاع» `<span>` لا `<button>` بالمطلق** — ٠٩٤ج سحب `UPDATE` عن
+// `stock_documents`، **فزرُّ إرسالٍ منسيٌّ يُدرج مستندًا شبحيًّا بالكامل.**
 //
 // ══════════════════════════════════════════════════════════════════
 // 🔴 المبلغُ من `entered_unit_price` — قرارُ المالك (د/٤)
@@ -23,10 +31,10 @@ import { numberOrNull, roundToPlaces } from '../../lib/decimalPlaces'
 // عمودان محفوظان على نفس السطر، بلا تحويلِ وحدات.
 //
 // ══════════════════════════════════════════════════════════════════
-// 🔴 و«سعر الوحدة» صار «سعر العبوة» — انحرافٌ واحدٌ عن «حرفًا بحرف»، بسببه
+// 🔴 و«سعر الوحدة» صار «سعر العبوة» — الانحرافُ الوحيدُ المعلَن، بإقرار المالك
 // ══════════════════════════════════════════════════════════════════
 //
-// **خانةُ شاشة الإدخال تحمل سعرًا للوحدة الأساسيّة**
+// **خانةُ شاشة الإنشاء تحمل سعرًا للوحدة الأساسيّة**
 // (`returnSupplier.priceHint`: «السعر بالوحدة الأساسية»)، **والعمودُ المحفوظُ
 // يحمله للعبوة** — رقمان مختلفان لنفس الشيء.
 //
@@ -36,32 +44,28 @@ import { numberOrNull, roundToPlaces } from '../../lib/decimalPlaces'
 //     entered_unit_price  100.00        ⟵ roundToPlaces(6.6667 × 15) بمنزلتين
 //     100.00 ÷ 15      =  6.666666…     ⟵ **لا يساوي 6.6667**
 //
-// ⇒ **فيُعرض المحفوظُ في إطاره ويُسمّى باسمه** — «الوحدةُ تُسمّى، ولا شيءَ
-// يُخترع» (`stockDocumentList.js:103`). **والاسمُ يتغيّر لأن الرقمَ تغيّر
-// إطارُه، لا لأن الشكلَ لم يعجبنا.**
+// ⇒ **والقسمةُ محظورةٌ بقاعدة المالك نفسِها** («لا حسابَ حيًّا لأيّ كمّيّةٍ أو
+// مبلغٍ غير مخزَّنٍ على نفس السطر») — **فيُعرض المحفوظُ في إطاره ويُسمّى باسمه.**
+// **والاسمُ تغيّر لأن الرقمَ تغيّر إطارُه، لا لأن الشكلَ لم يعجب.**
 //
 // ══════════════════════════════════════════════════════════════════
-// الأعمدةُ — ستّةٌ من سبعة
+// الأعمدةُ السبعة — **بنفس الترتيب وبنفس العروض**
 // ══════════════════════════════════════════════════════════════════
 //
 // ```
-// الإدخال   المنتج · العبوات · العدد · المتوفر · الدفعة · سعر الوحدة · المبلغ
-// العرض     المنتج · العبوات · العدد ·   —    · الدفعة · سعر العبوة · المبلغ
+// المنتج · العبوات(w-24) · العدد(w-28) · المتوفر(w-32) · الدفعة(w-64) · سعر العبوة(w-32) · المبلغ(w-28)
 // ```
 //
-// ❌ **«المتوفر» يسقط** — مفهومُ لحظةِ إدخال، **وقراءتُه اليومَ تعطي رصيدَ
-//    اليوم لا رصيدَ الترحيل.**
+// ✅ **و«المتوفر» رصيدُ اليوم** — بقرار المالك، **وبنفس دالّة شاشة الإنشاء**
+//    (`lotsForLine` ⟵ `availableForWriteOff`، `returnGrid.js:88`).
 //
-// ✅ **و«الدفعة» نصٌّ ثابتٌ بدل قائمة** — و`lot_id` محفوظٌ على الحركة.
-//    ⚠️ **ومنسدلُ الإدخال يعرض ثلاثةً** («استلام · متبقٍّ · سعر الوحدة»)
-//    **ويبقى منها الأوّلُ وحدَه**، لسببين منفصلين:
-//    ❌ «متبقٍّ» مفهومُ لحظةِ اختيار — متبقّي اليومَ لا متبقّي الترحيل.
-//    ❌ **و«سعر الوحدة» في المنسدل ثمنُ الدفعة، وفي العمود المطالبة** —
-//       رقمان يفترقان فعلًا («سعر معدَّل»)، **وعرضُهما باسمٍ واحدٍ على سطرٍ
-//       واحدٍ يجعل القارئَ يقرأ أحدَهما مكان الآخر.**
+// ⚠️ **وشارتا «تكلفة مقدَّرة» و«سعر معدَّل» لا تظهران:** الأولى صفةُ دفعةٍ
+//    (`cost_is_estimated`) **وتظهر**، والثانيةُ مقارنةٌ بين `entered_unit_price`
+//    و`unit_cost × units_per_package` — **ضربٌ عبر جدولين، وهو المحظور.**
 //
-// 🔴 **ولا «المجموع» في الذيل** — جمعٌ عبر السطور، وهو محظورُ د/١.
-const COLUMNS = 6
+// 🔴 **و«المجموع» موضعُه وتسميتُه دائمًا، وقيمتُه «—» دائمًا** — موحَّدًا على
+//    الأربع: «نفسُ الذيل» تطلب موضعَه، **و د/١ تحظر مجموعَ السطور.**
+const COLUMNS = 7
 
 export default function ReturnDocumentView({
   document: doc, movements, products, categories, lots, suppliers,
@@ -71,10 +75,33 @@ export default function ReturnDocumentView({
 
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const lotsById = Object.fromEntries((lots || []).map((l) => [l.id, l]))
+  const categoriesById = Object.fromEntries((categories || []).map((c) => [c.id, c]))
   const supplierName = (suppliers || []).find((s) => s && s.id === doc.supplier_id)?.name || null
-  const categoryName = (id) => (categories || []).find((c) => c && c.id === id)?.name || null
 
+  const chainOf = (categoryId) => {
+    const chain = []
+    let node = categoriesById[categoryId]
+    // ⚠️ حدٌّ أعلى للحلقة — دورةٌ في `parent_id` تعلّق الصفحةَ بلا رسالة.
+    let guard = 0
+    while (node && guard < 32) { chain.unshift(node); node = categoriesById[node.parent_id]; guard += 1 }
+    return chain
+  }
+
+  // 🔴 **سطورُ المستند وحدَها** — قرارُ المالك، **والمجلّداتُ المؤشَّرةُ لم تُحفظ
+  // قطّ** فصفوفُ شاشة الإنشاء غيرُ قابلةٍ للاسترجاع أصلًا.
   const returnLines = movementsOf(movements, doc.id)
+
+  // ⚠️ **يُحسب مرّةً لكلّ منتجٍ لا مرّةً لكلّ سطر** — بعد ٠٩٥ ينقسم المنتجُ
+  // الواحدُ إلى حركةٍ لكلّ دفعة، و`lotsForLine` تمشي كلَّ الحركات في كلّ نداء.
+  const lotRowsCache = new Map()
+  const lotRowsFor = (productId) => {
+    if (!lotRowsCache.has(productId)) {
+      lotRowsCache.set(productId, lotsForLine({
+        lots, movements, storageId: doc.storage_id, productId,
+      }))
+    }
+    return lotRowsCache.get(productId)
+  }
 
   const groups = []
   for (const line of returnLines) {
@@ -92,50 +119,62 @@ export default function ReturnDocumentView({
   const choice = paymentChoiceOf({ paidAmount: doc.paid_amount, paymentMethod: doc.payment_method })
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {/* الرأسُ — محفوظاتٌ تُقرأ، بلا حقلٍ واحدٍ يُكتب.
-          ⚠️ **ومربّعُ «منتجات الأمانة» لا يظهر** — مرشِّحُ عرضٍ في شاشة
-          الإدخال **لا يُرسَل ولا يُخزَّن** (`save()` لا تحمله)، **ولا شيءَ
-          يُرشَّح في شاشةٍ سطورُها محسومة.** */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span>
-          <span className="text-muted-foreground">{t('products:returnSupplier.supplierLabel')}: </span>
-          {supplierName || '—'}
+    <div className="flex h-full flex-col gap-2">
+      {/* ══ الرأسُ — نفسُ ترتيب شاشة الإنشاء وحقولها الأربعة ══ */}
+      <div className="flex flex-wrap items-end gap-3">
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:returnSupplier.supplierLabel')}
+          <StaticSelect className="w-48">{supplierName || ''}</StaticSelect>
         </span>
-        {doc.doc_number && (
-          <span>
-            <span className="text-muted-foreground">{t('products:returnSupplier.docNumberLabel')}: </span>
-            {doc.doc_number}
-          </span>
-        )}
-        <span>
-          <span className="text-muted-foreground">{t('products:returnSupplier.fromLabel')}: </span>
-          {String(doc.doc_date || '').slice(0, 10) || '—'}
+
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:returnSupplier.docNumberLabel')}
+          <StaticField>{doc.doc_number || ''}</StaticField>
+        </span>
+
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:returnSupplier.fromLabel')}
+          <StaticField className="w-[9.5rem]">
+            {String(doc.doc_date || '').slice(0, 10)}
+          </StaticField>
+        </span>
+
+        {/* ⚠️ **مربّعُ الأمانة مرشِّحُ عرضٍ لا يُخزَّن** (`save()` لا يحمله) —
+            **ويُرسم لأن الشكلَ هو المطلوب**، غيرَ مؤشَّرٍ لأن لا حالةَ محفوظةً
+            تُقرأ منها. */}
+        <span className="flex items-center gap-1.5 text-xs">
+          <StaticCheckbox />
+          {t('products:returnSupplier.consignmentLabel')}
         </span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
+      {/* ══ الجدولُ — سبعةُ أعمدةٍ بعروضها، وارتفاعٌ أدنى كما في الإنشاء ══ */}
+      <div className="min-h-[240px] flex-1 overflow-auto border border-[var(--rule)]">
         <RefTable>
           <RefHead>
             <tr>
               <RefTh>{t('products:returnSupplier.productColumn')}</RefTh>
-              <RefTh>{t('products:returnSupplier.packagesColumn')}</RefTh>
-              <RefTh>{t('products:returnSupplier.numberColumn')}</RefTh>
-              <RefTh>{t('products:returnSupplier.lotColumn')}</RefTh>
+              <RefTh className="w-24">{t('products:returnSupplier.packagesColumn')}</RefTh>
+              <RefTh className="w-28">{t('products:returnSupplier.numberColumn')}</RefTh>
+              <RefTh className="w-32">{t('products:returnSupplier.inStockColumn')}</RefTh>
+              <RefTh className="w-64">{t('products:returnSupplier.lotColumn')}</RefTh>
               {/* 🔴 «سعر العبوة» لا «سعر الوحدة» — الإطارُ المحفوظُ عبوة. */}
-              <RefTh>{t('products:documents.returnPackagePrice')}</RefTh>
-              <RefTh>{t('products:returnSupplier.amountColumn')}</RefTh>
+              <RefTh className="w-32">{t('products:documents.returnPackagePrice')}</RefTh>
+              <RefTh className="w-28">{t('products:returnSupplier.amountColumn')}</RefTh>
             </tr>
           </RefHead>
           <tbody>
             {groups.map((group, gi) => (
               <Fragment key={`${group.key}-${gi}`}>
-                {categoryName(group.key) && (
-                  <RefGroupRow columns={COLUMNS}>{categoryName(group.key)}</RefGroupRow>
-                )}
+                {chainOf(group.key).map((folder) => (
+                  <RefGroupRow key={`${gi}-${folder.id}`} columns={COLUMNS}>{folder.name}</RefGroupRow>
+                ))}
                 {group.lines.map(({ line, product }) => {
                   const frames = movementFrames(line, product)
                   const lot = lotsById[line.lot_id]
+                  const lotRows = lotRowsFor(line.product_id)
+                  const inStock = availableForWriteOff(lotRows)
+                  const remaining = lotRows.find((r) => r.id === line.lot_id)?.remaining ?? 0
                   // ⚠️ **العدمُ يبقى عدمًا:** «ثمنٌ لم يُصرَّح» ليست «بلا مطالبة»
                   // — وهو نصُّ `returnGrid.js:258` حرفيًّا.
                   const price = numberOrNull(line.entered_unit_price)
@@ -149,7 +188,7 @@ export default function ReturnDocumentView({
                           {product?.name || '—'}
                           {/* ⚠️ **تُقرأ من `products.is_consignment` اليوم**، لا
                               من المستند — **وهذا يُقال لأنه ادّعاءٌ عن الحاضر
-                              على سطرٍ ماضٍ.** ونفسُ ما تفعله شاشةُ الإدخال
+                              على سطرٍ ماضٍ.** ونفسُ ما تفعله شاشةُ الإنشاء
                               (`returnGrid.js:152`). */}
                           {product?.is_consignment === true && (
                             <RefTag>{t('products:returnSupplier.consignmentTag')}</RefTag>
@@ -157,34 +196,54 @@ export default function ReturnDocumentView({
                         </span>
                       </RefTd>
 
-                      {/* ⚠️ **الوحدةُ قبل الرقم، والإطارُ الذي كُتب فيه** —
-                          مَن أدخل «٥ عبوات» لا يتعرّف على «٧٥». */}
+                      {/* العبوات — خانةٌ ساكنةٌ وزرُّ «الكل» بجانبها. */}
                       <RefTd>
-                        {frames.entered === null ? '—' : t('products:documents.inEntered', {
-                          uom: t(`products:docs.uom_${frames.uom || 'unit'}`), n: frames.entered,
-                        })}
-                      </RefTd>
-                      <RefTd>
-                        {t('products:documents.inBase', {
-                          unit: t(`products:units.${frames.baseUnit || 'pcs'}`), n: frames.base,
-                        })}
-                      </RefTd>
-
-                      {/* 🔴 **تاريخُ الاستلام وحدَه** — وهو ما يعرّف الدفعة.
-                          ولا «متبقٍّ» ولا ثمنُ الدفعة، بالسببين أعلاه. */}
-                      <RefTd>
-                        {lot ? <RefTag>{String(lot.received_at || '').slice(0, 10)}</RefTag> : '—'}
+                        <span className="flex items-center gap-1">
+                          <StaticField className="w-12">
+                            {frames.entered === null ? '' : frames.entered}
+                          </StaticField>
+                          <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
+                            {t('products:returnSupplier.fillAll')}
+                          </StaticShellButton>
+                        </span>
                       </RefTd>
 
                       <RefTd>
-                        {price === null ? '—' : t('products:documents.money', {
-                          total: price.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                        {t('products:orders.qtyWithUnit', {
+                          n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
                         })}
                       </RefTd>
                       <RefTd>
-                        {amount === null ? '—' : t('products:documents.money', {
-                          total: amount.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                        {t('products:orders.qtyWithUnit', {
+                          n: inStock, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
                         })}
+                      </RefTd>
+
+                      {/* الدفعةُ — منسدلٌ ساكنٌ يحمل نصَّ الخيار المختار نفسَه. */}
+                      <RefTd>
+                        <span className="flex items-center gap-1.5">
+                          <StaticSelect>
+                            {lot
+                              ? t('products:returnSupplier.lotOption', {
+                                date: String(lot.received_at || '').slice(0, 10),
+                                remaining,
+                                cost: lotRows.find((r) => r.id === line.lot_id)?.unitCost ?? '—',
+                              })
+                              : t('products:returnSupplier.lotAuto')}
+                          </StaticSelect>
+                          {lot?.cost_is_estimated === true && (
+                            <RefTag title={t('products:returnSupplier.estimatedHelp')}>
+                              {t('products:returnSupplier.estimatedTag')}
+                            </RefTag>
+                          )}
+                        </span>
+                      </RefTd>
+
+                      <RefTd>
+                        <StaticField>{price === null ? '' : price}</StaticField>
+                      </RefTd>
+                      <RefTd>
+                        {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
                       </RefTd>
                     </RefRow>
                   )
@@ -203,42 +262,65 @@ export default function ReturnDocumentView({
         </RefTable>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════
-          🔴 كتلةُ الدفع — وألفاظُها ألفاظُ شاشة الإدخال لا شاشةِ التوريد
-          ══════════════════════════════════════════════════════════════
+      {/* ══ صفُّ البحث والضابطان ══ */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5">
+          <Search className="size-3.5 text-muted-foreground" />
+          <StaticField className="w-56 text-muted-foreground">
+            {t('products:returnSupplier.searchPlaceholder')}
+          </StaticField>
+        </span>
+        <StaticShellButton icon={FileInput}>{t('products:returnSupplier.enterLabel')}</StaticShellButton>
+        <StaticShellButton icon={FileSpreadsheet}>{t('products:returnSupplier.excelLabel')}</StaticShellButton>
+      </div>
 
-          **«المبلغ المستلَم» و«طريقة الاستلام» و«على حساب المورّد»** — لأن
-          المال هنا **يُستلَم لا يُدفَع**، وهو نصُّ `stockDocumentForm.js:322`
-          حرفيًّا: «On a return this is money RECEIVED, not paid… and the
-          screen flips the label».
+      {/* ══════════════════════════════════════════════════════════════
+          المجموعُ وكتلةُ الدفع — نفسُ الصفّ ونفسُ الترتيب
+
+          🔴 **وألفاظُها ألفاظُ شاشة الإرجاع لا شاشةِ التوريد**، لأن المال هنا
+          **يُستلَم لا يُدفَع** — `stockDocumentForm.js:322` بالنصّ: «On a return
+          this is money RECEIVED, not paid… and the screen flips the label».
 
           ⚠️ **وثلاثُ حالاتٍ لا اثنتان:** `paymentChoiceOf` تُرجع `''` لمبلغٍ
-          موجبٍ بلا طريقةٍ صالحة، **وقراءتُها «على الحساب» تجعل الشاشةَ تدّعي
-          اختيارًا لم يقع** (`documentMoney.js:47-49`). والقيدُ يسمح بها
-          مخزَّنةً (`paid_amount > 0` مع `payment_method = null`). */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        {choice === ON_ACCOUNT ? (
-          <span>{t('products:returnSupplier.payment_on_account')}</span>
-        ) : (
-          <>
-            <span>
-              <span className="text-muted-foreground">{t('products:returnSupplier.paidLabel')}: </span>
-              {t('products:documents.money', {
-                total: paid.toLocaleString('ar', { maximumFractionDigits: 2 }),
-              })}
-            </span>
-            <span>
-              <span className="text-muted-foreground">{t('products:returnSupplier.paymentLabel')}: </span>
-              {choice === '' ? '—' : t(`products:docs.paymentMethod_${choice}`)}
-            </span>
-          </>
-        )}
-        {doc.note && (
-          <span>
-            <span className="text-muted-foreground">{t('products:returnSupplier.noteLabel')}: </span>
-            {doc.note}
-          </span>
-        )}
+          موجبٍ بلا طريقةٍ صالحة، **وقراءتُها «على حساب المورّد» تجعل الشاشةَ
+          تدّعي اختيارًا لم يقع** (`documentMoney.js:47-49`). **والقيدُ يسمح بها
+          مخزَّنةً** (`paid_amount > 0` مع `payment_method = null`). */}
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <span className="flex items-center gap-2 font-semibold">
+          {t('products:returnSupplier.totalLabel')}
+          <span data-view-total>—</span>
+        </span>
+
+        <span className="flex items-center gap-1.5 text-xs font-normal">
+          {t('products:returnSupplier.paidLabel')}
+          <StaticField className="w-28">
+            {choice === ON_ACCOUNT || paid === null ? '' : paid}
+          </StaticField>
+        </span>
+
+        <span className="flex items-center gap-1.5 text-xs font-normal">
+          {t('products:returnSupplier.paymentLabel')}
+          <StaticSelect className="w-40">
+            {choice === ON_ACCOUNT
+              ? t('products:returnSupplier.payment_on_account')
+              : choice === ''
+                ? t('products:returnSupplier.paymentPlaceholder')
+                : t(`products:docs.paymentMethod_${choice}`)}
+          </StaticSelect>
+        </span>
+      </div>
+
+      {/* ══ الملاحظاتُ — صندوقٌ ساكنٌ بارتفاع سطرين ══ */}
+      <span className="flex flex-col gap-1 text-xs">
+        {t('products:returnSupplier.noteLabel')}
+        <StaticArea>{doc.note || ''}</StaticArea>
+      </span>
+
+      {/* ══ الأزرارُ الثلاثة — ديكورٌ بلا وظيفة، بنفس الترتيب ══ */}
+      <div className="flex items-center justify-end gap-2">
+        <StaticCancelButton>{t('products:returnSupplier.backToFolders')}</StaticCancelButton>
+        <StaticCancelButton>{t('products:returnSupplier.cancelButton')}</StaticCancelButton>
+        <StaticActionButton>{t('products:returnSupplier.returnButton')}</StaticActionButton>
       </div>
     </div>
   )
