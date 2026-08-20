@@ -36,11 +36,14 @@ import { orderViewLines } from '../../lib/documentsWithOrders'
 // «أيّ شي ما وراه بيانات بينحذف مش بينرسم فاضي».
 const COLUMNS = 3
 
-export default function OrderDocumentView({ order, orderLines, products, categories }) {
+export default function OrderDocumentView({ order, orderLines, products, categories, suppliers }) {
   const { t } = useTranslation(['products', 'common'])
   if (!order) return null
 
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
+  // ⚠️ **يُحلّ هنا من `supplier_id`** — الصفُّ المدموجُ يحمل المعرِّفَ لا الاسم،
+  // **وقراءةُ `order.supplier_name` كانت سترسم «—» على كلّ طلبيّةٍ أبدًا.**
+  const supplierName = (suppliers || []).find((s) => s && s.id === order.supplier_id)?.name || null
   const categoryName = (id) => (categories || []).find((c) => c && c.id === id)?.name || null
 
   // تجميعٌ تحت التصنيف، بترتيب السطور كما حُفظت — **ولا فرزَ يُخترع.**
@@ -61,7 +64,7 @@ export default function OrderDocumentView({ order, orderLines, products, categor
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
         <span>
           <span className="text-muted-foreground">{t('products:orders.supplierLabel')}: </span>
-          {order.supplier_name || '—'}
+          {supplierName || '—'}
         </span>
         <span>
           <span className="text-muted-foreground">{t('products:docs.dateLabel')}: </span>

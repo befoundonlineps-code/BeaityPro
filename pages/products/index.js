@@ -412,6 +412,10 @@ export default function ProductsPage() {
                 // `documentsWithOrders`، لا تتعلّم الشاشةُ شكلًا ثانيًا.
                 orders={productOrders.orders}
                 orderLines={productOrders.lines}
+                // ⚠️ **لشاشات العرض** — التصنيفاتُ للتجميع والدفعاتُ لتفصيل
+                // الشطب (د/٣). **وكلتاهما محمَّلةٌ لهذه الصفحة أصلًا.**
+                categories={catalogue.categories}
+                lots={stockLots.lots}
                 loading={stockDocuments.loading || catalogue.loading || productOrders.loading}
                 // ⚠️ **وفشلُ أيٍّ منهما يفشل الشاشة:** قائمةٌ ينقصها مصدرٌ
                 // كاملٌ ليست قائمةً ناقصة — هي قائمةٌ تكذب بصمت.

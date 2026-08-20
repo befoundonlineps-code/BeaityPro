@@ -27,6 +27,12 @@ import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from '.
 // حلّت هذه الحالةَ بلوحٍ مطلقِ الموضع لا بحوارٍ ثانٍ** — فالمظهرُ هو المطلوب
 // والآليّةُ آمنة. ⇒ **نفسُ نمطها هنا: النيّةُ لم تتغيّر، والوسيلةُ فقط.**
 import { RefCancelButton } from './ref/RefModal'
+// 🔴 **يوصَّل ما اكتمل، ولا يُنتظَر الأربعة.** الطلبيّةُ والشطبُ جاهزتان
+// ومرّتا بحارس «غيرُ تفاعليٍّ بالبناء» — **والتوريدُ والإرجاعُ يبقيان على
+// اللوح العامّ حتى تكتملا.** ⚠️ **والانتظارُ كان سيُفقد فائدةَ الدفع المبكر:**
+// فحصُ كلّ شاشةٍ أوّلَ ما تجهز بدل مراجعةٍ واحدةٍ كبيرةٍ في الآخر.
+import OrderDocumentView from './documentView/OrderDocumentView'
+import WriteOffDocumentView from './documentView/WriteOffDocumentView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -91,6 +97,9 @@ export default function StockDocumentsList({
   // الصفحة أصلًا** — فلا استعلامَ جديد. والمواصفةُ في
   // `design/documents-with-orders-spec.md`.
   orders, orderLines,
+  // ⚠️ **لشاشات العرض وحدَها** — التصنيفاتُ للتجميع، والدفعاتُ لتفصيل الشطب
+  // (د/٣). **وكلتاهما محمَّلةٌ للصفحة أصلًا**، فلا استعلامَ جديد.
+  categories, lots,
   // 🔴 **مقبضُ الخروج كان موجودًا وغيرَ موصولٍ بهذه الشاشة وحدَها.**
   // `closeOperation` مبنيٌّ في الصفحة وتأخذه كلُّ عمليّةٍ أخرى — **وهذه لم
   // تأخذه**، وهو الصنفُ نفسُه الذي جعل `return_to_supplier` ترسم شاشتين.
@@ -659,6 +668,28 @@ export default function StockDocumentsList({
               </span>
             </p>
 
+            {/* 🔴 **النوعان الجاهزان يفتحان شاشتيهما، والباقي على اللوح العامّ.**
+                ⚠️ **ووصلٌ تدريجيٌّ لا انتظارٌ للأربعة:** التوريدُ والإرجاعُ
+                يبقيان كما كانا **فلا شيءَ ينكسر ولا شيءَ يختفي**، ويُفحص
+                الجاهزُ أوّلَ ما يجهز. */}
+            {rowIsOrder(viewed) ? (
+              <OrderDocumentView
+                order={viewed}
+                orderLines={orderLines}
+                products={products}
+                categories={categories}
+                suppliers={suppliers}
+              />
+            ) : viewed.doc_type === 'write_off' ? (
+              <WriteOffDocumentView
+                document={viewed}
+                movements={movements}
+                products={products}
+                categories={categories}
+                lots={lots}
+              />
+            ) : (
+            <>
             {/* 🔴 **«فيه: أسماءُ المنتجات» مكانُها هنا.** بُنيت على واقعةٍ
                 حقيقيّة: لبشّار مستندا توريدٍ بنفس التاريخ والمستودع والمورّد
                 وعددِ السطور **فلم يفرّقهما بعد ساعةٍ من ترحيلهما.**
@@ -681,43 +712,10 @@ export default function StockDocumentsList({
                 منها، **و`title` لا يُقرأ بلمسة.** */}
             {viewed.note && <p className="text-xs text-muted-foreground">{viewed.note}</p>}
 
+            {/* اللوحُ العامُّ — ما لم تُبنَ له شاشةٌ بعد (توريدٌ وإرجاعٌ وعكسٌ
+                وجرد). **يبقى كما كان**، فلا شيءَ ينكسر بالوصل التدريجيّ. */}
             <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
               <table className="w-full text-xs">
-                {/* 🔴 **مصدران، ولا مستودعَ ولا اتّجاهَ للطلبيّة.**
-                    اللوحُ كان يقرأ `movementsOf` للصفَّين معًا — **والطلبيّةُ لا
-                    حركاتٍ لها إطلاقًا**، فرُسمت «المستند بلا سطور» على طلبيّةٍ
-                    لها سطور. ⚠️ **جملةٌ خاطئةٌ تُعرض على إنسان، لا ميزةٌ غائبة.**
-                    ولا عمودَ مستودعٍ ولا اتّجاهٍ هنا: **الطلبيّةُ لم تحرّك شيئًا
-                    بعد**، وعمودٌ فارغٌ في الاثنين يدّعي أنهما ينتميان. */}
-                {rowIsOrder(viewed) ? (
-                  <tbody>
-                    {orderViewLines(orderLines, viewed.id).map((l) => (
-                      <tr key={l.id} className="border-b border-[var(--rule)] last:border-0">
-                        <td className="px-1.5 py-1">{productsById[l.productId]?.name || '—'}</td>
-                        <td className="px-1.5 py-1">
-                          {l.quantity === null ? '—' : t('products:documents.inEntered', {
-                            uom: t(`products:docs.uom_${l.uom || 'unit'}`), n: l.quantity,
-                          })}
-                        </td>
-                        <td className="px-1.5 py-1 text-muted-foreground">
-                          {/* 🔴 **سعرٌ مطلوبٌ لا كلفة، والعدمُ يبقى عدمًا** —
-                              `entered_unit_price` يقبل العدم، **و«لا أحدَ اتّفق
-                              على السعر» ليست «هذا بلا ثمن».** */}
-                          {l.askingPrice === null ? '—' : t('products:documents.money', {
-                            total: l.askingPrice.toLocaleString('ar', { maximumFractionDigits: 2 }),
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                    {orderViewLines(orderLines, viewed.id).length === 0 && (
-                      <tr>
-                        <td colSpan={3} className="py-3 text-center text-muted-foreground">
-                          {t('products:documents.noLines')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                ) : (
                 <tbody>
                   {movementsOf(movements, viewed.id).map((m) => (
                     <tr key={m.id} className="border-b border-[var(--rule)] last:border-0">
@@ -758,9 +756,10 @@ export default function StockDocumentsList({
                     </tr>
                   )}
                 </tbody>
-                )}
               </table>
             </div>
+            </>
+            )}
 
             {/* ⚠️ **مَخرجٌ صريحٌ لا اعتمادٌ على الضغط خارجَ اللوح** — نفسُ
                 ملاحظة زرّ الرجوع، على مستوى اللوح. */}
