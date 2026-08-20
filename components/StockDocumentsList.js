@@ -33,6 +33,7 @@ import { RefCancelButton } from './ref/RefModal'
 // فحصُ كلّ شاشةٍ أوّلَ ما تجهز بدل مراجعةٍ واحدةٍ كبيرةٍ في الآخر.
 import OrderDocumentView from './documentView/OrderDocumentView'
 import WriteOffDocumentView from './documentView/WriteOffDocumentView'
+import SupplyDocumentView from './documentView/SupplyDocumentView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -687,6 +688,15 @@ export default function StockDocumentsList({
                 products={products}
                 categories={categories}
                 lots={lots}
+              />
+            ) : viewed.doc_type === 'supply' ? (
+              <SupplyDocumentView
+                document={viewed}
+                movements={movements}
+                products={products}
+                categories={categories}
+                storages={storages}
+                suppliers={suppliers}
               />
             ) : (
             <>
