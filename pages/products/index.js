@@ -407,8 +407,15 @@ export default function ProductsPage() {
                 products={catalogue.products}
                 storages={directories.storages}
                 suppliers={directories.suppliers}
-                loading={stockDocuments.loading || catalogue.loading}
-                error={stockDocuments.error}
+                // 🔴 **المصدرُ الثاني — ومحمَّلٌ لهذه الصفحة أصلًا**، فلا
+                // استعلامَ جديد. والطلبيّةُ تُقولَب على شكل المستند داخل
+                // `documentsWithOrders`، لا تتعلّم الشاشةُ شكلًا ثانيًا.
+                orders={productOrders.orders}
+                orderLines={productOrders.lines}
+                loading={stockDocuments.loading || catalogue.loading || productOrders.loading}
+                // ⚠️ **وفشلُ أيٍّ منهما يفشل الشاشة:** قائمةٌ ينقصها مصدرٌ
+                // كاملٌ ليست قائمةً ناقصة — هي قائمةٌ تكذب بصمت.
+                error={stockDocuments.error || productOrders.error}
                 reload={stockDocuments.reload}
                 // 🔴 **كانت العمليّةَ الوحيدةَ بلا `onClose`** — و`×` في شريط
                 // `RefModal` كان مَخرجَها الوحيد، **فقُرئ زينةً وخرج المالكُ

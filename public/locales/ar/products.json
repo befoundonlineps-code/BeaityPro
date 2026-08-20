@@ -357,6 +357,9 @@
     "reversal": {
       "title": "عكس مستند"
     },
+    "order": {
+      "title": "طلب بضاعة"
+    },
     "sale": {
       "title": "بيع"
     },
@@ -419,6 +422,7 @@
     "colTo": "إلى",
     "directionInLines": "(الاتّجاه في السطور)",
     "backButton": "رجوع",
+    "ordersHiddenByStorage": "الطلبيّات ما بتظهر لمّا يكون في مستودع محدَّد — الطلبيّة لسا ما بتخصّ مستودعًا، بتصير تخصّه لمّا تنوصل بضاعتها بسند توريد.",
     "colNote": "ملاحظة",
     "colValue": "القيمة",
     "colPaid": "المدفوع",
@@ -448,6 +452,7 @@
     "direction_out": "خارج",
     "andMore": "وغيرها: {{n}}",
     "contains": "فيه: {{names}}",
+    "valueOrder": "سعر مطلوب",
     "valueSupply": "كلفة التوريد",
     "valueWriteOff": "قيمة المشطوب",
     "valueReturn": "قيمة المُرجَع",
