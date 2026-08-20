@@ -15,7 +15,7 @@ import {
   cancellationState, visibleDocuments,
 } from '../lib/stockDocumentList'
 import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION, ORDER_DOC_TYPE } from '../lib/stockDocument'
-import { mergedRows, rowIsOrder, rowValue } from '../lib/documentsWithOrders'
+import { mergedRows, rowIsOrder, rowValue, orderViewLines } from '../lib/documentsWithOrders'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from './ref/RefGrid'
 // 🔴 **`RefCancelButton` وحدَه — ولا `RefModal` ثانية، وهذا تصحيحٌ لخطّةٍ
 // أُقرّت.** طُلبت النافذةُ بـ`RefModal` ووافقتُ، **ثمّ قِيس أن الصفحةَ تلفّ كلَّ
@@ -683,6 +683,41 @@ export default function StockDocumentsList({
 
             <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
               <table className="w-full text-xs">
+                {/* 🔴 **مصدران، ولا مستودعَ ولا اتّجاهَ للطلبيّة.**
+                    اللوحُ كان يقرأ `movementsOf` للصفَّين معًا — **والطلبيّةُ لا
+                    حركاتٍ لها إطلاقًا**، فرُسمت «المستند بلا سطور» على طلبيّةٍ
+                    لها سطور. ⚠️ **جملةٌ خاطئةٌ تُعرض على إنسان، لا ميزةٌ غائبة.**
+                    ولا عمودَ مستودعٍ ولا اتّجاهٍ هنا: **الطلبيّةُ لم تحرّك شيئًا
+                    بعد**، وعمودٌ فارغٌ في الاثنين يدّعي أنهما ينتميان. */}
+                {rowIsOrder(viewed) ? (
+                  <tbody>
+                    {orderViewLines(orderLines, viewed.id).map((l) => (
+                      <tr key={l.id} className="border-b border-[var(--rule)] last:border-0">
+                        <td className="px-1.5 py-1">{productsById[l.productId]?.name || '—'}</td>
+                        <td className="px-1.5 py-1">
+                          {l.quantity === null ? '—' : t('products:documents.inEntered', {
+                            uom: t(`products:docs.uom_${l.uom || 'unit'}`), n: l.quantity,
+                          })}
+                        </td>
+                        <td className="px-1.5 py-1 text-muted-foreground">
+                          {/* 🔴 **سعرٌ مطلوبٌ لا كلفة، والعدمُ يبقى عدمًا** —
+                              `entered_unit_price` يقبل العدم، **و«لا أحدَ اتّفق
+                              على السعر» ليست «هذا بلا ثمن».** */}
+                          {l.askingPrice === null ? '—' : t('products:documents.money', {
+                            total: l.askingPrice.toLocaleString('ar', { maximumFractionDigits: 2 }),
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                    {orderViewLines(orderLines, viewed.id).length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="py-3 text-center text-muted-foreground">
+                          {t('products:documents.noLines')}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                ) : (
                 <tbody>
                   {movementsOf(movements, viewed.id).map((m) => (
                     <tr key={m.id} className="border-b border-[var(--rule)] last:border-0">
@@ -723,6 +758,7 @@ export default function StockDocumentsList({
                     </tr>
                   )}
                 </tbody>
+                )}
               </table>
             </div>
 
