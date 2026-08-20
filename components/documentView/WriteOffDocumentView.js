@@ -155,7 +155,6 @@ export default function WriteOffDocumentView({
                   // الإنشاء** فلا يفترق الرقمان.
                   const lotRows = lotRowsFor(line.product_id)
                   const inStock = availableForWriteOff(lotRows)
-                  const remaining = lotRows.find((r) => r.id === line.lot_id)?.remaining ?? 0
                   const amount = cost === null ? null : roundToPlaces(frames.base * cost.base)
                   return (
                     <RefRow key={line.id} data-view-line={line.id}>
@@ -184,14 +183,30 @@ export default function WriteOffDocumentView({
                         })}
                       </RefTd>
 
-                      {/* الدفعةُ — منسدلٌ ساكنٌ يحمل نصَّ الخيار المختار نفسَه. */}
+                      {/* ══════════════════════════════════════════════════
+                          🔴 الدفعةُ — **استلامٌ وسعرُ وحدة، بلا «متبقٍّ»**
+                          ══════════════════════════════════════════════════
+
+                          ⚠️ **ومفتاحٌ خاصٌّ بالعرض، لا مفتاحُ المنسدل.** كان
+                          `writeOff.lotOption` — نصُّ خيارِ القائمة بأجزائه
+                          الثلاثة — **فعاد «متبقٍّ» بعد أن أُسقط، ومرّ في تقريرٍ
+                          قال إنه سقط.** والسببُ أن إعادةَ البناء «صورةً من شاشة
+                          الإنشاء» نسخت نصَّ الخيار حرفيًّا، **وأعادت قرارًا كان
+                          قد حُسم بلا أن يُقال.**
+
+                          ❌ **و«متبقٍّ» مفهومُ لحظةِ اختيار** — متبقّي اليومَ لا
+                             متبقّي الترحيل، **وهو لم يكن في تصميم الشطب أصلًا.**
+                          ✅ **وسعرُ الوحدة يبقى** لأنه ما يشرح عمودَ المبلغ:
+                             دفعتان لمنتجٍ واحدٍ بسعرين، والدفعةُ وحدَها تفرّقهما.
+
+                          ⚠️ **والمفتاحُ في `documents` لا في `writeOff`** —
+                          مفتاحُ المنسدل يخصّ شاشةَ الإنشاء ويبقى لها كما هو. */}
                       <RefTd>
                         <span className="flex items-center gap-1.5">
                           <StaticSelect>
                             {lot
-                              ? t('products:writeOff.lotOption', {
+                              ? t('products:documents.lotDateCost', {
                                 date: String(lot.received_at || '').slice(0, 10),
-                                remaining,
                                 cost: cost === null ? '—' : cost.base,
                               })
                               : t('products:writeOff.lotAuto')}

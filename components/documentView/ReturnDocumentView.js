@@ -174,7 +174,6 @@ export default function ReturnDocumentView({
                   const lot = lotsById[line.lot_id]
                   const lotRows = lotRowsFor(line.product_id)
                   const inStock = availableForWriteOff(lotRows)
-                  const remaining = lotRows.find((r) => r.id === line.lot_id)?.remaining ?? 0
                   // ⚠️ **العدمُ يبقى عدمًا:** «ثمنٌ لم يُصرَّح» ليست «بلا مطالبة»
                   // — وهو نصُّ `returnGrid.js:258` حرفيًّا.
                   const price = numberOrNull(line.entered_unit_price)
@@ -219,15 +218,27 @@ export default function ReturnDocumentView({
                         })}
                       </RefTd>
 
-                      {/* الدفعةُ — منسدلٌ ساكنٌ يحمل نصَّ الخيار المختار نفسَه. */}
+                      {/* ══════════════════════════════════════════════════
+                          🔴 الدفعةُ — **تاريخُ الاستلام وحدَه**
+                          ══════════════════════════════════════════════════
+
+                          ⚠️ **ومفتاحٌ خاصٌّ بالعرض، لا مفتاحُ المنسدل.** كان
+                          `returnSupplier.lotOption` بأجزائه الثلاثة، **فعاد
+                          «متبقٍّ» و«سعر الوحدة» بعد أن أُسقطا بإقرارٍ، ومرّا في
+                          تقريرٍ قال إنهما سقطا.**
+
+                          ❌ **«متبقٍّ» مفهومُ لحظةِ اختيار** — متبقّي اليومَ لا
+                             متبقّي الترحيل.
+                          ❌ **و«سعر الوحدة» في المنسدل ثمنُ الدفعة، وفي العمود
+                             المطالبة** — رقمان يفترقان فعلًا («سعر معدَّل»)،
+                             **وعرضُهما باسمٍ واحدٍ على سطرٍ واحدٍ يقلبهما على
+                             القارئ.** */}
                       <RefTd>
                         <span className="flex items-center gap-1.5">
                           <StaticSelect>
                             {lot
-                              ? t('products:returnSupplier.lotOption', {
+                              ? t('products:documents.lotDate', {
                                 date: String(lot.received_at || '').slice(0, 10),
-                                remaining,
-                                cost: lotRows.find((r) => r.id === line.lot_id)?.unitCost ?? '—',
                               })
                               : t('products:returnSupplier.lotAuto')}
                           </StaticSelect>
