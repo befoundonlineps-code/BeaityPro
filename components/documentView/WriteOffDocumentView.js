@@ -1,48 +1,106 @@
 import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
+import { Search, FileSpreadsheet, FileInput } from 'lucide-react'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from '../ref/RefGrid'
+import {
+  StaticField, StaticSelect, StaticArea,
+  StaticActionButton, StaticCancelButton, StaticShellButton,
+} from '../ref/RefStatic'
 import { movementsOf, movementFrames, costFrames } from '../../lib/stockDocumentList'
+import { lotsForLine, availableForWriteOff } from '../../lib/lotPicker'
 import { roundToPlaces } from '../../lib/decimalPlaces'
 
-// مستندُ شطبٍ مرحَّلٌ يُقرأ **بشكل شاشته هي**، للقراءة فقط.
+// «شطب بضاعة» — **مشاهدةً.** صورةُ شاشة الإنشاء نفسِها، منزوعةَ الوظيفة.
 //
-// 🔴 **رسمٌ ساكنٌ بالبناء، لا شاشةُ إدخالٍ معطَّلة:** ٠٩٤ج سحب `UPDATE` عن
-// `stock_documents`، **فزرُّ إرسالٍ منسيٌّ لا يُرفَض كتعديل** — يُدرج مستندًا
+// ══════════════════════════════════════════════════════════════════
+// 🔴 المعيار، بلفظ المالك — ولا يقبل تفسيرًا ثانيًا
+// ══════════════════════════════════════════════════════════════════
+//
+// «شاشةُ العرض = نفسُ شاشة الإنشاء بصريًّا بالحرف — نفسُ الرأس، نفسُ الجدول،
+// نفسُ الذيل، نفسُ الترتيب — **وكلُّ عنصرٍ تفاعليٍّ يُستبدل بنصٍّ ثابت**.»
+//
+// ⚠️ **وهذا هدمٌ لما قبله لا زيادةٌ عليه:** النسخةُ السابقةُ أسقطت «المتوفر»
+// و«المجموع» وصفَّ البحثِ والأزرارَ **لأنها مفاهيمُ لحظةِ إدخال** — **وذلك
+// صحيحٌ عن المعنى وخاطئٌ عن الطلب.** المطلوبُ صورةٌ، **والصورةُ تشمل ما لا
+// يعني شيئًا للمستند.**
+//
+// ══════════════════════════════════════════════════════════════════
+// 🔴 ولا زرَّ واحدًا يعمل — «ديكورٌ بلا `onClick` بتاتًا، بلا استثناء»
+// ══════════════════════════════════════════════════════════════════
+//
+// **وزرُّ «شطب» `<span>` لا `<button>` بالمطلق** — ٠٩٤ج سحب `UPDATE` عن
+// `stock_documents`، **فزرُّ إرسالٍ منسيٌّ لا يُرفَض كتعديل**: يُدرج مستندًا
 // جديدًا بالكامل عبر `INSERT`. ⇒ **مستندٌ شبحيٌّ بحركاتٍ حقيقيّة.**
-// **و`disabled` خاصّيّةٌ تُنسى؛ والعنصرُ غيرُ الموجودِ لا يُنسى.**
+//
+// **والبدائلُ الساكنةُ في `components/ref/RefStatic.js`** — موضعٌ واحدٌ تقرؤه
+// الأربع، **ومحروسٌ بالاسم** في `viewScreensAreInert` لأنه خارجُ مجلّد الشاشات
+// وهنّ يستوردنه.
 //
 // ══════════════════════════════════════════════════════════════════
-// الأعمدةُ — مطابقةٌ لشاشة الإدخال، بثلاثة فوارقَ كلٌّ منها بسبب
+// الأعمدةُ الستّة — **بنفس الترتيب وبنفس العروض**
 // ══════════════════════════════════════════════════════════════════
 //
 // ```
-// الإدخال   المنتج · العبوات · العدد · المتوفر · الدفعة · المبلغ
-// العرض     المنتج · العبوات · العدد ·   —    · الدفعة · المبلغ
+// المنتج · العبوات(w-24) · العدد(w-28) · المتوفر(w-32) · الدفعة(w-64) · المبلغ(w-28)
 // ```
 //
-// ❌ **«المتوفر» يسقط** — مفهومُ لحظةِ إدخالٍ («كم باقٍ الآن»)، **ومستندٌ
-//    مرحَّلٌ لا يحمله**، وقراءتُه اليومَ تعطي رصيدَ اليوم لا رصيدَ الترحيل.
-// ✅ **«الدفعة» نصٌّ ثابتٌ بدل قائمة** — و`lot_id` محفوظٌ على الحركة.
-//    ⚠️ **وتكلفةُ الوحدة تجلس معها** لأنها هي ما تشرحها: دفعتان لمنتجٍ واحدٍ
-//    بسعرين مختلفين، **وهو سببُ وجود الدفعات أصلًا** (د/٣).
-// ✅ **«المبلغ» يُحسب** — `quantity_base × unit_cost`، **عمودان محفوظان على
-//    نفس السطر** (الخيار ١). ⚠️ **ولا مجموعَ ولا خصمَ ولا صافيَ على مستوى
-//    المستند** — تلك تحتاج جمعًا عبر السطور، وهي الممنوعة.
-const COLUMNS = 5
+// ✅ **و«المتوفر» رصيدُ اليوم** — بقرار المالك صراحةً: «كما في شاشة الإنشاء».
+//    ⚠️ **وهو ادّعاءٌ عن الحاضر على سطرٍ ماضٍ**، مقروءٌ من الدفعات لا من
+//    المستند، **ويُقال هنا لأنه لا يُقرأ من الشاشة.**
+//
+// ✅ **و«المبلغ» من `unit_cost` المختوم** — لأن شاشةَ الإنشاء تضرب في ثمن
+//    الدفعة (`writeOffGrid.js:32`)، **وشرطُ المالك أن يطابقها.**
+//
+// 🔴 **و«المجموع» هو الموضعُ الوحيدُ الذي يصطدم فيه أمران أقرّهما المالك:**
+//    «نفسُ الذيل» تطلبه، **و د/١ تحظر «أيَّ رقمٍ لم يُكتب حرفيًّا: إجماليٌّ ·
+//    مجموعُ سطور».** ⇒ **يُرسَم موضعُه وتسميتُه، وقيمتُه «—»** — فلا يختلّ
+//    التخطيطُ ولا يُحسَب محظور. **والقرارُ يُعرض ولا يُبتلع.**
+const COLUMNS = 6
 
-export default function WriteOffDocumentView({ document: doc, movements, products, categories, lots }) {
+export default function WriteOffDocumentView({
+  document: doc, movements, products, categories, lots,
+}) {
   const { t } = useTranslation(['products', 'common'])
   if (!doc) return null
 
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const lotsById = Object.fromEntries((lots || []).map((l) => [l.id, l]))
-  const categoryName = (id) => (categories || []).find((c) => c && c.id === id)?.name || null
+  const categoriesById = Object.fromEntries((categories || []).map((c) => [c.id, c]))
 
-  // حركةٌ لكلّ دفعة بعد ٠٩٥ — **مجموعةً تحت تصنيف منتجها.**
-  // ⚠️ **والمجلّداتُ المختارةُ لا تُحفظ** (المواصفة ج/٢)، فالتجميعُ تحت
-  // تصنيفاتِ السطور الموجودة، **ومجلّدٌ بلا سطرٍ لا يظهر.**
+  // 🔴 **سطورُ المستند وحدَها** — قرارُ المالك، ورفضُ البديل بلفظه: عرضُ كلّ
+  // منتجات المستودع «يوهم بوجود اختيارٍ لم يُسجَّل».
+  //
+  // ⚠️ **وهو ليس تفضيلًا: المجلّداتُ المؤشَّرةُ لم تُحفظ قطّ** — `stock_documents`
+  // بلا عمودِ مجلّدات (مقيسٌ في ١٠٢)، و`writeOffGrid.js:85` يبني الصفوفَ من
+  // حالةِ الشاشة. ⇒ **«نفسُ الصفوف» غيرُ قابلٍ للاسترجاع أصلًا.**
   const writeOffLines = movementsOf(movements, doc.id)
 
+  // سلسلةُ المجلّدات من الجذر إلى مجلّد المنتج — **كما ترسمها شاشةُ الإنشاء
+  // مستوًى فوق مستوى**، لا سطرًا واحدًا.
+  const chainOf = (categoryId) => {
+    const chain = []
+    let node = categoriesById[categoryId]
+    // ⚠️ **حدٌّ أعلى للحلقة** — دورةٌ في `parent_id` تعلّق الصفحةَ بلا رسالة،
+    // **وتعليقٌ متزامنٌ يُقرأ جهازًا بطيئًا لا عطلًا** (`CLAUDE.md`).
+    let guard = 0
+    while (node && guard < 32) { chain.unshift(node); node = categoriesById[node.parent_id]; guard += 1 }
+    return chain
+  }
+
+  // ⚠️ **يُحسب مرّةً لكلّ منتجٍ لا مرّةً لكلّ سطر:** بعد ٠٩٥ ينقسم المنتجُ
+  // الواحدُ إلى حركةٍ لكلّ دفعة، **و`lotsForLine` تمشي كلَّ الحركات في كلّ
+  // نداء** — فمنتجٌ بثلاث دفعاتٍ يمشيها ثلاثًا بلا سبب.
+  const lotRowsCache = new Map()
+  const lotRowsFor = (productId) => {
+    if (!lotRowsCache.has(productId)) {
+      lotRowsCache.set(productId, lotsForLine({
+        lots, movements, storageId: doc.storage_id, productId,
+      }))
+    }
+    return lotRowsCache.get(productId)
+  }
+
+  // تجميعٌ بترتيب السطور كما حُفظت، بلا فرزٍ يُخترع.
   const groups = []
   for (const line of writeOffLines) {
     const product = productsById[line.product_id]
@@ -53,86 +111,101 @@ export default function WriteOffDocumentView({ document: doc, movements, product
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {/* الرأسُ — محفوظاتٌ تُقرأ، بلا حقلٍ واحدٍ يُكتب. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        {doc.doc_number && (
-          <span>
-            <span className="text-muted-foreground">{t('products:writeOff.docNumberLabel')}: </span>
-            {doc.doc_number}
-          </span>
-        )}
-        <span>
-          <span className="text-muted-foreground">{t('products:docs.dateLabel')}: </span>
-          {String(doc.doc_date || '').slice(0, 10) || '—'}
+    <div className="flex h-full flex-col gap-2">
+      {/* ══ الرأسُ — نفسُ ترتيب شاشة الإنشاء وحقلاها ══ */}
+      <div className="flex flex-wrap items-end gap-3">
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:writeOff.docNumberLabel')}
+          <StaticField>{doc.doc_number || ''}</StaticField>
+        </span>
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:writeOff.fromLabel')}
+          {/* ⚠️ **بعرض منتقي التاريخ لا بعرض النصّ** — صندوقٌ ينكمش إلى
+              «2026-08-20» يزحزح ما بعده، والرأسُ أوّلُ ما يُقارَن بالعين. */}
+          <StaticField className="w-[9.5rem]">
+            {String(doc.doc_date || '').slice(0, 10)}
+          </StaticField>
         </span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
+      {/* ══ الجدولُ — نفسُ الأعمدة والعروض والارتفاع الأدنى ══ */}
+      <div className="min-h-[240px] flex-1 overflow-auto border border-[var(--rule)]">
         <RefTable>
           <RefHead>
             <tr>
               <RefTh>{t('products:writeOff.productColumn')}</RefTh>
-              <RefTh>{t('products:writeOff.packagesColumn')}</RefTh>
-              <RefTh>{t('products:writeOff.numberColumn')}</RefTh>
-              <RefTh>{t('products:writeOff.lotColumn')}</RefTh>
-              <RefTh>{t('products:writeOff.amountColumn')}</RefTh>
+              <RefTh className="w-24">{t('products:writeOff.packagesColumn')}</RefTh>
+              <RefTh className="w-28">{t('products:writeOff.numberColumn')}</RefTh>
+              <RefTh className="w-32">{t('products:writeOff.inStockColumn')}</RefTh>
+              <RefTh className="w-64">{t('products:writeOff.lotColumn')}</RefTh>
+              <RefTh className="w-28">{t('products:writeOff.amountColumn')}</RefTh>
             </tr>
           </RefHead>
           <tbody>
             {groups.map((group, gi) => (
               <Fragment key={`${group.key}-${gi}`}>
-                {categoryName(group.key) && (
-                  <RefGroupRow columns={COLUMNS}>{categoryName(group.key)}</RefGroupRow>
-                )}
+                {chainOf(group.key).map((folder) => (
+                  <RefGroupRow key={`${gi}-${folder.id}`} columns={COLUMNS}>{folder.name}</RefGroupRow>
+                ))}
                 {group.lines.map(({ line, product }) => {
                   const frames = movementFrames(line, product)
                   const cost = costFrames(line, product)
                   const lot = lotsById[line.lot_id]
-                  // 🔴 **حسابٌ على نفس السطر — عمودان محفوظان** (الخيار ١).
-                  // ⚠️ **و`costFrames` تُرجع عدمًا حين لا سعرَ مختوم**، فيبقى
-                  // المبلغُ عدمًا ولا يصير صفرًا.
+                  // «المتوفر» — رصيدُ اليوم من الدفعات، **بنفس دالّة شاشة
+                  // الإنشاء** فلا يفترق الرقمان.
+                  const lotRows = lotRowsFor(line.product_id)
+                  const inStock = availableForWriteOff(lotRows)
+                  const remaining = lotRows.find((r) => r.id === line.lot_id)?.remaining ?? 0
                   const amount = cost === null ? null : roundToPlaces(frames.base * cost.base)
                   return (
                     <RefRow key={line.id} data-view-line={line.id}>
                       <RefTd>{product?.name || '—'}</RefTd>
 
-                      {/* ⚠️ **الوحدةُ قبل الرقم، والإطارُ الذي كُتب فيه** —
-                          مَن أدخل «٥ عبوات» لا يتعرّف على «٧٥». */}
+                      {/* العبوات — خانةٌ ساكنةٌ وزرُّ «الكل» بجانبها، كما في الإنشاء. */}
                       <RefTd>
-                        {frames.entered === null ? '—' : t('products:documents.inEntered', {
-                          uom: t(`products:docs.uom_${frames.uom || 'unit'}`), n: frames.entered,
+                        <span className="flex items-center gap-1">
+                          <StaticField className="w-12">
+                            {frames.entered === null ? '' : frames.entered}
+                          </StaticField>
+                          <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
+                            {t('products:writeOff.fillAll')}
+                          </StaticShellButton>
+                        </span>
+                      </RefTd>
+
+                      <RefTd>
+                        {t('products:orders.qtyWithUnit', {
+                          n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
                         })}
                       </RefTd>
                       <RefTd>
-                        {t('products:documents.inBase', {
-                          unit: t(`products:units.${frames.baseUnit || 'pcs'}`), n: frames.base,
+                        {t('products:orders.qtyWithUnit', {
+                          n: inStock, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
                         })}
                       </RefTd>
 
-                      {/* 🔴 **الدفعةُ وسعرُها معًا** — وهي ما تشرح `unit_cost`
-                          المختوم: سطران لمنتجٍ واحدٍ بسعرين، والدفعةُ وحدَها
-                          تفرّقهما (د/٣).
-                          ⚠️ **وصفرٌ مختومٌ رقمٌ حقيقيٌّ لا فراغ** — وهو ما حمله
-                          المستندان المعطوبان. */}
+                      {/* الدفعةُ — منسدلٌ ساكنٌ يحمل نصَّ الخيار المختار نفسَه. */}
                       <RefTd>
-                        <span className="flex flex-wrap items-center gap-1">
-                          {lot ? <RefTag>{String(lot.received_at || '').slice(0, 10)}</RefTag> : '—'}
-                          {cost !== null && (
-                            <span className="text-muted-foreground">
-                              {t('products:documents.unitCost', {
-                                unit: t(`products:units.${cost.baseUnit || 'pcs'}`),
-                                price: cost.base.toLocaleString('ar', { maximumFractionDigits: 4 }),
-                              })}
-                            </span>
+                        <span className="flex items-center gap-1.5">
+                          <StaticSelect>
+                            {lot
+                              ? t('products:writeOff.lotOption', {
+                                date: String(lot.received_at || '').slice(0, 10),
+                                remaining,
+                                cost: cost === null ? '—' : cost.base,
+                              })
+                              : t('products:writeOff.lotAuto')}
+                          </StaticSelect>
+                          {lot?.cost_is_estimated === true && (
+                            <RefTag title={t('products:writeOff.estimatedHelp')}>
+                              {t('products:writeOff.estimatedTag')}
+                            </RefTag>
                           )}
                         </span>
                       </RefTd>
 
                       <RefTd>
-                        {amount === null ? '—' : t('products:documents.money', {
-                          total: amount.toLocaleString('ar', { maximumFractionDigits: 2 }),
-                        })}
+                        {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
                       </RefTd>
                     </RefRow>
                   )
@@ -151,13 +224,36 @@ export default function WriteOffDocumentView({ document: doc, movements, product
         </RefTable>
       </div>
 
-      {/* ⚠️ **والملاحظةُ أسفل الجدول كما في شاشة الإدخال.** */}
-      {doc.note && (
-        <p className="text-xs">
-          <span className="text-muted-foreground">{t('products:docs.noteLabel')}: </span>
-          {doc.note}
-        </p>
-      )}
+      {/* ══ صفُّ البحث والضابطان — نفسُ المواضع، بلا وظيفة ══ */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5">
+          <Search className="size-3.5 text-muted-foreground" />
+          <StaticField className="w-56 text-muted-foreground">
+            {t('products:writeOff.searchPlaceholder')}
+          </StaticField>
+        </span>
+        <StaticShellButton icon={FileInput}>{t('products:writeOff.enterLabel')}</StaticShellButton>
+        <StaticShellButton icon={FileSpreadsheet}>{t('products:writeOff.excelLabel')}</StaticShellButton>
+      </div>
+
+      {/* ══ المجموعُ — موضعُه وتسميتُه، وقيمتُه «—» (اصطدامُ «نفسِ الذيل» بـد/١) ══ */}
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        {t('products:writeOff.totalLabel')}
+        <span data-view-total>—</span>
+      </div>
+
+      {/* ══ الملاحظاتُ — صندوقٌ ساكنٌ بارتفاع سطرين ══ */}
+      <span className="flex flex-col gap-1 text-xs">
+        {t('products:writeOff.noteLabel')}
+        <StaticArea>{doc.note || ''}</StaticArea>
+      </span>
+
+      {/* ══ الأزرارُ الثلاثة — ديكورٌ بلا وظيفة، بنفس الترتيب ══ */}
+      <div className="flex justify-end gap-2">
+        <StaticCancelButton>{t('products:writeOff.backToFolders')}</StaticCancelButton>
+        <StaticCancelButton>{t('products:writeOff.cancelButton')}</StaticCancelButton>
+        <StaticActionButton>{t('products:writeOff.writeOffButton')}</StaticActionButton>
+      </div>
     </div>
   )
 }
