@@ -2,16 +2,33 @@ import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from '../ref/RefGrid'
 import { movementsOf, movementFrames, costFrames } from '../../lib/stockDocumentList'
+import { roundToPlaces } from '../../lib/decimalPlaces'
 
-// مستندُ شطبٍ مرحَّلٌ يُقرأ بشكل شاشته — **رسمٌ ساكنٌ بالبناء.**
+// مستندُ شطبٍ مرحَّلٌ يُقرأ **بشكل شاشته هي**، للقراءة فقط.
 //
-// 🔴 **والدفعاتُ مفصَّلةٌ بقرار المالك (د/٣):** الشطبُ يُقسَّم حركةً لكلّ دفعة
-// بعد ٠٩٥، و`lot_id` محفوظٌ على الحركة. **وهي ما تشرح `unit_cost` المختوم** —
-// وطيُّها يعيد السؤالَ «من وين إجا هالسعر؟» الذي بُنيت الدفعاتُ للإجابة عنه.
+// 🔴 **رسمٌ ساكنٌ بالبناء، لا شاشةُ إدخالٍ معطَّلة:** ٠٩٤ج سحب `UPDATE` عن
+// `stock_documents`، **فزرُّ إرسالٍ منسيٌّ لا يُرفَض كتعديل** — يُدرج مستندًا
+// جديدًا بالكامل عبر `INSERT`. ⇒ **مستندٌ شبحيٌّ بحركاتٍ حقيقيّة.**
+// **و`disabled` خاصّيّةٌ تُنسى؛ والعنصرُ غيرُ الموجودِ لا يُنسى.**
 //
-// ⚠️ **ولا رقمَ لم يُكتب (د/١):** لا مجموعَ سطورٍ ولا إجماليَّ مستند —
-// `unit_cost` و`quantity_base` محفوظان ويُعرضان، **وحاصلُ ضربهما لا.**
-const COLUMNS = 4
+// ══════════════════════════════════════════════════════════════════
+// الأعمدةُ — مطابقةٌ لشاشة الإدخال، بثلاثة فوارقَ كلٌّ منها بسبب
+// ══════════════════════════════════════════════════════════════════
+//
+// ```
+// الإدخال   المنتج · العبوات · العدد · المتوفر · الدفعة · المبلغ
+// العرض     المنتج · العبوات · العدد ·   —    · الدفعة · المبلغ
+// ```
+//
+// ❌ **«المتوفر» يسقط** — مفهومُ لحظةِ إدخالٍ («كم باقٍ الآن»)، **ومستندٌ
+//    مرحَّلٌ لا يحمله**، وقراءتُه اليومَ تعطي رصيدَ اليوم لا رصيدَ الترحيل.
+// ✅ **«الدفعة» نصٌّ ثابتٌ بدل قائمة** — و`lot_id` محفوظٌ على الحركة.
+//    ⚠️ **وتكلفةُ الوحدة تجلس معها** لأنها هي ما تشرحها: دفعتان لمنتجٍ واحدٍ
+//    بسعرين مختلفين، **وهو سببُ وجود الدفعات أصلًا** (د/٣).
+// ✅ **«المبلغ» يُحسب** — `quantity_base × unit_cost`، **عمودان محفوظان على
+//    نفس السطر** (الخيار ١). ⚠️ **ولا مجموعَ ولا خصمَ ولا صافيَ على مستوى
+//    المستند** — تلك تحتاج جمعًا عبر السطور، وهي الممنوعة.
+const COLUMNS = 5
 
 export default function WriteOffDocumentView({ document: doc, movements, products, categories, lots }) {
   const { t } = useTranslation(['products', 'common'])
@@ -21,7 +38,9 @@ export default function WriteOffDocumentView({ document: doc, movements, product
   const lotsById = Object.fromEntries((lots || []).map((l) => [l.id, l]))
   const categoryName = (id) => (categories || []).find((c) => c && c.id === id)?.name || null
 
-  // سطورُ الشطب — حركةٌ لكلّ دفعة، مجموعةً تحت تصنيف منتجها.
+  // حركةٌ لكلّ دفعة بعد ٠٩٥ — **مجموعةً تحت تصنيف منتجها.**
+  // ⚠️ **والمجلّداتُ المختارةُ لا تُحفظ** (المواصفة ج/٢)، فالتجميعُ تحت
+  // تصنيفاتِ السطور الموجودة، **ومجلّدٌ بلا سطرٍ لا يظهر.**
   const writeOffLines = movementsOf(movements, doc.id)
 
   const groups = []
@@ -35,33 +54,29 @@ export default function WriteOffDocumentView({ document: doc, movements, product
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
+      {/* الرأسُ — محفوظاتٌ تُقرأ، بلا حقلٍ واحدٍ يُكتب. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        {doc.doc_number && (
+          <span>
+            <span className="text-muted-foreground">{t('products:writeOff.docNumberLabel')}: </span>
+            {doc.doc_number}
+          </span>
+        )}
         <span>
           <span className="text-muted-foreground">{t('products:docs.dateLabel')}: </span>
           {String(doc.doc_date || '').slice(0, 10) || '—'}
         </span>
-        {doc.doc_number && (
-          <span>
-            <span className="text-muted-foreground">{t('products:documents.colNumber')}: </span>
-            {doc.doc_number}
-          </span>
-        )}
-        {doc.note && (
-          <span>
-            <span className="text-muted-foreground">{t('products:docs.noteLabel')}: </span>
-            {doc.note}
-          </span>
-        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
         <RefTable>
           <RefHead>
             <tr>
-              <RefTh>{t('products:orders.productColumn')}</RefTh>
-              <RefTh>{t('products:documents.colDate')}</RefTh>
-              <RefTh>{t('products:orders.quantityColumn')}</RefTh>
-              <RefTh>{t('products:docs.unitCostLabel')}</RefTh>
+              <RefTh>{t('products:writeOff.productColumn')}</RefTh>
+              <RefTh>{t('products:writeOff.packagesColumn')}</RefTh>
+              <RefTh>{t('products:writeOff.numberColumn')}</RefTh>
+              <RefTh>{t('products:writeOff.lotColumn')}</RefTh>
+              <RefTh>{t('products:writeOff.amountColumn')}</RefTh>
             </tr>
           </RefHead>
           <tbody>
@@ -74,25 +89,49 @@ export default function WriteOffDocumentView({ document: doc, movements, product
                   const frames = movementFrames(line, product)
                   const cost = costFrames(line, product)
                   const lot = lotsById[line.lot_id]
+                  // 🔴 **حسابٌ على نفس السطر — عمودان محفوظان** (الخيار ١).
+                  // ⚠️ **و`costFrames` تُرجع عدمًا حين لا سعرَ مختوم**، فيبقى
+                  // المبلغُ عدمًا ولا يصير صفرًا.
+                  const amount = cost === null ? null : roundToPlaces(frames.base * cost.base)
                   return (
                     <RefRow key={line.id} data-view-line={line.id}>
+                      <RefTd>{product?.name || '—'}</RefTd>
+
+                      {/* ⚠️ **الوحدةُ قبل الرقم، والإطارُ الذي كُتب فيه** —
+                          مَن أدخل «٥ عبوات» لا يتعرّف على «٧٥». */}
                       <RefTd>
-                        {product?.name || '—'}
-                        {/* 🔴 **الدفعةُ مسمّاةٌ بتاريخ استلامها** — وهي ما يفرّق
-                            سطرين لنفس المنتج بسعرين مختلفين. */}
-                        {lot && <RefTag>{String(lot.received_at || '').slice(0, 10)}</RefTag>}
+                        {frames.entered === null ? '—' : t('products:documents.inEntered', {
+                          uom: t(`products:docs.uom_${frames.uom || 'unit'}`), n: frames.entered,
+                        })}
                       </RefTd>
-                      <RefTd>{String(lot?.received_at || '').slice(0, 10) || '—'}</RefTd>
                       <RefTd>
                         {t('products:documents.inBase', {
                           unit: t(`products:units.${frames.baseUnit || 'pcs'}`), n: frames.base,
                         })}
                       </RefTd>
+
+                      {/* 🔴 **الدفعةُ وسعرُها معًا** — وهي ما تشرح `unit_cost`
+                          المختوم: سطران لمنتجٍ واحدٍ بسعرين، والدفعةُ وحدَها
+                          تفرّقهما (د/٣).
+                          ⚠️ **وصفرٌ مختومٌ رقمٌ حقيقيٌّ لا فراغ** — وهو ما حمله
+                          المستندان المعطوبان. */}
                       <RefTd>
-                        {/* ⚠️ **صفرٌ مختومٌ رقمٌ حقيقيٌّ هنا لا فراغ** — وهو ما
-                            حمله المستندان المعطوبان. */}
-                        {cost === null ? '—' : t('products:documents.money', {
-                          total: cost.base.toLocaleString('ar', { maximumFractionDigits: 4 }),
+                        <span className="flex flex-wrap items-center gap-1">
+                          {lot ? <RefTag>{String(lot.received_at || '').slice(0, 10)}</RefTag> : '—'}
+                          {cost !== null && (
+                            <span className="text-muted-foreground">
+                              {t('products:documents.unitCost', {
+                                unit: t(`products:units.${cost.baseUnit || 'pcs'}`),
+                                price: cost.base.toLocaleString('ar', { maximumFractionDigits: 4 }),
+                              })}
+                            </span>
+                          )}
+                        </span>
+                      </RefTd>
+
+                      <RefTd>
+                        {amount === null ? '—' : t('products:documents.money', {
+                          total: amount.toLocaleString('ar', { maximumFractionDigits: 2 }),
                         })}
                       </RefTd>
                     </RefRow>
@@ -111,6 +150,14 @@ export default function WriteOffDocumentView({ document: doc, movements, product
           </tbody>
         </RefTable>
       </div>
+
+      {/* ⚠️ **والملاحظةُ أسفل الجدول كما في شاشة الإدخال.** */}
+      {doc.note && (
+        <p className="text-xs">
+          <span className="text-muted-foreground">{t('products:docs.noteLabel')}: </span>
+          {doc.note}
+        </p>
+      )}
     </div>
   )
 }

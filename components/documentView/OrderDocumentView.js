@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow } from '../ref/RefGrid'
 import { orderViewLines } from '../../lib/documentsWithOrders'
+import { roundToPlaces } from '../../lib/decimalPlaces'
 
 // طلبيّةٌ مرحَّلةٌ تُقرأ بشكل شاشتها — **رسمٌ ساكنٌ بالبناء، لا شاشةُ إدخالٍ
 // معطَّلة.**
@@ -19,14 +20,20 @@ import { orderViewLines } from '../../lib/documentsWithOrders'
 // 🔴 ولا رقمَ لم يُكتب — قرارُ المالك (د/١)
 // ══════════════════════════════════════════════════════════════════
 //
-// **لا مجموعَ ولا صافيَ ولا إجماليَّ سطر.** المعروضُ ما كُتب وقتَ التسجيل
-// وحدَه: الكمّيّةُ بوحدتها، **والسعرُ المطلوبُ كما أُدخل.**
+// **الخيارُ ١، وحدُّه «نفس السطر»:**
 //
-// ⚠️ **والحدُّ الدقيق:** تسميةُ محفوظٍ عرضٌ (وحدةٌ · صيغةٌ)، **وجمعُ محفوظَين
-// حساب.** والسؤالُ الفاصل: **هل يظهر رقمٌ ليس له عمودٌ في القاعدة؟**
+// ```
+// ✅ مسموح   ضربُ عمودين محفوظين على السطر نفسِه — الكمّيّة × السعر
+// 🔴 ممنوع   أيُّ جمعٍ عبر السطور: مجموعٌ · خصمٌ · نقلٌ · صافٍ · متبقٍّ
+// ```
 //
-// ✅ **وهذا يُلغي خطرَ الانحراف لا يديره:** بلا حسابٍ لا يمكن أن يعرض مستندٌ
-// قديمٌ رقمًا يخالف ما رآه من رحّله يومَ يتغيّر منطقُ الحساب.
+// ⚠️ **وهذا التعليقُ نفسُه كان يقول «لا إجماليَّ سطر» قبل قرار الخيار ١**،
+// **وبقي كذلك بعد أن أُضيف عمودُ المبلغ تحته بأسطر** — تعليقٌ يناقض كودَه.
+// أُصلح عند ملاحظته، **ويُذكَر لأن السكوتَ عنه يجعل القارئَ يحسبه لم يقع.**
+//
+// **ولماذا الحدُّ هنا:** ضربُ سطرٍ في نفسه **لا يتغيّر أبدًا ما دام السطرُ
+// محفوظًا**، **وجمعُ سطورٍ يمرّ بمنطقٍ قد يتغيّر** — فيعرض مستندٌ قديمٌ رقمًا
+// يخالف ما رآه من رحّله. **والخطرُ كلُّه في الثاني.**
 //
 // ══════════════════════════════════════════════════════════════════
 //
@@ -34,7 +41,23 @@ import { orderViewLines } from '../../lib/documentsWithOrders'
 // لا أيَّ مجلّدٍ اختير. **فالتجميعُ هنا تحت تصنيفاتِ السطور الموجودة، ومجلّدٌ
 // بلا سطرٍ لا يظهر.** ⇒ **فالشاشتان لن تتطابقا بصريًّا، وهذا صوابٌ لا نقص:**
 // «أيّ شي ما وراه بيانات بينحذف مش بينرسم فاضي».
-const COLUMNS = 3
+// ══════════════════════════════════════════════════════════════════
+// الأعمدةُ — مطابقةٌ لشاشة الطلب، بفارقين كلٌّ منهما بسبب
+// ══════════════════════════════════════════════════════════════════
+//
+// ```
+// الإدخال   المنتج · العبوات · الكمّيّة · الرصيد الحاليّ · المبلغ
+// العرض     المنتج · العبوات ·    —    ·       —        · السعر · المبلغ
+// ```
+//
+// ❌ **«الرصيد الحاليّ» يسقط** — مفهومُ لحظةِ إدخال، **وقراءتُه اليومَ تعطي
+//    رصيدَ اليوم لا رصيدَ الطلب.**
+// ❌ **و«الكمّيّة» بالقطعة تسقط** — الطلبيّةُ **لا تولّد حركةً**، فلا
+//    `quantity_base` لها. **واشتقاقُها من `entered_quantity × units_per_package`
+//    يضرب سطرًا في حقلِ منتجٍ خارجه** — وهو خارجُ حدّ الخيار ١ («نفس السطر»).
+// ✅ **و«السعر» يُضاف** — `entered_unit_price` محفوظٌ حرفيًّا، **وهو ما قاله
+//    الورق.** والمبلغُ حاصلُ ضربه في الكمّيّة، **عمودان على نفس السطر.**
+const COLUMNS = 4
 
 export default function OrderDocumentView({ order, orderLines, products, categories, suppliers }) {
   const { t } = useTranslation(['products', 'common'])
@@ -83,9 +106,10 @@ export default function OrderDocumentView({ order, orderLines, products, categor
           <RefHead>
             <tr>
               <RefTh>{t('products:orders.productColumn')}</RefTh>
-              <RefTh>{t('products:orders.quantityColumn')}</RefTh>
+              <RefTh>{t('products:orders.packagesColumn')}</RefTh>
               {/* 🔴 «سعرٌ مطلوب» لا «كلفة» — لا شراءَ وقع ولا دفعةَ وُلدت. */}
               <RefTh>{t('products:documents.valueOrder')}</RefTh>
+              <RefTh>{t('products:orders.amountColumn')}</RefTh>
             </tr>
           </RefHead>
           <tbody>
@@ -108,6 +132,16 @@ export default function OrderDocumentView({ order, orderLines, products, categor
                       {line.askingPrice === null ? '—' : t('products:documents.money', {
                         total: line.askingPrice.toLocaleString('ar', { maximumFractionDigits: 2 }),
                       })}
+                    </RefTd>
+                    {/* 🔴 **حسابٌ على نفس السطر — عمودان محفوظان** (الخيار ١).
+                        ⚠️ **وأيُّ عدمٍ في الطرفين يُبقي المبلغَ عدمًا**، فلا
+                        يُقرأ سطرٌ بلا سعرٍ متَّفقٍ عليه «بلا ثمن». */}
+                    <RefTd>
+                      {line.askingPrice === null || line.quantity === null ? '—'
+                        : t('products:documents.money', {
+                          total: roundToPlaces(line.quantity * line.askingPrice)
+                            .toLocaleString('ar', { maximumFractionDigits: 2 }),
+                        })}
                     </RefTd>
                   </RefRow>
                 ))}
