@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
-import { AlertTriangle, Undo2, Eye, ArrowRight } from 'lucide-react'
+import { AlertTriangle, Undo2, Eye, ArrowRight, X } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { numberOrNull } from '../lib/decimalPlaces'
 import { reverseStockDocument } from '../lib/stockIO'
@@ -27,6 +27,8 @@ import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from '.
 // حلّت هذه الحالةَ بلوحٍ مطلقِ الموضع لا بحوارٍ ثانٍ** — فالمظهرُ هو المطلوب
 // والآليّةُ آمنة. ⇒ **نفسُ نمطها هنا: النيّةُ لم تتغيّر، والوسيلةُ فقط.**
 import { RefCancelButton } from './ref/RefModal'
+// 🔴 **الشكلُ وحدَه** — لا بنيةَ Dialog ولا Portal، بشرط المالك.
+import RefChromeBar, { CHROME_TITLE, CHROME_CLOSE } from './ref/RefChromeBar'
 // 🔴 **يوصَّل ما اكتمل، ولا يُنتظَر الأربعة.** الطلبيّةُ والشطبُ جاهزتان
 // ومرّتا بحارس «غيرُ تفاعليٍّ بالبناء» — **والتوريدُ والإرجاعُ يبقيان على
 // اللوح العامّ حتى تكتملا.** ⚠️ **والانتظارُ كان سيُفقد فائدةَ الدفع المبكر:**
@@ -186,6 +188,20 @@ export default function StockDocumentsList({
   // الصفُّ المعروضُ يُقرأ من المجموعة الكاملة لا من الصفوف — فتغييرُ مرشِّحٍ
   // واللوحُ مفتوحٌ لا يُفرّغه من محتواه.
   const viewed = viewing ? all.find((d) => d && d.id === viewing) : null
+
+  // 🔴 **هل لهذا النوع شاشةُ عرضٍ خاصّةٌ به؟** — يُحسب مرّةً ويُقرأ مرّتين:
+  // مرّةً لرسم الشاشة، ومرّةً لإخفاء زرّ الإغلاق السفليّ.
+  //
+  // ⚠️ **والسببُ أن الشاشاتِ الأربعَ ترسم أزرارَها هي** (ديكورًا بلا وظيفة،
+  // بقرار المالك) — **فزرُّ إغلاقٍ حقيقيٌّ تحتها زرٌّ خامسٌ لا وجودَ له في شاشة
+  // الإنشاء.** والمَخرجُ الحقيقيُّ صار `×` في الشريط.
+  //
+  // ⚠️ **ويُشتقّ من نفس الشرط الذي يرسم الشاشة، لا من قائمةِ أنواعٍ ثانية** —
+  // نسختان من «أيُّ الأنواع لها شاشة» فرصتان لتتباعدا.
+  const dedicatedView = !viewed ? null
+    : rowIsOrder(viewed) ? 'order'
+      : ['write_off', 'supply', 'return_to_supplier'].includes(viewed.doc_type) ? viewed.doc_type
+        : null
 
   async function confirmReverse() {
     if (!confirming) return
@@ -664,14 +680,51 @@ export default function StockDocumentsList({
           data-document-view={viewed.id}
           className="absolute inset-0 z-10 flex items-center justify-center bg-black/5 p-4"
         >
-          <div className="flex max-h-full w-full max-w-[900px] flex-col gap-2 border border-[var(--rule)] bg-background p-3 shadow-lg">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-              <span>{t(`products:docs.${viewed.doc_type}.title`)}</span>
-              {viewed.doc_number && <RefTag>{viewed.doc_number}</RefTag>}
-              <span className="text-xs font-normal text-muted-foreground">
-                {documentDate(viewed.doc_date)}
-              </span>
-            </p>
+          <div className="flex max-h-full w-full max-w-[900px] flex-col border border-[var(--rule)] bg-background shadow-lg">
+            {/* ══════════════════════════════════════════════════════════
+                🔴 شريطُ العنوان — **شكلُ `RefModal` بلا آليّته**
+                ══════════════════════════════════════════════════════════
+
+                **بلفظ المالك:** «الاستخراجُ تجميليٌّ فقط (شكلُ الشريط)، بلا أيّ
+                إعادةِ استعمالٍ لبنية Dialog/Portal تبع RefModal. لوحُ العرض
+                يبقى `<div>` يدويّ، **يستعير الشكلَ لا الآلية**».
+
+                ⚠️ **ولماذا يستحيل غيرُ ذلك، مقيسًا:** الصفحةُ تلفّ العمليّةَ
+                بـ`RefModal` أصلًا، **وحوارٌ داخل حوارٍ كلّف جولةً كاملةً في هذا
+                المشروع** — فبنيةٌ ثانيةٌ تتنازع على بؤرة اللوحة، **والشكلُ
+                وحدَه لا يتنازع.**
+
+                ✅ **والعنوانُ نفسُ عنوان شريط شاشة الإنشاء** — مقيسًا:
+                `docs.write_off.title` و`secondaryItems.writeOff` متطابقان
+                حرفيًّا، وكذلك التوريدُ والإرجاع. **ومحروسٌ** في
+                `viewPanelTitle.test.js` فلا يتباعدان بصمت.
+
+                ⚠️ **والطلبيّةُ وحدَها تفترق، وبقرار المالك:** شريطُ شاشة
+                الإنشاء يقول «الطلبيّات» (اسمُ القسم)، **والمالكُ طلب «طلب
+                بضاعة»** — وهي `docs.order.title`. **فالمصدرُ واحدٌ للأربع
+                (`docs.<type>.title`)، والافتراقُ معلَنٌ ومحروس.** */}
+            <RefChromeBar
+              title={(
+                <span className={`${CHROME_TITLE} flex items-center gap-2`}>
+                  {t(`products:docs.${viewed.doc_type}.title`)}
+                  {viewed.doc_number && <RefTag>{viewed.doc_number}</RefTag>}
+                  <span className="font-normal opacity-80">{documentDate(viewed.doc_date)}</span>
+                </span>
+              )}
+              close={(
+                <button
+                  type="button"
+                  data-view-close
+                  aria-label={t('common:close')}
+                  className={CHROME_CLOSE}
+                  onClick={() => setViewing(null)}
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            />
+
+            <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
 
             {/* 🔴 **النوعان الجاهزان يفتحان شاشتيهما، والباقي على اللوح العامّ.**
                 ⚠️ **ووصلٌ تدريجيٌّ لا انتظارٌ للأربعة:** التوريدُ والإرجاعُ
@@ -790,11 +843,17 @@ export default function StockDocumentsList({
             )}
 
             {/* ⚠️ **مَخرجٌ صريحٌ لا اعتمادٌ على الضغط خارجَ اللوح** — نفسُ
-                ملاحظة زرّ الرجوع، على مستوى اللوح. */}
-            <div className="flex justify-end">
-              <RefCancelButton onClick={() => setViewing(null)}>
-                {t('common:close')}
-              </RefCancelButton>
+                ملاحظة زرّ الرجوع، على مستوى اللوح.
+                🔴 **ويُخفى عن الشاشات الأربع وحدَها:** هنّ يرسمن أزرارَهنّ
+                (ديكورًا)، **فزرٌّ حقيقيٌّ تحتها زرٌّ خامسٌ لا وجودَ له في شاشة
+                الإنشاء** — والمَخرجُ هناك هو `×` في الشريط. */}
+            {!dedicatedView && (
+              <div className="flex justify-end">
+                <RefCancelButton onClick={() => setViewing(null)}>
+                  {t('common:close')}
+                </RefCancelButton>
+              </div>
+            )}
             </div>
           </div>
         </div>
