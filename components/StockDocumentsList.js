@@ -684,6 +684,10 @@ export default function StockDocumentsList({
                 products={products}
                 categories={categories}
                 suppliers={suppliers}
+                balances={balances}
+                // ⚠️ **مستودعُ العدسة** — والطلبيّةُ بلا مستودعٍ أصلًا، فهذا ما
+                // تقرأ منه شاشةُ الإنشاء «الرصيد الحاليّ» كذلك.
+                storageId={storageId}
               />
             ) : viewed.doc_type === 'write_off' ? (
               <WriteOffDocumentView

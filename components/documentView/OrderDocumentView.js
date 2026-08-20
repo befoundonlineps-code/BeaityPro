@@ -1,79 +1,101 @@
 import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
+import { Search, FileSpreadsheet, FileInput, Filter } from 'lucide-react'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow } from '../ref/RefGrid'
+import {
+  StaticField, StaticSelect, StaticArea,
+  StaticActionButton, StaticCancelButton, StaticShellButton,
+} from '../ref/RefStatic'
 import { orderViewLines } from '../../lib/documentsWithOrders'
+import { balanceIndex } from '../../lib/orderGrid'
 import { roundToPlaces } from '../../lib/decimalPlaces'
 
-// طلبيّةٌ مرحَّلةٌ تُقرأ بشكل شاشتها — **رسمٌ ساكنٌ بالبناء، لا شاشةُ إدخالٍ
-// معطَّلة.**
+// «طلب بضاعة» — **مشاهدةً.** صورةُ شاشة الإنشاء نفسِها، منزوعةَ الوظيفة.
 //
-// 🔴 **والفرقُ ليس أسلوبًا:** ٠٩٤ج سحب `UPDATE` عن `stock_documents`، **فزرُّ
-// إرسالٍ منسيٌّ لا يُرفَض كتعديل** — يُدرج مستندًا جديدًا بالكامل عبر
-// `INSERT`. ⇒ **مستندٌ شبحيٌّ بحركاتٍ حقيقيّة.** و`disabled` خاصّيّةٌ تُنسى؛
-// **والعنصرُ غيرُ الموجودِ لا يُنسى.**
+// **المعيارُ الموحَّد بلفظ المالك:** «شاشةُ العرض = نفسُ شاشة الإنشاء بصريًّا
+// بالحرف»، **وكلُّ الأزرار ديكورٌ بلا `onClick` بتاتًا، بلا استثناء.**
 //
-// ⚠️ **ولا زرَّ هنا إطلاقًا** — الإغلاقُ يملكه اللوحُ الحاوي، **وحارسُ
-// `viewScreensAreInert` يُسقط الحزمةَ على أوّل `<button>` أو `<input>` أو
-// `onChange` أو نداءِ ترحيلٍ يدخل هذا المجلّد.**
+// ⚠️ **والطلبيّةُ تُعدَّل وتُحذَف فعلًا** (بخلاف المستند المرحَّل)، **فالخطرُ
+// هنا أقربُ لا أبعد:** زرٌّ يعمل في شاشةِ عرضٍ يكتب على طلبيّةٍ قائمة.
 //
 // ══════════════════════════════════════════════════════════════════
-// 🔴 ولا رقمَ لم يُكتب — قرارُ المالك (د/١)
+// 🔴 عمودُ «الكمّيّة» بالقطعة يسقط كلّيًّا — قرارُ المالك، ومقيسٌ لماذا
 // ══════════════════════════════════════════════════════════════════
 //
-// **الخيارُ ١، وحدُّه «نفس السطر»:**
+// **`product_order_lines` ليس فيها `quantity_base` ولا ما يكافئه** — مقيسًا من
+// تعريف الجدول (`053a:133`): `entered_quantity` · `entered_uom` ·
+// `entered_unit_price` · `sort_order` **وحدَها.** **والطلبيّةُ لا تولّد حركةً**
+// فلا `stock_movements` لها.
+//
+// ⚠️ **واشتقاقُها حيًّا (`entered_quantity × units_per_package`) هو خطرُ
+// `unit_cost` بعينه بلبوسٍ جديد، بلفظ المالك:** «الكمّيّةُ حقيقةٌ أساسيّةٌ من
+// صلب المستند… إن كانت تُحسب حيًّا من معامل تعبئةٍ قابلٍ للتغيّر بإعدادات
+// المنتج، فهي نفسُ خطر `unit_cost` — رقمٌ تاريخيٌّ قد يتغيّر بصمتٍ بعد شهور».
+//
+// ⇒ **`entered_quantity` + `entered_uom` فقط، بلا أيّ حسابٍ حيّ.**
+//
+// ══════════════════════════════════════════════════════════════════
+// 🔴 و«المبلغ» يبقى موضعًا وتسميةً، وقيمتُه «—» على كلّ طلبيّةٍ من هذه الشاشة
+// ══════════════════════════════════════════════════════════════════
+//
+// **مقيسٌ ومفاجئ:** `orderGrid.js:240 orderLinesFromGrid` **لا تحفظ سعرًا
+// إطلاقًا** — تحفظ `productId · enteredQuantity · enteredUom · sortOrder`.
+// ⇒ **`entered_unit_price` عدمٌ على كلّ سطرٍ أنشأته شاشةُ الطلب.**
+//
+// **وشاشةُ الإنشاء تعرض المبلغَ مع ذلك**، لأنها تضربه في **سعر الكتالوج
+// اليوم** (`effectivePrice` حين لا سعرَ مكتوب) — **وذلك بالضبط ما تحظره قاعدةُ
+// المالك:** «لا حسابَ حيًّا لأيّ كمّيّةٍ أو مبلغٍ غير مخزَّنٍ على نفس السطر».
+//
+// ⇒ **فالضربُ هنا على المحفوظ وحدَه** (`entered_quantity × entered_unit_price`)،
+// **و«—» حين لا سعرَ محفوظًا** — وهي حالةُ كلّ طلبيّةٍ اليوم. **يُقال ولا
+// يُبتلع، ويُصلَح بحفظ السعر في شاشة الإنشاء إن أراد المالك.**
+//
+// ══════════════════════════════════════════════════════════════════
+// الأعمدةُ — أربعةٌ من خمسة
+// ══════════════════════════════════════════════════════════════════
 //
 // ```
-// ✅ مسموح   ضربُ عمودين محفوظين على السطر نفسِه — الكمّيّة × السعر
-// 🔴 ممنوع   أيُّ جمعٍ عبر السطور: مجموعٌ · خصمٌ · نقلٌ · صافٍ · متبقٍّ
+// الإنشاء   المنتج · العبوات(w-24) · الكمّيّة(w-28) · الرصيد الحاليّ(w-32) · المبلغ(w-28)
+// العرض     المنتج · العبوات(w-24) ·      —        · الرصيد الحاليّ(w-32) · المبلغ(w-28)
 // ```
 //
-// ⚠️ **وهذا التعليقُ نفسُه كان يقول «لا إجماليَّ سطر» قبل قرار الخيار ١**،
-// **وبقي كذلك بعد أن أُضيف عمودُ المبلغ تحته بأسطر** — تعليقٌ يناقض كودَه.
-// أُصلح عند ملاحظته، **ويُذكَر لأن السكوتَ عنه يجعل القارئَ يحسبه لم يقع.**
+// ⚠️ **و«الرصيد الحاليّ» من مستودع العدسة، كما في شاشة الإنشاء** — **والطلبيّةُ
+// بلا مستودعٍ أصلًا** (`storage_id` عدمٌ في الصفّ المدموج)، فلا مستودعَ آخرَ
+// يُقرأ منه. **وبنفس `balanceIndex`** فلا يفترق الرقمان.
 //
-// **ولماذا الحدُّ هنا:** ضربُ سطرٍ في نفسه **لا يتغيّر أبدًا ما دام السطرُ
-// محفوظًا**، **وجمعُ سطورٍ يمرّ بمنطقٍ قد يتغيّر** — فيعرض مستندٌ قديمٌ رقمًا
-// يخالف ما رآه من رحّله. **والخطرُ كلُّه في الثاني.**
-//
-// ══════════════════════════════════════════════════════════════════
-//
-// ⚠️ **والمجلّداتُ المختارةُ لا تُحفظ** (المواصفة ج/٢) — المستندُ يسجّل سطورَه
-// لا أيَّ مجلّدٍ اختير. **فالتجميعُ هنا تحت تصنيفاتِ السطور الموجودة، ومجلّدٌ
-// بلا سطرٍ لا يظهر.** ⇒ **فالشاشتان لن تتطابقا بصريًّا، وهذا صوابٌ لا نقص:**
-// «أيّ شي ما وراه بيانات بينحذف مش بينرسم فاضي».
-// ══════════════════════════════════════════════════════════════════
-// الأعمدةُ — مطابقةٌ لشاشة الطلب، بفارقين كلٌّ منهما بسبب
-// ══════════════════════════════════════════════════════════════════
-//
-// ```
-// الإدخال   المنتج · العبوات · الكمّيّة · الرصيد الحاليّ · المبلغ
-// العرض     المنتج · العبوات ·    —    ·       —        · السعر · المبلغ
-// ```
-//
-// ❌ **«الرصيد الحاليّ» يسقط** — مفهومُ لحظةِ إدخال، **وقراءتُه اليومَ تعطي
-//    رصيدَ اليوم لا رصيدَ الطلب.**
-// ❌ **و«الكمّيّة» بالقطعة تسقط** — الطلبيّةُ **لا تولّد حركةً**، فلا
-//    `quantity_base` لها. **واشتقاقُها من `entered_quantity × units_per_package`
-//    يضرب سطرًا في حقلِ منتجٍ خارجه** — وهو خارجُ حدّ الخيار ١ («نفس السطر»).
-// ✅ **و«السعر» يُضاف** — `entered_unit_price` محفوظٌ حرفيًّا، **وهو ما قاله
-//    الورق.** والمبلغُ حاصلُ ضربه في الكمّيّة، **عمودان على نفس السطر.**
+// 🔴 **و«المجموع» موضعُه وتسميتُه دائمًا، وقيمتُه «—» دائمًا** — موحَّدًا على
+// الأربع، **و«ثلاثُ جملٍ لا رقمٌ واحد» في شاشة الإنشاء كلُّها مجموعُ سطور.**
 const COLUMNS = 4
 
-export default function OrderDocumentView({ order, orderLines, products, categories, suppliers }) {
+export default function OrderDocumentView({
+  order, orderLines, products, categories, suppliers, balances, storageId,
+}) {
   const { t } = useTranslation(['products', 'common'])
   if (!order) return null
 
   const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
-  // ⚠️ **يُحلّ هنا من `supplier_id`** — الصفُّ المدموجُ يحمل المعرِّفَ لا الاسم،
+  const categoriesById = Object.fromEntries((categories || []).map((c) => [c.id, c]))
+  // ⚠️ **يُحلّ من `supplier_id`** — الصفُّ المدموجُ يحمل المعرِّفَ لا الاسم،
   // **وقراءةُ `order.supplier_name` كانت سترسم «—» على كلّ طلبيّةٍ أبدًا.**
   const supplierName = (suppliers || []).find((s) => s && s.id === order.supplier_id)?.name || null
-  const categoryName = (id) => (categories || []).find((c) => c && c.id === id)?.name || null
 
-  // تجميعٌ تحت التصنيف، بترتيب السطور كما حُفظت — **ولا فرزَ يُخترع.**
-  // `products.category_id` غيرُ قابلٍ للعدم (مقيسٌ بالمخطّط)، فلا فئةَ يتيمة
-  // إلّا حين يغيب المنتجُ نفسُه عن الحمولة.
+  const stock = balanceIndex(balances, storageId)
+
+  const chainOf = (categoryId) => {
+    const chain = []
+    let node = categoriesById[categoryId]
+    // ⚠️ حدٌّ أعلى للحلقة — دورةٌ في `parent_id` تعلّق الصفحةَ بلا رسالة.
+    let guard = 0
+    while (node && guard < 32) { chain.unshift(node); node = categoriesById[node.parent_id]; guard += 1 }
+    return chain
+  }
+
+  // 🔴 **سطورُ الطلبيّة وحدَها** — قرارُ المالك، **والمجلّداتُ المؤشَّرةُ لم
+  // تُحفظ قطّ**، فصفوفُ شاشة الإنشاء غيرُ قابلةٍ للاسترجاع أصلًا.
+  const lines = orderViewLines(orderLines, order.id)
+
   const groups = []
-  for (const line of orderViewLines(orderLines, order.id)) {
+  for (const line of lines) {
     const product = productsById[line.productId]
     const key = product ? product.category_id : null
     const last = groups[groups.length - 1]
@@ -82,72 +104,77 @@ export default function OrderDocumentView({ order, orderLines, products, categor
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {/* الرأسُ — محفوظاتٌ تُقرأ، بلا حقلٍ واحدٍ يُكتب. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span>
-          <span className="text-muted-foreground">{t('products:orders.supplierLabel')}: </span>
-          {supplierName || '—'}
+    <div className="flex h-full flex-col gap-2">
+      {/* ══ الرأسُ — نفسُ ترتيب شاشة الإنشاء وحقولها الثلاثة ══ */}
+      <div className="flex flex-wrap items-end gap-3">
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:orders.invoiceLabel')}
+          <StaticField>{order.supplier_doc_number || ''}</StaticField>
         </span>
-        <span>
-          <span className="text-muted-foreground">{t('products:docs.dateLabel')}: </span>
-          {String(order.doc_date || '').slice(0, 10) || '—'}
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:orders.fromLabel')}
+          <StaticField className="w-[9.5rem]">
+            {String(order.doc_date || '').slice(0, 10)}
+          </StaticField>
         </span>
-        {order.note && (
-          <span>
-            <span className="text-muted-foreground">{t('products:docs.noteLabel')}: </span>
-            {order.note}
-          </span>
-        )}
+        <span className="flex items-center gap-1.5 text-xs">
+          {t('products:orders.supplierLabel')}
+          <StaticSelect className="w-48">{supplierName || ''}</StaticSelect>
+        </span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
+      {/* ══ الجدولُ — نفسُ العروض والارتفاع الأدنى ══ */}
+      <div className="min-h-[240px] flex-1 overflow-auto border border-[var(--rule)]">
         <RefTable>
           <RefHead>
             <tr>
               <RefTh>{t('products:orders.productColumn')}</RefTh>
-              <RefTh>{t('products:orders.packagesColumn')}</RefTh>
-              {/* 🔴 «سعرٌ مطلوب» لا «كلفة» — لا شراءَ وقع ولا دفعةَ وُلدت. */}
-              <RefTh>{t('products:documents.valueOrder')}</RefTh>
-              <RefTh>{t('products:orders.amountColumn')}</RefTh>
+              <RefTh className="w-24">{t('products:orders.packagesColumn')}</RefTh>
+              <RefTh className="w-32">{t('products:orders.inStockColumn')}</RefTh>
+              <RefTh className="w-28">{t('products:orders.amountColumn')}</RefTh>
             </tr>
           </RefHead>
           <tbody>
             {groups.map((group, gi) => (
               <Fragment key={`${group.key}-${gi}`}>
-                {categoryName(group.key) && (
-                  <RefGroupRow columns={COLUMNS}>{categoryName(group.key)}</RefGroupRow>
-                )}
-                {group.lines.map(({ line, product }) => (
-                  <RefRow key={line.id} data-view-line={line.id}>
-                    <RefTd>{product?.name || '—'}</RefTd>
-                    <RefTd>
-                      {line.quantity === null ? '—' : t('products:documents.inEntered', {
-                        uom: t(`products:docs.uom_${line.uom || 'unit'}`), n: line.quantity,
-                      })}
-                    </RefTd>
-                    <RefTd>
-                      {/* ⚠️ **والعدمُ يبقى عدمًا** — `entered_unit_price` يقبله،
-                          و«لا أحدَ اتّفق على السعر» ليست «هذا بلا ثمن». */}
-                      {line.askingPrice === null ? '—' : t('products:documents.money', {
-                        total: line.askingPrice.toLocaleString('ar', { maximumFractionDigits: 2 }),
-                      })}
-                    </RefTd>
-                    {/* 🔴 **حسابٌ على نفس السطر — عمودان محفوظان** (الخيار ١).
-                        ⚠️ **وأيُّ عدمٍ في الطرفين يُبقي المبلغَ عدمًا**، فلا
-                        يُقرأ سطرٌ بلا سعرٍ متَّفقٍ عليه «بلا ثمن». */}
-                    <RefTd>
-                      {line.askingPrice === null || line.quantity === null ? '—'
-                        : t('products:documents.money', {
-                          total: roundToPlaces(line.quantity * line.askingPrice)
-                            .toLocaleString('ar', { maximumFractionDigits: 2 }),
-                        })}
-                    </RefTd>
-                  </RefRow>
+                {/* ⚠️ **بلا شارةِ «مجموع العبوات»** — مجموعُ سطورٍ، محظورٌ بـد/١.
+                    **وبلا «مجلد بلا أصناف»** — لا مجلّدَ بلا سطرٍ هنا أصلًا. */}
+                {chainOf(group.key).map((folder) => (
+                  <RefGroupRow key={`${gi}-${folder.id}`} columns={COLUMNS}>{folder.name}</RefGroupRow>
                 ))}
+                {group.lines.map(({ line, product }) => {
+                  // 🔴 **ضربٌ على المحفوظ وحدَه** — و«—» حين لا سعرَ محفوظًا.
+                  const amount = line.askingPrice === null || line.quantity === null
+                    ? null
+                    : roundToPlaces(line.quantity * line.askingPrice)
+                  return (
+                    <RefRow key={line.id} data-view-line={line.id}>
+                      <RefTd>{product?.name || '—'}</RefTd>
+
+                      {/* ⚠️ **الوحدةُ قبل الرقم، والإطارُ الذي كُتب فيه.** */}
+                      <RefTd>
+                        <StaticField>
+                          {line.quantity === null ? '' : t('products:documents.inEntered', {
+                            uom: t(`products:docs.uom_${line.uom || 'unit'}`), n: line.quantity,
+                          })}
+                        </StaticField>
+                      </RefTd>
+
+                      <RefTd>
+                        {t('products:orders.qtyWithUnit', {
+                          n: stock.get(line.productId) ?? 0,
+                          unit: t(`products:units.${product?.base_unit || 'pcs'}`),
+                        })}
+                      </RefTd>
+                      <RefTd>
+                        {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
+                      </RefTd>
+                    </RefRow>
+                  )
+                })}
               </Fragment>
             ))}
-            {groups.length === 0 && (
+            {lines.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS} className="py-3 text-center text-xs text-muted-foreground">
                   {t('products:documents.noLines')}
@@ -157,6 +184,38 @@ export default function OrderDocumentView({ order, orderLines, products, categor
             <RefFillerRow columns={COLUMNS} />
           </tbody>
         </RefTable>
+      </div>
+
+      {/* ══ صفُّ البحث والضوابط الثلاثة ══ */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5">
+          <Search className="size-3.5 text-muted-foreground" />
+          <StaticField className="w-56 text-muted-foreground">
+            {t('products:orders.searchPlaceholder')}
+          </StaticField>
+        </span>
+        <StaticShellButton icon={Filter}>{t('products:orders.filterLabel')}</StaticShellButton>
+        <StaticShellButton icon={FileInput}>{t('products:orders.enterLabel')}</StaticShellButton>
+        <StaticShellButton icon={FileSpreadsheet}>{t('products:orders.excelLabel')}</StaticShellButton>
+      </div>
+
+      {/* ══ المجموعُ — موضعٌ وتسميةٌ دائمًا، وقيمةٌ «—» دائمًا ══ */}
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        {t('products:orders.totalLabel')}
+        <span data-view-total>—</span>
+      </div>
+
+      {/* ══ الملاحظةُ — صندوقٌ ساكنٌ بارتفاع سطرين ══ */}
+      <span className="flex flex-col gap-1 text-xs">
+        {t('products:orders.noteLabel')}
+        <StaticArea>{order.note || ''}</StaticArea>
+      </span>
+
+      {/* ══ الأزرارُ الثلاثة — ديكورٌ بلا وظيفة، بنفس الترتيب ══ */}
+      <div className="flex justify-end gap-2">
+        <StaticCancelButton>{t('products:orders.backToFolders')}</StaticCancelButton>
+        <StaticCancelButton>{t('products:orders.cancelButton')}</StaticCancelButton>
+        <StaticActionButton>{t('products:orders.toOrderButton')}</StaticActionButton>
       </div>
     </div>
   )
