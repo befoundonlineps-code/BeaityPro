@@ -762,6 +762,7 @@ export default function StockDocumentsList({
                 products={products}
                 categories={categories}
                 suppliers={suppliers}
+                storageCategories={storageCategories}
                 balances={balances}
                 // ⚠️ **مستودعُ العدسة** — والطلبيّةُ بلا مستودعٍ أصلًا، فهذا ما
                 // تقرأ منه شاشةُ الإنشاء «الرصيد الحاليّ» كذلك.

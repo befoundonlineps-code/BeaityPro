@@ -1,12 +1,13 @@
-import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet, FileInput, Filter } from 'lucide-react'
-import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow } from '../ref/RefGrid'
+import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from '../ref/RefGrid'
 import {
   StaticField, StaticSelect, StaticArea,
   StaticActionButton, StaticCancelButton, StaticShellButton,
 } from '../ref/RefStatic'
 import { orderViewLines } from '../../lib/documentsWithOrders'
+// 🔴 **سطورُ الطلبيّة مرجعًا وكتالوجُ اليوم حشوًا** — والحالةُ الحافّةُ فيه مختبَرة.
+import { documentViewRows } from '../../lib/documentViewRows'
 import { balanceIndex } from '../../lib/orderGrid'
 import { roundToPlaces } from '../../lib/decimalPlaces'
 
@@ -68,40 +69,38 @@ import { roundToPlaces } from '../../lib/decimalPlaces'
 const COLUMNS = 4
 
 export default function OrderDocumentView({
-  order, orderLines, products, categories, suppliers, balances, storageId,
+  order, orderLines, products, categories, storageCategories, suppliers, balances, storageId,
 }) {
   const { t } = useTranslation(['products', 'common'])
   if (!order) return null
 
-  const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
-  const categoriesById = Object.fromEntries((categories || []).map((c) => [c.id, c]))
   // ⚠️ **يُحلّ من `supplier_id`** — الصفُّ المدموجُ يحمل المعرِّفَ لا الاسم،
   // **وقراءةُ `order.supplier_name` كانت سترسم «—» على كلّ طلبيّةٍ أبدًا.**
   const supplierName = (suppliers || []).find((s) => s && s.id === order.supplier_id)?.name || null
 
   const stock = balanceIndex(balances, storageId)
 
-  const chainOf = (categoryId) => {
-    const chain = []
-    let node = categoriesById[categoryId]
-    // ⚠️ حدٌّ أعلى للحلقة — دورةٌ في `parent_id` تعلّق الصفحةَ بلا رسالة.
-    let guard = 0
-    while (node && guard < 32) { chain.unshift(node); node = categoriesById[node.parent_id]; guard += 1 }
-    return chain
-  }
-
-  // 🔴 **سطورُ الطلبيّة وحدَها** — قرارُ المالك، **والمجلّداتُ المؤشَّرةُ لم
-  // تُحفظ قطّ**، فصفوفُ شاشة الإنشاء غيرُ قابلةٍ للاسترجاع أصلًا.
-  const lines = orderViewLines(orderLines, order.id)
-
-  const groups = []
-  for (const line of lines) {
-    const product = productsById[line.productId]
-    const key = product ? product.category_id : null
-    const last = groups[groups.length - 1]
-    if (last && last.key === key) last.lines.push({ line, product })
-    else groups.push({ key, lines: [{ line, product }] })
-  }
+  // ══════════════════════════════════════════════════════════════════
+  // 🔴 سطورُ الطلبيّة مرجعًا، وكتالوجُ اليوم حشوًا — **بهذا الترتيب**
+  // ══════════════════════════════════════════════════════════════════
+  //
+  // ⚠️ **ومعرِّفُ المنتج يُقرأ بدالّة:** سطرُ الطلبيّة `productId` لا
+  // `product_id` — **وهو سببُ وجود `productIdOf` في `documentViewRows`.**
+  //
+  // **والحالةُ الحافّةُ هنا كغيرها:** منتجٌ طُلب من سنةٍ ثمّ أُرشِف أو حُذف —
+  // **سطرُه في `product_order_lines` باقٍ**، فيُرسم تحت فئته أو تحت مجموعةٍ
+  // احتياطيّة. ⇒ **ولا سطرَ يسقط.**
+  //
+  // ⚠️ **والمستودعُ مستودعُ العدسة** — والطلبيّةُ بلا مستودعٍ أصلًا، **وهو ما
+  // تبني منه شاشةُ الإنشاء جدولَها كذلك.**
+  const viewRows = documentViewRows({
+    lines: orderViewLines(orderLines, order.id),
+    productIdOf: (line) => line.productId,
+    products,
+    categories,
+    storageCategories,
+    storageId,
+  })
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -135,46 +134,89 @@ export default function OrderDocumentView({
             </tr>
           </RefHead>
           <tbody>
-            {groups.map((group, gi) => (
-              <Fragment key={`${group.key}-${gi}`}>
-                {/* ⚠️ **بلا شارةِ «مجموع العبوات»** — مجموعُ سطورٍ، محظورٌ بـد/١.
-                    **وبلا «مجلد بلا أصناف»** — لا مجلّدَ بلا سطرٍ هنا أصلًا. */}
-                {chainOf(group.key).map((folder) => (
-                  <RefGroupRow key={`${gi}-${folder.id}`} columns={COLUMNS}>{folder.name}</RefGroupRow>
-                ))}
-                {group.lines.map(({ line, product }) => {
-                  // 🔴 **ضربٌ على المحفوظ وحدَه** — و«—» حين لا سعرَ محفوظًا.
-                  const amount = line.askingPrice === null || line.quantity === null
-                    ? null
-                    : roundToPlaces(line.quantity * line.askingPrice)
-                  return (
-                    <RefRow key={line.id} data-view-line={line.id}>
-                      <RefTd>{product?.name || '—'}</RefTd>
+            {viewRows.map((row, ri) => {
+              // ── صفُّ المجلّد ─────────────────────────────────────────
+              if (row.kind === 'folder') {
+                return (
+                  <RefGroupRow key={`f-${row.id}-${ri}`} columns={COLUMNS} data-folder-row={row.id}>
+                    <span className="flex items-center gap-2">
+                      {/* 🔴 **مجموعةُ السطور الخارجةِ عن كتالوج اليوم** — اسمُها
+                          مفتاحُ ترجمةٍ لا اسمُ مجلّد، لأنها ليست مجلّدًا. */}
+                      {row.name ?? t('products:documents.orphanFolder')}
+                      {/* ⚠️ **«مجلد بلا أصناف» ادّعاءٌ عن الكتالوج لا عن المستند.**
+                          🔴 **و«مجموع العبوات» لا يُرسم** — جمعٌ عبر السطور. */}
+                      {row.childCount === 0 && (
+                        <RefTag>{t('products:orders.folderEmpty')}</RefTag>
+                      )}
+                    </span>
+                  </RefGroupRow>
+                )
+              }
 
-                      {/* ⚠️ **الوحدةُ قبل الرقم، والإطارُ الذي كُتب فيه.** */}
-                      <RefTd>
-                        <StaticField>
-                          {line.quantity === null ? '' : t('products:documents.inEntered', {
-                            uom: t(`products:docs.uom_${line.uom || 'unit'}`), n: line.quantity,
-                          })}
-                        </StaticField>
-                      </RefTd>
+              // ── صفُّ الحشو: منتجٌ من كتالوج اليوم ليس في هذه الطلبيّة ──
+              //
+              // 🔴 **«—» لا «٠»** — «٠» توحي بطلبٍ بكمّيّة صفر، **و«—» تعني
+              // «ليس في هذه الطلبيّة إطلاقًا».**
+              //
+              // ⚠️ **و«الرصيد الحاليّ» يبقى رقمًا حقيقيًّا** — رصيدُ اليوم،
+              // **حقيقةٌ عن المخزون لا عن الطلبيّة.**
+              if (row.kind === 'filler') {
+                return (
+                  <RefRow key={`x-${row.product.id}`} data-view-filler={row.product.id}>
+                    <RefTd>
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        {row.product.name}
+                        <RefTag>{t('products:documents.notInDocument')}</RefTag>
+                      </span>
+                    </RefTd>
+                    <RefTd><StaticField /></RefTd>
+                    <RefTd>
+                      {t('products:orders.qtyWithUnit', {
+                        n: stock.get(row.product.id) ?? 0,
+                        unit: t(`products:units.${row.product.base_unit || 'pcs'}`),
+                      })}
+                    </RefTd>
+                    <RefTd>—</RefTd>
+                  </RefRow>
+                )
+              }
 
-                      <RefTd>
-                        {t('products:orders.qtyWithUnit', {
-                          n: stock.get(line.productId) ?? 0,
-                          unit: t(`products:units.${product?.base_unit || 'pcs'}`),
-                        })}
-                      </RefTd>
-                      <RefTd>
-                        {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
-                      </RefTd>
-                    </RefRow>
-                  )
-                })}
-              </Fragment>
-            ))}
-            {lines.length === 0 && (
+              // ── صفُّ الطلبيّة الحقيقيّ ──────────────────────────────
+              const { line, product } = row
+              // 🔴 **ضربٌ على المحفوظ وحدَه** — و«—» حين لا سعرَ محفوظًا،
+              // **وهي حالُ كلّ طلبيّةٍ من هذه الشاشة** (`orderLinesFromGrid`
+              // لا تحفظ سعرًا إطلاقًا).
+              const amount = line.askingPrice === null || line.quantity === null
+                ? null
+                : roundToPlaces(line.quantity * line.askingPrice)
+              return (
+                <RefRow key={line.id} data-view-line={line.id}>
+                  {/* ⚠️ **الاسمُ قد يكون غيرَ محلولٍ** — منتجٌ حُذف من الكتالوج
+                      وسطرُه باقٍ. **والشرطةُ تعني «الاسمُ غيرُ معروف».** */}
+                  <RefTd>{product?.name || '—'}</RefTd>
+
+                  {/* ⚠️ **الوحدةُ قبل الرقم، والإطارُ الذي كُتب فيه.** */}
+                  <RefTd>
+                    <StaticField>
+                      {line.quantity === null ? '' : t('products:documents.inEntered', {
+                        uom: t(`products:docs.uom_${line.uom || 'unit'}`), n: line.quantity,
+                      })}
+                    </StaticField>
+                  </RefTd>
+
+                  <RefTd>
+                    {t('products:orders.qtyWithUnit', {
+                      n: stock.get(line.productId) ?? 0,
+                      unit: t(`products:units.${product?.base_unit || 'pcs'}`),
+                    })}
+                  </RefTd>
+                  <RefTd>
+                    {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
+                  </RefTd>
+                </RefRow>
+              )
+            })}
+            {viewRows.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS} className="py-3 text-center text-xs text-muted-foreground">
                   {t('products:documents.noLines')}
