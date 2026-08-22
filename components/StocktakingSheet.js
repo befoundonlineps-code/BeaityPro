@@ -262,14 +262,38 @@ export default function StocktakingSheet({
               </tr>
             )}
 
-            {/* صفُّ المجموع — Σ في المرجع. */}
-            <RefGroupRow columns={COLUMNS} data-total-row="">
-              <span className="flex items-center gap-3">
-                <span>Σ</span>
-                <span>{t('products:stocktakePeriod.totalRow')}</span>
-                <span><LtrNumber>{cash(total)}</LtrNumber></span>
-              </span>
-            </RefGroupRow>
+            {/* ══════════════════════════════════════════════════════
+                صفُّ المجموع — Σ، **والرقمُ تحت عموده لا بجانب اسمه**
+                ══════════════════════════════════════════════════════
+
+                🔴 **مقيسٌ من لقطة المرجع:** `8,760.00` يقع تحت عمود
+                `Remaining total` بعينه. **وكان عندي في صفٍّ ممتدٍّ بجوار
+                كلمة «المجموع»** — فيصير رقمًا بلا عمود، **والقارئُ يبحث عمّا
+                يجمعه.** والعمودُ هو ما يقول أيَّ شيءٍ جُمع. */}
+            <tr style={{ background: 'var(--group)' }} data-total-row="">
+              <td
+                colSpan={10}
+                className="px-1.5 py-[1px] font-semibold"
+                style={{ borderBottom: '1px solid var(--rule)' }}
+              >
+                <span className="flex items-center gap-3">
+                  <span>Σ</span>
+                  <span>{t('products:stocktakePeriod.totalRow')}</span>
+                </span>
+              </td>
+              <td
+                className="px-1.5 py-[1px] font-semibold"
+                style={{ borderBottom: '1px solid var(--rule)' }}
+                data-total-value=""
+              >
+                <LtrNumber>{cash(total)}</LtrNumber>
+              </td>
+              <td
+                colSpan={COLUMNS - 11}
+                className="px-1.5 py-[1px]"
+                style={{ borderBottom: '1px solid var(--rule)' }}
+              />
+            </tr>
           </tbody>
         </RefTable>
       </div>
