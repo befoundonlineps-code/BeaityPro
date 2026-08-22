@@ -12,6 +12,7 @@ import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefTag } from './
 import { RefCancelButton } from './ref/RefModal'
 import NumberField from '@/components/ui/NumberField'
 import { Input } from '@/components/ui/input'
+import LtrNumber from './LtrNumber'
 
 // جدولُ حركة الفترة — شكلُ الشاشة المرجعيّة بألوان ثيمنا.
 //
@@ -35,6 +36,7 @@ const COLUMNS = 16
 const NONE = '—'
 
 const cash = (n) => (n === null ? NONE : n.toLocaleString('ar', { maximumFractionDigits: 2 }))
+
 
 // ⚠️ **الوحدةُ قبل الرقم** — «١ عبوة» و«٢ عبوتان» و«٥ عبوات» فرعٌ نحويٌّ
 // رفضناه، فالرقمُ يأتي بعد نقطتين ولا يحكمه إعراب.
@@ -70,11 +72,15 @@ export default function StocktakingSheet({
       || String(row.product.name || '').toLowerCase().includes(needle))
 
   // مجموعُ قيمة المتوفّر — **جمعُ ما رُسم، لا حسابٌ ثانٍ.**
-  const total = visible.reduce((sum, row) => {
-    if (row.kind !== 'line') return sum
-    const value = remainingTotal({ factBase: row.fact, cost: row.cost })
-    return value === null ? sum : sum + value
-  }, 0)
+  //
+  // 🔴 **ولا سطرَ معدودًا ⟵ «—» لا صفر.** أوّلُ لقطةٍ رسمت «المجموع: ٠» على
+  // شاشةٍ **لم يُعدَّ فيها شيءٌ بعد** — وهي جملةٌ عن مالٍ لا نعرفه، لا عن
+  // مالٍ يساوي صفرًا. **وهو البندُ (أ) في `CLAUDE.md` بلبوس مجموع.**
+  const counted = visible.filter((row) => row.kind === 'line'
+    && remainingTotal({ factBase: row.fact, cost: row.cost }) !== null)
+  const total = counted.length === 0 ? null : roundToPlaces(counted.reduce(
+    (sum, row) => sum + remainingTotal({ factBase: row.fact, cost: row.cost }), 0,
+  ))
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t('common:loading')}</p>
   if (error) {
@@ -95,7 +101,7 @@ export default function StocktakingSheet({
         {/* 🔴 **ولا جردَ سابقًا يُقال نصًّا** — ترويسةٌ فارغةٌ تُقرأ عطلًا. */}
         <span className="text-xs text-muted-foreground">
           {since
-            ? t('products:stocktakePeriod.sincePrevious', { date: String(since).slice(0, 10) })
+            ? <>{t('products:stocktakePeriod.sincePrevious', { date: '' })}<LtrNumber>{String(since).slice(0, 10)}</LtrNumber></>
             : t('products:stocktakePeriod.sinceNone')}
         </span>
         <span className="relative ms-auto">
@@ -157,11 +163,11 @@ export default function StocktakingSheet({
                   <RefTd>{product.name}</RefTd>
 
                   {/* الحركةُ — والصفرُ هنا مقيسٌ لا مجهول، فيُرسم رقمًا. */}
-                  <RefTd>{movement ? movement.begin : 0}</RefTd>
+                  <RefTd><LtrNumber>{movement ? movement.begin : 0}</LtrNumber></RefTd>
                   {PERIOD_COLUMNS.map((key) => (
                     <RefTd key={key}>
                       <span className="flex items-center gap-1">
-                        {movement ? movement[key] : 0}
+                        <LtrNumber>{movement ? movement[key] : 0}</LtrNumber>
                         {key === 'other' && movement && movement.other !== 0 && (
                           <RefTag title={t('products:stocktakePeriod.otherHelp')}>
                             {t('products:stocktakePeriod.otherTag')}
@@ -194,11 +200,11 @@ export default function StocktakingSheet({
                     />
                   </RefTd>
 
-                  <RefTd>{cash(remainingTotal({ factBase: fact, cost }))}</RefTd>
+                  <RefTd><LtrNumber>{cash(remainingTotal({ factBase: fact, cost }))}</LtrNumber></RefTd>
                   <RefTd>
-                    {difference === null ? NONE : `${unit}: ${difference}`}
+                    {difference === null ? NONE : <>{unit}: <LtrNumber>{difference}</LtrNumber></>}
                   </RefTd>
-                  <RefTd>{cash(differenceAtCost({ difference, cost }))}</RefTd>
+                  <RefTd><LtrNumber>{cash(differenceAtCost({ difference, cost }))}</LtrNumber></RefTd>
 
                   {/* ══════════════════════════════════════════════════
                       تكلفةُ الوحدة — **للقطعة**، وحالاتُها ثلاثٌ لا اثنتان
@@ -210,7 +216,7 @@ export default function StocktakingSheet({
                       جرى حيث لم يجرِ شيء. */}
                   <RefTd>
                     <span className="flex items-center gap-1">
-                      {cash(cost)}
+                      <LtrNumber>{cash(cost)}</LtrNumber>
                       {costState === COST_STATE.ESTIMATED && (
                         <RefTag title={t('products:stocktakePeriod.costEstimatedHelp')}>
                           {t('products:stocktakePeriod.costEstimatedTag')}
@@ -233,7 +239,7 @@ export default function StocktakingSheet({
                       مقبولٌ بقرار المالك، **والشرحُ يُفتح عند الطلب.** */}
                   <RefTd>
                     <span className="flex items-center gap-1">
-                      {cash(differenceAtRetail({ difference, product }))}
+                      <LtrNumber>{cash(differenceAtRetail({ difference, product }))}</LtrNumber>
                       {packages !== null && packages !== 0 && (
                         <RefTag title={t('products:stocktakePeriod.packagesHelp')}>
                           {packagesLabel(t, packages)}
@@ -243,7 +249,7 @@ export default function StocktakingSheet({
                   </RefTd>
 
                   {/* ⚠️ **سعرُ البيع للعبوة** — حبّةٌ أخرى، فاسمٌ آخر. */}
-                  <RefTd>{cash(numberOrNull(product.package_price))}</RefTd>
+                  <RefTd><LtrNumber>{cash(numberOrNull(product.package_price))}</LtrNumber></RefTd>
                 </RefRow>
               )
             })}
@@ -261,7 +267,7 @@ export default function StocktakingSheet({
               <span className="flex items-center gap-3">
                 <span>Σ</span>
                 <span>{t('products:stocktakePeriod.totalRow')}</span>
-                <span>{cash(roundToPlaces(total))}</span>
+                <span><LtrNumber>{cash(total)}</LtrNumber></span>
               </span>
             </RefGroupRow>
           </tbody>
