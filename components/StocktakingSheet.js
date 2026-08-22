@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'next-i18next'
-import { Search } from 'lucide-react'
+import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
 import {
@@ -112,6 +112,28 @@ export default function StocktakingSheet({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </span>
+
+        {/* ══════════════════════════════════════════════════════════
+            ⏸ **«تصدير إلى إكسل» — معطَّلٌ بالبنية، بموضع المرجع**
+            ══════════════════════════════════════════════════════════
+
+            **`<span>` بلا معالِج حدثٍ إطلاقًا**، كطريقَي الباركود والإكسل
+            وزرِّ الحفظ. ⚠️ **ولا `<button disabled>`:** شرطٌ يُنسى أو خاصّيّةٌ
+            تُحذف تعيد زرًّا معطَّلًا إلى الحياة، **ووسمٌ بلا معالِجٍ لا يُنسى
+            إليها.**
+
+            🔴 **والسببُ مكتوبٌ ويُفتح عند الطلب** — لأن زرًّا لا يفعل شيئًا
+            بلا سببٍ ظاهرٍ **يجعل الشاشةَ تكذب**، وخيارًا معطَّلًا بسببٍ ظاهر
+            **غيابٌ مُعلَن.** */}
+        <span
+          data-export-disabled=""
+          title={t('products:stocktakePeriod.exportDisabledHelp')}
+          className="inline-flex h-7 cursor-not-allowed items-center gap-2 border border-[var(--rule)] bg-[var(--group)] px-2 text-xs text-muted-foreground opacity-70"
+        >
+          <FileSpreadsheet className="size-3.5" />
+          {t('products:stocktakePeriod.exportExcel')}
+          <RefTag>{t('products:stocktakePeriod.methodDisabledTag')}</RefTag>
         </span>
       </div>
 
