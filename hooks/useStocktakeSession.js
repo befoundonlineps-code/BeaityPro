@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   fetchOpenSession, openSession, saveCount, removeCount, discardSession,
 } from '../lib/stocktakeSessionIO'
-import { baseUnitsFor } from '../lib/stockDocument'
-import { defaultCountUom } from '../lib/stocktakeSheet'
+import { defaultCountUom, usableCount } from '../lib/stocktakeSheet'
 
 // The count in progress, held where the page can see it AND written to the
 // database as it is typed.
@@ -147,21 +146,7 @@ export function useStocktakeSession(storageId) {
   }
 }
 
-// The base-unit value this box would store, or null when it is not a count.
-//
-// ⚠️ Zero returns 0 and not null, and the distinction is the point: '' means
-// nobody counted this and '0' means the shelf is empty, which is the finding
-// most likely to differ from the record. `if (!usable)` anywhere on this path
-// would collapse them.
-function usableCount(raw, product, frame) {
-  const text = String(raw ?? '').trim()
-  if (text === '') return null
-  const typed = Number(text)
-  if (!Number.isFinite(typed) || typed < 0) return null
-  const factor = baseUnitsFor(product, frame)
-  if (factor === null) return null
-  return typed * factor
-}
+
 
 // The rows, back into the shape the sheet holds.
 //
