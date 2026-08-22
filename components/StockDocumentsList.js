@@ -793,6 +793,7 @@ export default function StockDocumentsList({
                 movements={movements}
                 products={products}
                 categories={categories}
+                storageCategories={storageCategories}
                 lots={lots}
                 suppliers={suppliers}
               />

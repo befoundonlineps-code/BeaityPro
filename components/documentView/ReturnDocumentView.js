@@ -1,4 +1,3 @@
-import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet, FileInput } from 'lucide-react'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from '../ref/RefGrid'
@@ -7,6 +6,8 @@ import {
   StaticActionButton, StaticCancelButton, StaticShellButton,
 } from '../ref/RefStatic'
 import { movementsOf, movementFrames } from '../../lib/stockDocumentList'
+// 🔴 **سطورُ المستند مرجعًا وكتالوجُ اليوم حشوًا** — والحالةُ الحافّةُ فيه مختبَرة.
+import { documentViewRows } from '../../lib/documentViewRows'
 import { lotsForLine, availableForWriteOff } from '../../lib/lotPicker'
 import { paymentChoiceOf, ON_ACCOUNT } from '../../lib/documentMoney'
 import { numberOrNull, roundToPlaces } from '../../lib/decimalPlaces'
@@ -68,31 +69,32 @@ import { numberOrNull, roundToPlaces } from '../../lib/decimalPlaces'
 const COLUMNS = 7
 
 export default function ReturnDocumentView({
-  document: doc, movements, products, categories, lots, suppliers,
+  document: doc, movements, products, categories, storageCategories, lots, suppliers,
 }) {
   const { t } = useTranslation(['products', 'common'])
   if (!doc) return null
 
-  const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const lotsById = Object.fromEntries((lots || []).map((l) => [l.id, l]))
-  const categoriesById = Object.fromEntries((categories || []).map((c) => [c.id, c]))
   const supplierName = (suppliers || []).find((s) => s && s.id === doc.supplier_id)?.name || null
 
-  const chainOf = (categoryId) => {
-    const chain = []
-    let node = categoriesById[categoryId]
-    // ⚠️ حدٌّ أعلى للحلقة — دورةٌ في `parent_id` تعلّق الصفحةَ بلا رسالة.
-    let guard = 0
-    while (node && guard < 32) { chain.unshift(node); node = categoriesById[node.parent_id]; guard += 1 }
-    return chain
-  }
-
-  // 🔴 **سطورُ المستند وحدَها** — قرارُ المالك، **والمجلّداتُ المؤشَّرةُ لم تُحفظ
-  // قطّ** فصفوفُ شاشة الإنشاء غيرُ قابلةٍ للاسترجاع أصلًا.
-  const returnLines = movementsOf(movements, doc.id)
+  // ══════════════════════════════════════════════════════════════════
+  // 🔴 سطورُ المستند مرجعًا، وكتالوجُ اليوم حشوًا — **بهذا الترتيب**
+  // ══════════════════════════════════════════════════════════════════
+  //
+  // **والبناءُ كلُّه في `documentViewRows`، ومعه اختبارُ الحالة الحافّة:**
+  // منتجٌ أُرجع من سنةٍ ثمّ أُرشِف أو حُذف أو فُكّ ربطُ مجلّده — **يخرج من
+  // كتالوج اليوم وسطرُه باقٍ في `stock_movements` إلى الأبد.** ⇒ **يُرسم.**
+  const viewRows = documentViewRows({
+    lines: movementsOf(movements, doc.id),
+    products,
+    categories,
+    storageCategories,
+    storageId: doc.storage_id,
+  })
 
   // ⚠️ **يُحسب مرّةً لكلّ منتجٍ لا مرّةً لكلّ سطر** — بعد ٠٩٥ ينقسم المنتجُ
   // الواحدُ إلى حركةٍ لكلّ دفعة، و`lotsForLine` تمشي كلَّ الحركات في كلّ نداء.
+  // **وصفوفُ الحشو تضاعف العددَ الآن**، فالحسابُ مرّةً صار ألزم.
   const lotRowsCache = new Map()
   const lotRowsFor = (productId) => {
     if (!lotRowsCache.has(productId)) {
@@ -103,14 +105,8 @@ export default function ReturnDocumentView({
     return lotRowsCache.get(productId)
   }
 
-  const groups = []
-  for (const line of returnLines) {
-    const product = productsById[line.product_id]
-    const key = product ? product.category_id : null
-    const last = groups[groups.length - 1]
-    if (last && last.key === key) last.lines.push({ line, product })
-    else groups.push({ key, lines: [{ line, product }] })
-  }
+  // وحدةُ المنتج الأساسيّة — تُقرأ للحشو كما تُقرأ للسطر.
+  const unitOf = (product) => t(`products:units.${product?.base_unit || 'pcs'}`)
 
   // 🔴 **حالةُ الدفع مشتقّةٌ لا محفوظة** — `ON_ACCOUNT` لا يصل القاعدةَ أبدًا
   // (`documentMoney.js:34`)، **والحالةُ تُقرأ من `paid_amount`.** والدالّةُ
@@ -164,104 +160,158 @@ export default function ReturnDocumentView({
             </tr>
           </RefHead>
           <tbody>
-            {groups.map((group, gi) => (
-              <Fragment key={`${group.key}-${gi}`}>
-                {chainOf(group.key).map((folder) => (
-                  <RefGroupRow key={`${gi}-${folder.id}`} columns={COLUMNS}>{folder.name}</RefGroupRow>
-                ))}
-                {group.lines.map(({ line, product }) => {
-                  const frames = movementFrames(line, product)
-                  const lot = lotsById[line.lot_id]
-                  const lotRows = lotRowsFor(line.product_id)
-                  const inStock = availableForWriteOff(lotRows)
-                  // ⚠️ **العدمُ يبقى عدمًا:** «ثمنٌ لم يُصرَّح» ليست «بلا مطالبة»
-                  // — وهو نصُّ `returnGrid.js:258` حرفيًّا.
-                  const price = numberOrNull(line.entered_unit_price)
-                  const amount = price === null || frames.entered === null
-                    ? null
-                    : roundToPlaces(frames.entered * price)
-                  return (
-                    <RefRow key={line.id} data-view-line={line.id}>
-                      <RefTd>
-                        <span className="flex items-center gap-2">
-                          {product?.name || '—'}
-                          {/* ⚠️ **تُقرأ من `products.is_consignment` اليوم**، لا
-                              من المستند — **وهذا يُقال لأنه ادّعاءٌ عن الحاضر
-                              على سطرٍ ماضٍ.** ونفسُ ما تفعله شاشةُ الإنشاء
-                              (`returnGrid.js:152`). */}
-                          {product?.is_consignment === true && (
-                            <RefTag>{t('products:returnSupplier.consignmentTag')}</RefTag>
-                          )}
-                        </span>
-                      </RefTd>
+            {viewRows.map((row, ri) => {
+              // ── صفُّ المجلّد ─────────────────────────────────────────
+              if (row.kind === 'folder') {
+                return (
+                  <RefGroupRow key={`f-${row.id}-${ri}`} columns={COLUMNS} data-folder-row={row.id}>
+                    <span className="flex items-center gap-2">
+                      {/* 🔴 **مجموعةُ السطور الخارجةِ عن كتالوج اليوم** — اسمُها
+                          مفتاحُ ترجمةٍ لا اسمُ مجلّد، لأنها ليست مجلّدًا. */}
+                      {row.name ?? t('products:documents.orphanFolder')}
+                      {/* ⚠️ **«مجلد بلا أصناف» ادّعاءٌ عن الكتالوج لا عن المستند.**
+                          🔴 **و«مجموع العبوات» لا يُرسم** — جمعٌ عبر السطور. */}
+                      {row.childCount === 0 && (
+                        <RefTag>{t('products:returnSupplier.folderEmpty')}</RefTag>
+                      )}
+                    </span>
+                  </RefGroupRow>
+                )
+              }
 
-                      {/* العبوات — خانةٌ ساكنةٌ وزرُّ «الكل» بجانبها. */}
-                      <RefTd>
-                        <span className="flex items-center gap-1">
-                          <StaticField className="w-12">
-                            {frames.entered === null ? '' : frames.entered}
-                          </StaticField>
-                          <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
-                            {t('products:returnSupplier.fillAll')}
-                          </StaticShellButton>
-                        </span>
-                      </RefTd>
+              // ── صفُّ الحشو: منتجٌ من كتالوج اليوم ليس في هذا المستند ──
+              //
+              // 🔴 **كلُّ رقمٍ من المستند «—» لا «٠»** — «٠» توحي بقرارٍ بقيمة
+              // صفر، **و«—» تعني «ليس جزءًا من هذا المستند إطلاقًا».**
+              //
+              // ⚠️ **و«المتوفر» يبقى رقمًا حقيقيًّا** — رصيدُ اليوم من الدفعات،
+              // **حقيقةٌ عن المخزون لا عن المستند**، وشاشةُ الإنشاء ترسمه لكلّ
+              // صفّ. **اتّساقٌ مع الصفّ الحقيقيّ لا استثناءٌ عنه.**
+              if (row.kind === 'filler') {
+                return (
+                  <RefRow key={`x-${row.product.id}`} data-view-filler={row.product.id}>
+                    <RefTd>
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        {row.product.name}
+                        {row.product.is_consignment === true && (
+                          <RefTag>{t('products:returnSupplier.consignmentTag')}</RefTag>
+                        )}
+                        {/* ⚠️ **الوسمُ يقول الصادقَ لا «بلا رصيد»** — تلك جملةٌ
+                            عن المخزون، **وقد يكون للمنتج رصيدٌ وافرٌ اليوم.** */}
+                        <RefTag>{t('products:documents.notInDocument')}</RefTag>
+                      </span>
+                    </RefTd>
+                    <RefTd>
+                      <span className="flex items-center gap-1">
+                        <StaticField className="w-12" />
+                        <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
+                          {t('products:returnSupplier.fillAll')}
+                        </StaticShellButton>
+                      </span>
+                    </RefTd>
+                    <RefTd>—</RefTd>
+                    <RefTd>
+                      {t('products:orders.qtyWithUnit', {
+                        n: availableForWriteOff(lotRowsFor(row.product.id)), unit: unitOf(row.product),
+                      })}
+                    </RefTd>
+                    <RefTd>—</RefTd>
+                    <RefTd><StaticField /></RefTd>
+                    <RefTd>—</RefTd>
+                  </RefRow>
+                )
+              }
 
-                      <RefTd>
-                        {t('products:orders.qtyWithUnit', {
-                          n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
-                        })}
-                      </RefTd>
-                      <RefTd>
-                        {t('products:orders.qtyWithUnit', {
-                          n: inStock, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
-                        })}
-                      </RefTd>
+              // ── صفُّ المستند الحقيقيّ ───────────────────────────────
+              const { line, product } = row
+              const frames = movementFrames(line, product)
+              const lot = lotsById[line.lot_id]
+              const inStock = availableForWriteOff(lotRowsFor(line.product_id))
+              // ⚠️ **العدمُ يبقى عدمًا:** «ثمنٌ لم يُصرَّح» ليست «بلا مطالبة»
+              // — وهو نصُّ `returnGrid.js:258` حرفيًّا.
+              const price = numberOrNull(line.entered_unit_price)
+              const amount = price === null || frames.entered === null
+                ? null
+                : roundToPlaces(frames.entered * price)
+              return (
+                <RefRow key={line.id} data-view-line={line.id}>
+                  <RefTd>
+                    <span className="flex items-center gap-2">
+                      {/* ⚠️ **الاسمُ قد يكون غيرَ محلولٍ** — منتجٌ حُذف من
+                          الكتالوج وسطرُه باقٍ. **والشرطةُ تعني «الاسمُ غيرُ
+                          معروف» لا «لا منتج».** */}
+                      {product?.name || '—'}
+                      {/* ⚠️ **تُقرأ من `products.is_consignment` اليوم**، لا من
+                          المستند — **ادّعاءٌ عن الحاضر على سطرٍ ماضٍ**، ونفسُ
+                          ما تفعله شاشةُ الإنشاء (`returnGrid.js:152`). */}
+                      {product?.is_consignment === true && (
+                        <RefTag>{t('products:returnSupplier.consignmentTag')}</RefTag>
+                      )}
+                    </span>
+                  </RefTd>
 
-                      {/* ══════════════════════════════════════════════════
-                          🔴 الدفعةُ — **تاريخُ الاستلام وحدَه**
-                          ══════════════════════════════════════════════════
+                  {/* العبوات — خانةٌ ساكنةٌ وزرُّ «الكل» بجانبها. */}
+                  <RefTd>
+                    <span className="flex items-center gap-1">
+                      <StaticField className="w-12">
+                        {frames.entered === null ? '' : frames.entered}
+                      </StaticField>
+                      <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
+                        {t('products:returnSupplier.fillAll')}
+                      </StaticShellButton>
+                    </span>
+                  </RefTd>
 
-                          ⚠️ **ومفتاحٌ خاصٌّ بالعرض، لا مفتاحُ المنسدل.** كان
-                          `returnSupplier.lotOption` بأجزائه الثلاثة، **فعاد
-                          «متبقٍّ» و«سعر الوحدة» بعد أن أُسقطا بإقرارٍ، ومرّا في
-                          تقريرٍ قال إنهما سقطا.**
+                  <RefTd>
+                    {t('products:orders.qtyWithUnit', {
+                      n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
+                    })}
+                  </RefTd>
+                  <RefTd>
+                    {t('products:orders.qtyWithUnit', {
+                      n: inStock, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
+                    })}
+                  </RefTd>
 
-                          ❌ **«متبقٍّ» مفهومُ لحظةِ اختيار** — متبقّي اليومَ لا
-                             متبقّي الترحيل.
-                          ❌ **و«سعر الوحدة» في المنسدل ثمنُ الدفعة، وفي العمود
-                             المطالبة** — رقمان يفترقان فعلًا («سعر معدَّل»)،
-                             **وعرضُهما باسمٍ واحدٍ على سطرٍ واحدٍ يقلبهما على
-                             القارئ.** */}
-                      <RefTd>
-                        <span className="flex items-center gap-1.5">
-                          <StaticSelect>
-                            {lot
-                              ? t('products:documents.lotDate', {
-                                date: String(lot.received_at || '').slice(0, 10),
-                              })
-                              : t('products:returnSupplier.lotAuto')}
-                          </StaticSelect>
-                          {lot?.cost_is_estimated === true && (
-                            <RefTag title={t('products:returnSupplier.estimatedHelp')}>
-                              {t('products:returnSupplier.estimatedTag')}
-                            </RefTag>
-                          )}
-                        </span>
-                      </RefTd>
+                  {/* ══════════════════════════════════════════════════
+                      🔴 الدفعةُ — **تاريخُ الاستلام وحدَه**
+                      ══════════════════════════════════════════════════
 
-                      <RefTd>
-                        <StaticField>{price === null ? '' : price}</StaticField>
-                      </RefTd>
-                      <RefTd>
-                        {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
-                      </RefTd>
-                    </RefRow>
-                  )
-                })}
-              </Fragment>
-            ))}
-            {returnLines.length === 0 && (
+                      ⚠️ **ومفتاحٌ خاصٌّ بالعرض، لا مفتاحُ المنسدل.** كان
+                      `returnSupplier.lotOption` بأجزائه الثلاثة، **فعاد
+                      «متبقٍّ» و«سعر الوحدة» بعد أن أُسقطا بإقرار.**
+
+                      ❌ **«متبقٍّ» مفهومُ لحظةِ اختيار** — متبقّي اليومَ لا
+                         متبقّي الترحيل.
+                      ❌ **و«سعر الوحدة» في المنسدل ثمنُ الدفعة، وفي العمود
+                         المطالبة** — رقمان يفترقان فعلًا («سعر معدَّل»). */}
+                  <RefTd>
+                    <span className="flex items-center gap-1.5">
+                      <StaticSelect>
+                        {lot
+                          ? t('products:documents.lotDate', {
+                            date: String(lot.received_at || '').slice(0, 10),
+                          })
+                          : t('products:returnSupplier.lotAuto')}
+                      </StaticSelect>
+                      {lot?.cost_is_estimated === true && (
+                        <RefTag title={t('products:returnSupplier.estimatedHelp')}>
+                          {t('products:returnSupplier.estimatedTag')}
+                        </RefTag>
+                      )}
+                    </span>
+                  </RefTd>
+
+                  <RefTd>
+                    <StaticField>{price === null ? '' : price}</StaticField>
+                  </RefTd>
+                  <RefTd>
+                    {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
+                  </RefTd>
+                </RefRow>
+              )
+            })}
+            {viewRows.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS} className="py-3 text-center text-xs text-muted-foreground">
                   {t('products:documents.noLines')}
