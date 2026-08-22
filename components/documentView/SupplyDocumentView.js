@@ -1,13 +1,14 @@
-import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet, FileInput, Filter } from 'lucide-react'
-import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow } from '../ref/RefGrid'
+import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from '../ref/RefGrid'
 import {
   StaticField, StaticSelect, StaticArea, StaticCheckbox,
   StaticActionButton, StaticCancelButton, StaticShellButton,
 } from '../ref/RefStatic'
 import { movementsOf, movementFrames } from '../../lib/stockDocumentList'
 import { balanceIndex } from '../../lib/orderGrid'
+// 🔴 **سطورُ المستند مرجعًا وكتالوجُ اليوم حشوًا** — والحالةُ الحافّةُ فيه مختبَرة.
+import { documentViewRows } from '../../lib/documentViewRows'
 import { numberOrNull, roundToPlaces } from '../../lib/decimalPlaces'
 
 // «توريد بضاعة» — **مشاهدةً.** صورةُ شاشة الإنشاء نفسِها، منزوعةَ الوظيفة.
@@ -68,13 +69,11 @@ import { numberOrNull, roundToPlaces } from '../../lib/decimalPlaces'
 const COLUMNS = 6
 
 export default function SupplyDocumentView({
-  document: doc, movements, products, categories, storages, suppliers, balances,
+  document: doc, movements, products, categories, storageCategories, storages, suppliers, balances,
 }) {
   const { t } = useTranslation(['products', 'common'])
   if (!doc) return null
 
-  const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
-  const categoriesById = Object.fromEntries((categories || []).map((c) => [c.id, c]))
   const nameIn = (list, id) => (id ? (list || []).find((x) => x && x.id === id)?.name || null : null)
   const supplierName = nameIn(suppliers, doc.supplier_id)
   // 🔴 **`storage_id` لا `to_storage_id`** — `supply` عندها `twoStorages: false`،
@@ -85,30 +84,23 @@ export default function SupplyDocumentView({
   // المستودع الذي **وصلت إليه** البضاعة، لا من عدسةٍ أخرى.
   const stock = balanceIndex(balances, doc.storage_id)
 
-  // سلسلةُ المجلّدات من الجذر إلى مجلّد المنتج — كما ترسمها شاشةُ الإنشاء
-  // مستوًى فوق مستوى.
-  const chainOf = (categoryId) => {
-    const chain = []
-    let node = categoriesById[categoryId]
-    // ⚠️ حدٌّ أعلى للحلقة — دورةٌ في `parent_id` تعلّق الصفحةَ بلا رسالة.
-    let guard = 0
-    while (node && guard < 32) { chain.unshift(node); node = categoriesById[node.parent_id]; guard += 1 }
-    return chain
-  }
+  // ══════════════════════════════════════════════════════════════════
+  // 🔴 سطورُ المستند مرجعًا، وكتالوجُ اليوم حشوًا — **بهذا الترتيب**
+  // ══════════════════════════════════════════════════════════════════
+  //
+  // **والبناءُ كلُّه في `documentViewRows`، ومعه اختبارُ الحالة الحافّة:**
+  // منتجٌ ورّد من سنةٍ ثمّ أُرشِف أو حُذف أو فُكّ ربطُ مجلّده — **يخرج من كتالوج
+  // اليوم وسطرُه باقٍ في `stock_movements` إلى الأبد.** ⇒ **يُرسم.**
+  const viewRows = documentViewRows({
+    lines: movementsOf(movements, doc.id),
+    products,
+    categories,
+    storageCategories,
+    storageId: doc.storage_id,
+  })
 
-  // 🔴 **سطورُ المستند وحدَها** — قرارُ المالك، ورفضُ البديل بلفظه: عرضُ كلّ
-  // منتجات المستودع «يوهم بوجود اختيارٍ لم يُسجَّل». **والمجلّداتُ المؤشَّرةُ
-  // لم تُحفظ قطّ** (`stock_documents` بلا عمودِ مجلّدات، مقيسٌ في ١٠٢).
-  const supplyLines = movementsOf(movements, doc.id)
-
-  const groups = []
-  for (const line of supplyLines) {
-    const product = productsById[line.product_id]
-    const key = product ? product.category_id : null
-    const last = groups[groups.length - 1]
-    if (last && last.key === key) last.lines.push({ line, product })
-    else groups.push({ key, lines: [{ line, product }] })
-  }
+  // وحدةُ المنتج الأساسيّة — تُقرأ للحشو كما تُقرأ للسطر.
+  const unitOf = (product) => t(`products:units.${product?.base_unit || 'pcs'}`)
 
   const discount = numberOrNull(doc.discount_value)
   const transport = numberOrNull(doc.transport_amount)
@@ -153,55 +145,103 @@ export default function SupplyDocumentView({
             </tr>
           </RefHead>
           <tbody>
-            {groups.map((group, gi) => (
-              <Fragment key={`${group.key}-${gi}`}>
-                {chainOf(group.key).map((folder) => (
-                  <RefGroupRow key={`${gi}-${folder.id}`} columns={COLUMNS}>{folder.name}</RefGroupRow>
-                ))}
-                {group.lines.map(({ line, product }) => {
-                  const frames = movementFrames(line, product)
-                  // 🔴 **السعرُ المحفوظُ حرفيًّا** — `entered_unit_price` للعبوة.
-                  // ⚠️ **والعدمُ يبقى عدمًا:** `Number(null) === 0` كانت ستقول
-                  // «وصلت مجّانًا».
-                  const price = numberOrNull(line.entered_unit_price)
-                  // 🔴 **حسابٌ على نفس السطر — عمودان محفوظان** (الخيار ١)،
-                  // **وهو بعينه ضربُ شاشة الإنشاء** (`orderGrid.js:85`).
-                  const amount = price === null || frames.entered === null
-                    ? null
-                    : roundToPlaces(frames.entered * price)
-                  return (
-                    <RefRow key={line.id} data-view-line={line.id}>
-                      <RefTd>{product?.name || '—'}</RefTd>
+            {viewRows.map((row, ri) => {
+              // ── صفُّ المجلّد ─────────────────────────────────────────
+              if (row.kind === 'folder') {
+                return (
+                  <RefGroupRow key={`f-${row.id}-${ri}`} columns={COLUMNS} data-folder-row={row.id}>
+                    <span className="flex items-center gap-2">
+                      {/* 🔴 **مجموعةُ السطور الخارجةِ عن كتالوج اليوم** — اسمُها
+                          مفتاحُ ترجمةٍ لا اسمُ مجلّد، لأنها ليست مجلّدًا. */}
+                      {row.name ?? t('products:documents.orphanFolder')}
+                      {/* ⚠️ **«مجلد بلا أصناف» ادّعاءٌ عن الكتالوج لا عن المستند.**
+                          🔴 **و«مجموع العبوات» لا يُرسم** — جمعٌ عبر السطور. */}
+                      {row.childCount === 0 && (
+                        <RefTag>{t('products:orders.folderEmpty')}</RefTag>
+                      )}
+                    </span>
+                  </RefGroupRow>
+                )
+              }
 
-                      <RefTd>
-                        <StaticField>
-                          {frames.entered === null ? '' : frames.entered}
-                        </StaticField>
-                      </RefTd>
-                      <RefTd>
-                        {t('products:orders.qtyWithUnit', {
-                          n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
-                        })}
-                      </RefTd>
-                      <RefTd>
-                        {t('products:orders.qtyWithUnit', {
-                          n: stock.get(line.product_id) ?? 0,
-                          unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
-                        })}
-                      </RefTd>
+              // ── صفُّ الحشو: منتجٌ من كتالوج اليوم ليس في هذا المستند ──
+              //
+              // 🔴 **كلُّ رقمٍ من المستند «—» لا «٠»** — «٠» توحي بقرارٍ بقيمة
+              // صفر، **و«—» تعني «ليس جزءًا من هذا المستند إطلاقًا».**
+              //
+              // ⚠️ **و«الرصيد الحاليّ» يبقى رقمًا حقيقيًّا** — رصيدُ اليوم،
+              // **حقيقةٌ عن المخزون لا عن المستند**، وشاشةُ الإنشاء ترسمه لكلّ
+              // صفّ. **وهو اتّساقٌ مع الصفّ الحقيقيّ لا استثناءٌ عنه.**
+              if (row.kind === 'filler') {
+                return (
+                  <RefRow key={`x-${row.product.id}`} data-view-filler={row.product.id}>
+                    <RefTd>
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        {row.product.name}
+                        {/* ⚠️ **الوسمُ يقول الصادقَ لا «بلا رصيد»** — تلك جملةٌ
+                            عن المخزون، **وقد يكون للمنتج رصيدٌ وافرٌ اليوم.** */}
+                        <RefTag>{t('products:documents.notInDocument')}</RefTag>
+                      </span>
+                    </RefTd>
+                    <RefTd><StaticField /></RefTd>
+                    <RefTd>—</RefTd>
+                    <RefTd>
+                      {t('products:orders.qtyWithUnit', {
+                        n: stock.get(row.product.id) ?? 0, unit: unitOf(row.product),
+                      })}
+                    </RefTd>
+                    <RefTd><StaticField /></RefTd>
+                    <RefTd>—</RefTd>
+                  </RefRow>
+                )
+              }
 
-                      <RefTd>
-                        <StaticField>{price === null ? '' : price}</StaticField>
-                      </RefTd>
-                      <RefTd>
-                        {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
-                      </RefTd>
-                    </RefRow>
-                  )
-                })}
-              </Fragment>
-            ))}
-            {supplyLines.length === 0 && (
+              // ── صفُّ المستند الحقيقيّ ───────────────────────────────
+              const { line, product } = row
+              const frames = movementFrames(line, product)
+              // 🔴 **السعرُ المحفوظُ حرفيًّا** — `entered_unit_price` للعبوة.
+              // ⚠️ **والعدمُ يبقى عدمًا:** `Number(null) === 0` كانت ستقول
+              // «وصلت مجّانًا».
+              const price = numberOrNull(line.entered_unit_price)
+              // 🔴 **حسابٌ على نفس السطر — عمودان محفوظان** (الخيار ١)،
+              // **وهو بعينه ضربُ شاشة الإنشاء** (`orderGrid.js:85`).
+              const amount = price === null || frames.entered === null
+                ? null
+                : roundToPlaces(frames.entered * price)
+              return (
+                <RefRow key={line.id} data-view-line={line.id}>
+                  {/* ⚠️ **الاسمُ قد يكون غيرَ محلولٍ** — منتجٌ حُذف من الكتالوج
+                      وسطرُه باقٍ. **والشرطةُ تعني «الاسمُ غيرُ معروف» لا «لا
+                      منتج»**، والسطرُ محفوظٌ بكلّ أرقامه. */}
+                  <RefTd>{product?.name || '—'}</RefTd>
+
+                  <RefTd>
+                    <StaticField>
+                      {frames.entered === null ? '' : frames.entered}
+                    </StaticField>
+                  </RefTd>
+                  <RefTd>
+                    {t('products:orders.qtyWithUnit', {
+                      n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
+                    })}
+                  </RefTd>
+                  <RefTd>
+                    {t('products:orders.qtyWithUnit', {
+                      n: stock.get(line.product_id) ?? 0,
+                      unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
+                    })}
+                  </RefTd>
+
+                  <RefTd>
+                    <StaticField>{price === null ? '' : price}</StaticField>
+                  </RefTd>
+                  <RefTd>
+                    {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
+                  </RefTd>
+                </RefRow>
+              )
+            })}
+            {viewRows.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS} className="py-3 text-center text-xs text-muted-foreground">
                   {t('products:documents.noLines')}
