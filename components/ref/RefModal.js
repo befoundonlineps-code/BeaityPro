@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { useTranslation } from 'next-i18next'
 import { X } from 'lucide-react'
+import RefChromeBar, { CHROME_TITLE, CHROME_CLOSE } from './RefChromeBar'
 
 // An operation, drawn over the screen it operates on.
 //
@@ -104,20 +105,27 @@ export default function RefModal({
           }}
         >
           {/* ── The header bar ────────────────────────────────────────── */}
-          <div
-            className="flex shrink-0 items-center justify-between gap-2 px-2 py-1"
-            style={{ background: 'var(--chrome)', color: 'var(--chrome-ink)' }}
-          >
-            <DialogPrimitive.Title className="truncate text-xs font-semibold">
-              {title}
-            </DialogPrimitive.Title>
-            <DialogPrimitive.Close
-              className="flex size-5 shrink-0 items-center justify-center hover:bg-black/10"
-              aria-label={t('common:close')}
-            >
-              <X className="size-3.5" />
-            </DialogPrimitive.Close>
-          </div>
+          {/* 🔴 الشكلُ وحدَه انتقل إلى `RefChromeBar` كي يستعيره لوحُ عرض
+              المستندات — **والآليّةُ باقيةٌ هنا كما كانت حرفًا بحرف:**
+              `DialogPrimitive.Title` يبقى هو عقدةَ العنوان (وعليه يقوم ربطُ
+              `aria-labelledby`)، و`DialogPrimitive.Close` يبقى هو الزرّ.
+              ⚠️ **ولو ابتلع الشريطُ العقدتين لتغيّر سلوكُ عشر عمليّاتٍ قائمة**،
+              وذلك ما اشترط المالكُ ألّا يقع. */}
+          <RefChromeBar
+            title={(
+              <DialogPrimitive.Title className={CHROME_TITLE}>
+                {title}
+              </DialogPrimitive.Title>
+            )}
+            close={(
+              <DialogPrimitive.Close
+                className={CHROME_CLOSE}
+                aria-label={t('common:close')}
+              >
+                <X className="size-3.5" />
+              </DialogPrimitive.Close>
+            )}
+          />
 
           {/* ── The body ──────────────────────────────────────────────── */}
           <div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>

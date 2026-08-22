@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'next-i18next'
-import { AlertTriangle, Undo2, Eye, ArrowRight } from 'lucide-react'
+import { AlertTriangle, Undo2, Eye, ArrowRight, X } from 'lucide-react'
 import { dbErrorSentence } from '../lib/dbErrors'
 import { numberOrNull } from '../lib/decimalPlaces'
 import { reverseStockDocument } from '../lib/stockIO'
@@ -15,6 +15,8 @@ import {
   cancellationState, visibleDocuments,
 } from '../lib/stockDocumentList'
 import { RECEIPT_TYPES, ISSUE_TYPES, OWN_FUNCTION, ORDER_DOC_TYPE } from '../lib/stockDocument'
+// 🔴 **نفسُ الخريطة التي تقرأ منها الصفحةُ عنوانَ شريط شاشة الإنشاء.**
+import { OPERATION_LABEL_KEY } from '../lib/productsOperations'
 import { mergedRows, rowIsOrder, rowValue, orderViewLines } from '../lib/documentsWithOrders'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from './ref/RefGrid'
 // 🔴 **`RefCancelButton` وحدَه — ولا `RefModal` ثانية، وهذا تصحيحٌ لخطّةٍ
@@ -27,6 +29,16 @@ import { RefTable, RefHead, RefTh, RefRow, RefTd, RefFillerRow, RefTag } from '.
 // حلّت هذه الحالةَ بلوحٍ مطلقِ الموضع لا بحوارٍ ثانٍ** — فالمظهرُ هو المطلوب
 // والآليّةُ آمنة. ⇒ **نفسُ نمطها هنا: النيّةُ لم تتغيّر، والوسيلةُ فقط.**
 import { RefCancelButton } from './ref/RefModal'
+// 🔴 **الشكلُ وحدَه** — لا بنيةَ Dialog ولا Portal، بشرط المالك.
+import RefChromeBar, { CHROME_TITLE, CHROME_CLOSE } from './ref/RefChromeBar'
+// 🔴 **يوصَّل ما اكتمل، ولا يُنتظَر الأربعة.** الطلبيّةُ والشطبُ جاهزتان
+// ومرّتا بحارس «غيرُ تفاعليٍّ بالبناء» — **والتوريدُ والإرجاعُ يبقيان على
+// اللوح العامّ حتى تكتملا.** ⚠️ **والانتظارُ كان سيُفقد فائدةَ الدفع المبكر:**
+// فحصُ كلّ شاشةٍ أوّلَ ما تجهز بدل مراجعةٍ واحدةٍ كبيرةٍ في الآخر.
+import OrderDocumentView from './documentView/OrderDocumentView'
+import WriteOffDocumentView from './documentView/WriteOffDocumentView'
+import SupplyDocumentView from './documentView/SupplyDocumentView'
+import ReturnDocumentView from './documentView/ReturnDocumentView'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -91,6 +103,17 @@ export default function StockDocumentsList({
   // الصفحة أصلًا** — فلا استعلامَ جديد. والمواصفةُ في
   // `design/documents-with-orders-spec.md`.
   orders, orderLines,
+  // ⚠️ **لشاشات العرض وحدَها** — التصنيفاتُ للتجميع، والدفعاتُ لتفصيل الشطب
+  // (د/٣). **وكلتاهما محمَّلةٌ للصفحة أصلًا**، فلا استعلامَ جديد.
+  categories, lots,
+  // ⚠️ **لعمود «الرصيد الحاليّ»/«المتوفر»** — يُعرض في شاشات العرض كما في
+  // شاشات الإنشاء بقرار المالك. **ومحمَّلةٌ للصفحة أصلًا.**
+  balances,
+  // ⚠️ **لصفوف الحشو في شاشات العرض** — مجلّداتُ المستودع، وهي ما تبني منه
+  // شاشةُ الإنشاء جدولَها. **والسطورُ الحقيقيّةُ لا تعتمد عليها إطلاقًا**، وهو
+  // شرطُ المالك: «سطور المستند الحقيقية هي المرجع الأساسي… وكتالوج اليوم
+  // يُستخدم بعدها بس لملء الصفوف الباقية».
+  storageCategories,
   // 🔴 **مقبضُ الخروج كان موجودًا وغيرَ موصولٍ بهذه الشاشة وحدَها.**
   // `closeOperation` مبنيٌّ في الصفحة وتأخذه كلُّ عمليّةٍ أخرى — **وهذه لم
   // تأخذه**، وهو الصنفُ نفسُه الذي جعل `return_to_supplier` ترسم شاشتين.
@@ -172,6 +195,38 @@ export default function StockDocumentsList({
   // الصفُّ المعروضُ يُقرأ من المجموعة الكاملة لا من الصفوف — فتغييرُ مرشِّحٍ
   // واللوحُ مفتوحٌ لا يُفرّغه من محتواه.
   const viewed = viewing ? all.find((d) => d && d.id === viewing) : null
+
+  // 🔴 **أيُّ عمليّةٍ لهذا الصفّ شاشةُ عرضٍ خاصّة؟** — تُحسب مرّةً وتُقرأ مرّتين:
+  // للعنوان، ولإخفاء زرّ الإغلاق السفليّ.
+  //
+  // ⚠️ **والقيمةُ اسمُ العمليّة لا نوعُ المستند** (`orders` لا `order`)، لأنها
+  // مفتاحُ `OPERATION_LABEL_KEY` — **وهو ما تقرأ منه الصفحةُ عنوانَ شريط شاشة
+  // الإنشاء** (`pages/products/index.js:231`). ⇒ **مصدرٌ واحدٌ للعنوانين.**
+  //
+  // ⚠️ **والسببُ الثاني أن الشاشاتِ الأربعَ ترسم أزرارَها هي** (ديكورًا بلا
+  // وظيفة، بقرار المالك) — **فزرُّ إغلاقٍ حقيقيٌّ تحتها زرٌّ خامسٌ لا وجودَ له
+  // في شاشة الإنشاء.** والمَخرجُ الحقيقيُّ صار `×` في الشريط.
+  const dedicatedOperation = !viewed ? null
+    : rowIsOrder(viewed) ? 'orders'
+      : ['write_off', 'supply', 'return_to_supplier'].includes(viewed.doc_type) ? viewed.doc_type
+        : null
+
+  // 🔴 **عنوانُ اللوح = نصُّ شريط شاشة الإنشاء نفسِه، لا نصٌّ ثانٍ يشبهه.**
+  //
+  // **قرارُ المالك:** «العنوان = نص شريط شاشة الإدخال الحقيقي بالضبط».
+  //
+  // ⚠️ **وكان يُقرأ من `docs.<type>.title` — فتطابق ثلاثةٌ وافترقت الطلبيّة:**
+  // «طلب بضاعة» مقابل «الطلبيّات». **والمصدرُ الواحدُ يُلغي الافتراقَ بنيويًّا
+  // بدل أن يُعلنه ويحرسه** — فلا مقارنةَ تُكتب ولا حارسَ يُنتظر منه أن يُمسك
+  // تباعدًا، **لأن التباعدَ غيرُ ممكن.**
+  //
+  // ⚠️ **و`docs.<type>.title` يبقى حيث هو صحيح** — مرشِّحُ النوع (`:350`)
+  // وخليّةُ النوع في الصفّ (`:513`) ونافذةُ تأكيد العكس: **هناك «طلب بضاعة»
+  // اسمُ ما يُقرأ، وهنا «الطلبيّات» اسمُ الشاشة التي تُنشئه.**
+  const panelTitle = !viewed ? ''
+    : dedicatedOperation
+      ? t(`products:secondaryItems.${OPERATION_LABEL_KEY[dedicatedOperation]}`)
+      : t(`products:docs.${viewed.doc_type}.title`)
 
   async function confirmReverse() {
     if (!confirming) return
@@ -650,15 +705,101 @@ export default function StockDocumentsList({
           data-document-view={viewed.id}
           className="absolute inset-0 z-10 flex items-center justify-center bg-black/5 p-4"
         >
-          <div className="flex max-h-full w-full max-w-[900px] flex-col gap-2 border border-[var(--rule)] bg-background p-3 shadow-lg">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-              <span>{t(`products:docs.${viewed.doc_type}.title`)}</span>
-              {viewed.doc_number && <RefTag>{viewed.doc_number}</RefTag>}
-              <span className="text-xs font-normal text-muted-foreground">
-                {documentDate(viewed.doc_date)}
-              </span>
-            </p>
+          <div className="flex max-h-full w-full max-w-[900px] flex-col border border-[var(--rule)] bg-background shadow-lg">
+            {/* ══════════════════════════════════════════════════════════
+                🔴 شريطُ العنوان — **شكلُ `RefModal` بلا آليّته**
+                ══════════════════════════════════════════════════════════
 
+                **بلفظ المالك:** «الاستخراجُ تجميليٌّ فقط (شكلُ الشريط)، بلا أيّ
+                إعادةِ استعمالٍ لبنية Dialog/Portal تبع RefModal. لوحُ العرض
+                يبقى `<div>` يدويّ، **يستعير الشكلَ لا الآلية**».
+
+                ⚠️ **ولماذا يستحيل غيرُ ذلك، مقيسًا:** الصفحةُ تلفّ العمليّةَ
+                بـ`RefModal` أصلًا، **وحوارٌ داخل حوارٍ كلّف جولةً كاملةً في هذا
+                المشروع** — فبنيةٌ ثانيةٌ تتنازع على بؤرة اللوحة، **والشكلُ
+                وحدَه لا يتنازع.**
+
+                ✅ **والعنوانُ من `secondaryItems.<OPERATION_LABEL_KEY[op]>`** —
+                **وهو المفتاحُ نفسُه** الذي تقرأ منه الصفحةُ عنوانَ شريط شاشة
+                الإنشاء (`pages/products/index.js:231`). ⇒ **مصدرٌ واحد، فلا
+                افتراقَ ممكن.**
+
+                ⚠️ **وكان يُقرأ من `docs.<type>.title` فافترقت الطلبيّة** —
+                «طلب بضاعة» مقابل «الطلبيّات». **والعلاجُ مصدرٌ واحدٌ لا حارسٌ
+                يعلن الافتراقَ ويحفظه:** «هذا يُلغي الانحرافَ كلّيًّا بدل ما
+                يعلنه ويحافظ عليه» (لفظُ المالك). */}
+            <RefChromeBar
+              title={(
+                <span className={`${CHROME_TITLE} flex items-center gap-2`}>
+                  {panelTitle}
+                  {viewed.doc_number && <RefTag>{viewed.doc_number}</RefTag>}
+                  <span className="font-normal opacity-80">{documentDate(viewed.doc_date)}</span>
+                </span>
+              )}
+              close={(
+                <button
+                  type="button"
+                  data-view-close
+                  aria-label={t('common:close')}
+                  className={CHROME_CLOSE}
+                  onClick={() => setViewing(null)}
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            />
+
+            <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
+
+            {/* 🔴 **النوعان الجاهزان يفتحان شاشتيهما، والباقي على اللوح العامّ.**
+                ⚠️ **ووصلٌ تدريجيٌّ لا انتظارٌ للأربعة:** التوريدُ والإرجاعُ
+                يبقيان كما كانا **فلا شيءَ ينكسر ولا شيءَ يختفي**، ويُفحص
+                الجاهزُ أوّلَ ما يجهز. */}
+            {rowIsOrder(viewed) ? (
+              <OrderDocumentView
+                order={viewed}
+                orderLines={orderLines}
+                products={products}
+                categories={categories}
+                suppliers={suppliers}
+                storageCategories={storageCategories}
+                balances={balances}
+                // ⚠️ **مستودعُ العدسة** — والطلبيّةُ بلا مستودعٍ أصلًا، فهذا ما
+                // تقرأ منه شاشةُ الإنشاء «الرصيد الحاليّ» كذلك.
+                storageId={storageId}
+              />
+            ) : viewed.doc_type === 'write_off' ? (
+              <WriteOffDocumentView
+                document={viewed}
+                movements={movements}
+                products={products}
+                categories={categories}
+                storageCategories={storageCategories}
+                lots={lots}
+              />
+            ) : viewed.doc_type === 'supply' ? (
+              <SupplyDocumentView
+                document={viewed}
+                movements={movements}
+                products={products}
+                categories={categories}
+                storageCategories={storageCategories}
+                storages={storages}
+                suppliers={suppliers}
+                balances={balances}
+              />
+            ) : viewed.doc_type === 'return_to_supplier' ? (
+              <ReturnDocumentView
+                document={viewed}
+                movements={movements}
+                products={products}
+                categories={categories}
+                storageCategories={storageCategories}
+                lots={lots}
+                suppliers={suppliers}
+              />
+            ) : (
+            <>
             {/* 🔴 **«فيه: أسماءُ المنتجات» مكانُها هنا.** بُنيت على واقعةٍ
                 حقيقيّة: لبشّار مستندا توريدٍ بنفس التاريخ والمستودع والمورّد
                 وعددِ السطور **فلم يفرّقهما بعد ساعةٍ من ترحيلهما.**
@@ -681,43 +822,10 @@ export default function StockDocumentsList({
                 منها، **و`title` لا يُقرأ بلمسة.** */}
             {viewed.note && <p className="text-xs text-muted-foreground">{viewed.note}</p>}
 
+            {/* اللوحُ العامُّ — ما لم تُبنَ له شاشةٌ بعد (توريدٌ وإرجاعٌ وعكسٌ
+                وجرد). **يبقى كما كان**، فلا شيءَ ينكسر بالوصل التدريجيّ. */}
             <div className="min-h-0 flex-1 overflow-auto border border-[var(--rule)]">
               <table className="w-full text-xs">
-                {/* 🔴 **مصدران، ولا مستودعَ ولا اتّجاهَ للطلبيّة.**
-                    اللوحُ كان يقرأ `movementsOf` للصفَّين معًا — **والطلبيّةُ لا
-                    حركاتٍ لها إطلاقًا**، فرُسمت «المستند بلا سطور» على طلبيّةٍ
-                    لها سطور. ⚠️ **جملةٌ خاطئةٌ تُعرض على إنسان، لا ميزةٌ غائبة.**
-                    ولا عمودَ مستودعٍ ولا اتّجاهٍ هنا: **الطلبيّةُ لم تحرّك شيئًا
-                    بعد**، وعمودٌ فارغٌ في الاثنين يدّعي أنهما ينتميان. */}
-                {rowIsOrder(viewed) ? (
-                  <tbody>
-                    {orderViewLines(orderLines, viewed.id).map((l) => (
-                      <tr key={l.id} className="border-b border-[var(--rule)] last:border-0">
-                        <td className="px-1.5 py-1">{productsById[l.productId]?.name || '—'}</td>
-                        <td className="px-1.5 py-1">
-                          {l.quantity === null ? '—' : t('products:documents.inEntered', {
-                            uom: t(`products:docs.uom_${l.uom || 'unit'}`), n: l.quantity,
-                          })}
-                        </td>
-                        <td className="px-1.5 py-1 text-muted-foreground">
-                          {/* 🔴 **سعرٌ مطلوبٌ لا كلفة، والعدمُ يبقى عدمًا** —
-                              `entered_unit_price` يقبل العدم، **و«لا أحدَ اتّفق
-                              على السعر» ليست «هذا بلا ثمن».** */}
-                          {l.askingPrice === null ? '—' : t('products:documents.money', {
-                            total: l.askingPrice.toLocaleString('ar', { maximumFractionDigits: 2 }),
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                    {orderViewLines(orderLines, viewed.id).length === 0 && (
-                      <tr>
-                        <td colSpan={3} className="py-3 text-center text-muted-foreground">
-                          {t('products:documents.noLines')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                ) : (
                 <tbody>
                   {movementsOf(movements, viewed.id).map((m) => (
                     <tr key={m.id} className="border-b border-[var(--rule)] last:border-0">
@@ -758,16 +866,23 @@ export default function StockDocumentsList({
                     </tr>
                   )}
                 </tbody>
-                )}
               </table>
             </div>
+            </>
+            )}
 
             {/* ⚠️ **مَخرجٌ صريحٌ لا اعتمادٌ على الضغط خارجَ اللوح** — نفسُ
-                ملاحظة زرّ الرجوع، على مستوى اللوح. */}
-            <div className="flex justify-end">
-              <RefCancelButton onClick={() => setViewing(null)}>
-                {t('common:close')}
-              </RefCancelButton>
+                ملاحظة زرّ الرجوع، على مستوى اللوح.
+                🔴 **ويُخفى عن الشاشات الأربع وحدَها:** هنّ يرسمن أزرارَهنّ
+                (ديكورًا)، **فزرٌّ حقيقيٌّ تحتها زرٌّ خامسٌ لا وجودَ له في شاشة
+                الإنشاء** — والمَخرجُ هناك هو `×` في الشريط. */}
+            {!dedicatedOperation && (
+              <div className="flex justify-end">
+                <RefCancelButton onClick={() => setViewing(null)}>
+                  {t('common:close')}
+                </RefCancelButton>
+              </div>
+            )}
             </div>
           </div>
         </div>
