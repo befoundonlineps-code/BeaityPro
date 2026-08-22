@@ -419,6 +419,9 @@ export default function ProductsPage() {
                 // ⚠️ **لعمود «الرصيد الحاليّ» في شاشات العرض** — يُعرض كما في
                 // شاشة الإنشاء بقرار المالك، **وبنفس `balanceIndex`** فلا
                 // يفترق الرقمان. **ومحمَّلةٌ للصفحة أصلًا**، فلا استعلامَ جديد.
+                // ⚠️ **لصفوف الحشو في شاشات العرض** — مجلّداتُ المستودع، وهي ما
+                // تبني منه شاشةُ الإنشاء جدولَها. **ومحمَّلةٌ للصفحة أصلًا.**
+                storageCategories={directories.storageCategories}
                 balances={balances.balances}
                 loading={stockDocuments.loading || catalogue.loading || productOrders.loading}
                 // ⚠️ **وفشلُ أيٍّ منهما يفشل الشاشة:** قائمةٌ ينقصها مصدرٌ

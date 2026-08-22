@@ -109,6 +109,11 @@ export default function StockDocumentsList({
   // ⚠️ **لعمود «الرصيد الحاليّ»/«المتوفر»** — يُعرض في شاشات العرض كما في
   // شاشات الإنشاء بقرار المالك. **ومحمَّلةٌ للصفحة أصلًا.**
   balances,
+  // ⚠️ **لصفوف الحشو في شاشات العرض** — مجلّداتُ المستودع، وهي ما تبني منه
+  // شاشةُ الإنشاء جدولَها. **والسطورُ الحقيقيّةُ لا تعتمد عليها إطلاقًا**، وهو
+  // شرطُ المالك: «سطور المستند الحقيقية هي المرجع الأساسي… وكتالوج اليوم
+  // يُستخدم بعدها بس لملء الصفوف الباقية».
+  storageCategories,
   // 🔴 **مقبضُ الخروج كان موجودًا وغيرَ موصولٍ بهذه الشاشة وحدَها.**
   // `closeOperation` مبنيٌّ في الصفحة وتأخذه كلُّ عمليّةٍ أخرى — **وهذه لم
   // تأخذه**، وهو الصنفُ نفسُه الذي جعل `return_to_supplier` ترسم شاشتين.
@@ -768,6 +773,7 @@ export default function StockDocumentsList({
                 movements={movements}
                 products={products}
                 categories={categories}
+                storageCategories={storageCategories}
                 lots={lots}
               />
             ) : viewed.doc_type === 'supply' ? (

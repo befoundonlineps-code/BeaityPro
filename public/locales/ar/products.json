@@ -439,6 +439,8 @@
     "returnPackagePrice": "سعر العبوة",
     "lotDateCost": "استلام: {{date}} · سعر الوحدة: {{cost}}",
     "lotDate": "استلام: {{date}}",
+    "notInDocument": "ليس في هذا المستند",
+    "orphanFolder": "سطور خارج كتالوج اليوم",
     "noLines": "المستند بلا سطور",
     "reversedBadge": "معكوس",
     "isReversalBadge": "مستند تصحيح",

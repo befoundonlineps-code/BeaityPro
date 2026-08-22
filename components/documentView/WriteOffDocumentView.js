@@ -1,4 +1,3 @@
-import { Fragment } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet, FileInput } from 'lucide-react'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefFillerRow, RefTag } from '../ref/RefGrid'
@@ -8,6 +7,8 @@ import {
 } from '../ref/RefStatic'
 import { movementsOf, movementFrames, costFrames } from '../../lib/stockDocumentList'
 import { lotsForLine, availableForWriteOff } from '../../lib/lotPicker'
+// 🔴 **سطورُ المستند مرجعًا وكتالوجُ اليوم حشوًا** — والحالةُ الحافّةُ فيه مختبَرة.
+import { documentViewRows } from '../../lib/documentViewRows'
 import { roundToPlaces } from '../../lib/decimalPlaces'
 
 // «شطب بضاعة» — **مشاهدةً.** صورةُ شاشة الإنشاء نفسِها، منزوعةَ الوظيفة.
@@ -58,38 +59,36 @@ import { roundToPlaces } from '../../lib/decimalPlaces'
 const COLUMNS = 6
 
 export default function WriteOffDocumentView({
-  document: doc, movements, products, categories, lots,
+  document: doc, movements, products, categories, storageCategories, lots,
 }) {
   const { t } = useTranslation(['products', 'common'])
   if (!doc) return null
 
-  const productsById = Object.fromEntries((products || []).map((p) => [p.id, p]))
   const lotsById = Object.fromEntries((lots || []).map((l) => [l.id, l]))
-  const categoriesById = Object.fromEntries((categories || []).map((c) => [c.id, c]))
 
-  // 🔴 **سطورُ المستند وحدَها** — قرارُ المالك، ورفضُ البديل بلفظه: عرضُ كلّ
-  // منتجات المستودع «يوهم بوجود اختيارٍ لم يُسجَّل».
+  // ══════════════════════════════════════════════════════════════════
+  // 🔴 سطورُ المستند مرجعًا، وكتالوجُ اليوم حشوًا — **بهذا الترتيب**
+  // ══════════════════════════════════════════════════════════════════
   //
-  // ⚠️ **وهو ليس تفضيلًا: المجلّداتُ المؤشَّرةُ لم تُحفظ قطّ** — `stock_documents`
-  // بلا عمودِ مجلّدات (مقيسٌ في ١٠٢)، و`writeOffGrid.js:85` يبني الصفوفَ من
-  // حالةِ الشاشة. ⇒ **«نفسُ الصفوف» غيرُ قابلٍ للاسترجاع أصلًا.**
-  const writeOffLines = movementsOf(movements, doc.id)
-
-  // سلسلةُ المجلّدات من الجذر إلى مجلّد المنتج — **كما ترسمها شاشةُ الإنشاء
-  // مستوًى فوق مستوى**، لا سطرًا واحدًا.
-  const chainOf = (categoryId) => {
-    const chain = []
-    let node = categoriesById[categoryId]
-    // ⚠️ **حدٌّ أعلى للحلقة** — دورةٌ في `parent_id` تعلّق الصفحةَ بلا رسالة،
-    // **وتعليقٌ متزامنٌ يُقرأ جهازًا بطيئًا لا عطلًا** (`CLAUDE.md`).
-    let guard = 0
-    while (node && guard < 32) { chain.unshift(node); node = categoriesById[node.parent_id]; guard += 1 }
-    return chain
-  }
+  // **قرارُ المالك:** الشاشةُ تعرض كلَّ منتجات الكتالوج الحاليّ (نفسُ فئات
+  // وحجم شاشة الإنشاء)، **والتي ليست في المستند تظهر صفوفًا خاملة.**
+  //
+  // ⚠️ **والبناءُ كلُّه في `documentViewRows`، ومعه اختبارُ الحالة الحافّة:**
+  // منتجٌ شُطب من سنةٍ ثمّ أُرشِف أو حُذف أو فُكّ ربطُ مجلّده — **يخرج من
+  // كتالوج اليوم وسطرُه باقٍ في `stock_movements` إلى الأبد.** ⇒ **يُرسم
+  // تحت فئته الأصليّة إن حُلّت، وإلّا تحت مجموعةٍ احتياطيّةٍ مسمّاة.**
+  const viewRows = documentViewRows({
+    lines: movementsOf(movements, doc.id),
+    products,
+    categories,
+    storageCategories,
+    storageId: doc.storage_id,
+  })
 
   // ⚠️ **يُحسب مرّةً لكلّ منتجٍ لا مرّةً لكلّ سطر:** بعد ٠٩٥ ينقسم المنتجُ
   // الواحدُ إلى حركةٍ لكلّ دفعة، **و`lotsForLine` تمشي كلَّ الحركات في كلّ
-  // نداء** — فمنتجٌ بثلاث دفعاتٍ يمشيها ثلاثًا بلا سبب.
+  // نداء** — فمنتجٌ بثلاث دفعاتٍ يمشيها ثلاثًا بلا سبب. **وصفوفُ الحشو تضاعف
+  // العددَ الآن**، فالحسابُ مرّةً صار ألزم.
   const lotRowsCache = new Map()
   const lotRowsFor = (productId) => {
     if (!lotRowsCache.has(productId)) {
@@ -100,15 +99,8 @@ export default function WriteOffDocumentView({
     return lotRowsCache.get(productId)
   }
 
-  // تجميعٌ بترتيب السطور كما حُفظت، بلا فرزٍ يُخترع.
-  const groups = []
-  for (const line of writeOffLines) {
-    const product = productsById[line.product_id]
-    const key = product ? product.category_id : null
-    const last = groups[groups.length - 1]
-    if (last && last.key === key) last.lines.push({ line, product })
-    else groups.push({ key, lines: [{ line, product }] })
-  }
+  // وحدةُ المنتج الأساسيّة — تُقرأ للحشو كما تُقرأ للسطر.
+  const unitOf = (product) => t(`products:units.${product?.base_unit || 'pcs'}`)
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -142,92 +134,147 @@ export default function WriteOffDocumentView({
             </tr>
           </RefHead>
           <tbody>
-            {groups.map((group, gi) => (
-              <Fragment key={`${group.key}-${gi}`}>
-                {chainOf(group.key).map((folder) => (
-                  <RefGroupRow key={`${gi}-${folder.id}`} columns={COLUMNS}>{folder.name}</RefGroupRow>
-                ))}
-                {group.lines.map(({ line, product }) => {
-                  const frames = movementFrames(line, product)
-                  const cost = costFrames(line, product)
-                  const lot = lotsById[line.lot_id]
-                  // «المتوفر» — رصيدُ اليوم من الدفعات، **بنفس دالّة شاشة
-                  // الإنشاء** فلا يفترق الرقمان.
-                  const lotRows = lotRowsFor(line.product_id)
-                  const inStock = availableForWriteOff(lotRows)
-                  const amount = cost === null ? null : roundToPlaces(frames.base * cost.base)
-                  return (
-                    <RefRow key={line.id} data-view-line={line.id}>
-                      <RefTd>{product?.name || '—'}</RefTd>
+            {viewRows.map((row, ri) => {
+              // ── صفُّ المجلّد ─────────────────────────────────────────
+              if (row.kind === 'folder') {
+                return (
+                  <RefGroupRow key={`f-${row.id}-${ri}`} columns={COLUMNS} data-folder-row={row.id}>
+                    <span className="flex items-center gap-2">
+                      {/* 🔴 **مجموعةُ السطور الخارجةِ عن كتالوج اليوم** — اسمُها
+                          مفتاحُ ترجمةٍ لا اسمُ مجلّد، لأنها ليست مجلّدًا.
+                          ⚠️ **ولا يُخترع لها نمطٌ جديد** — صفُّ مجموعةٍ كغيره. */}
+                      {row.name ?? t('products:documents.orphanFolder')}
+                      {/* ⚠️ **«مجلد بلا أصناف» ادّعاءٌ عن الكتالوج لا عن المستند**،
+                          فهو صادقٌ هنا كما هو صادقٌ في شاشة الإنشاء.
+                          🔴 **و«مجموع العبوات» لا يُرسم** — جمعٌ عبر السطور،
+                          محظورٌ بـد/١. */}
+                      {row.childCount === 0 && (
+                        <RefTag>{t('products:writeOff.folderEmpty')}</RefTag>
+                      )}
+                    </span>
+                  </RefGroupRow>
+                )
+              }
 
-                      {/* العبوات — خانةٌ ساكنةٌ وزرُّ «الكل» بجانبها، كما في الإنشاء. */}
-                      <RefTd>
-                        <span className="flex items-center gap-1">
-                          <StaticField className="w-12">
-                            {frames.entered === null ? '' : frames.entered}
-                          </StaticField>
-                          <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
-                            {t('products:writeOff.fillAll')}
-                          </StaticShellButton>
-                        </span>
-                      </RefTd>
+              // ── صفُّ الحشو: منتجٌ من كتالوج اليوم ليس في هذا المستند ──
+              //
+              // 🔴 **كلُّ رقمٍ من المستند «—» لا «٠»**، بلفظ المالك: «"٠" توحي
+              // إنه المنتج كان جزء من القرار بقيمة صفر، وهذا غير صحيح؛ "—" تعني
+              // "مش جزء من هالمستند إطلاقاً"».
+              //
+              // ⚠️ **و«المتوفر» يبقى رقمًا حقيقيًّا وليس «—»، وهذا قراءةٌ تُعرض
+              // لا تُبتلع:** هو رصيدُ اليوم من الدفعات — **حقيقةٌ عن المخزون لا
+              // عن المستند** — **وشاشةُ الإنشاء ترسمه لكلّ صفّ** بما فيها ما لم
+              // يُدخَل. **و«—» فيه تُخفي معلومةً صادقةً وتكسر تطابقَ الشكل.**
+              if (row.kind === 'filler') {
+                const rows2 = lotRowsFor(row.product.id)
+                return (
+                  <RefRow key={`x-${row.product.id}`} data-view-filler={row.product.id}>
+                    <RefTd>
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        {row.product.name}
+                        {/* ⚠️ **الوسمُ يقول الصادقَ لا «بلا رصيد»** — تلك جملةٌ
+                            عن المخزون، **وقد يكون للمنتج رصيدٌ وافرٌ اليوم**؛
+                            الصادقُ أنه ليس في هذا المستند. **والنمطُ نفسُه
+                            (`RefTag`) لا نمطٌ جديد.** */}
+                        <RefTag>{t('products:documents.notInDocument')}</RefTag>
+                      </span>
+                    </RefTd>
+                    <RefTd>
+                      <span className="flex items-center gap-1">
+                        <StaticField className="w-12" />
+                        <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
+                          {t('products:writeOff.fillAll')}
+                        </StaticShellButton>
+                      </span>
+                    </RefTd>
+                    <RefTd>—</RefTd>
+                    <RefTd>
+                      {t('products:orders.qtyWithUnit', {
+                        n: availableForWriteOff(rows2), unit: unitOf(row.product),
+                      })}
+                    </RefTd>
+                    <RefTd>—</RefTd>
+                    <RefTd>—</RefTd>
+                  </RefRow>
+                )
+              }
 
-                      <RefTd>
-                        {t('products:orders.qtyWithUnit', {
-                          n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
-                        })}
-                      </RefTd>
-                      <RefTd>
-                        {t('products:orders.qtyWithUnit', {
-                          n: inStock, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
-                        })}
-                      </RefTd>
+              // ── صفُّ المستند الحقيقيّ ───────────────────────────────
+              const { line, product } = row
+              const frames = movementFrames(line, product)
+              const cost = costFrames(line, product)
+              const lot = lotsById[line.lot_id]
+              // «المتوفر» — رصيدُ اليوم من الدفعات، **بنفس دالّة شاشة الإنشاء**
+              // فلا يفترق الرقمان.
+              const inStock = availableForWriteOff(lotRowsFor(line.product_id))
+              const amount = cost === null ? null : roundToPlaces(frames.base * cost.base)
+              return (
+                <RefRow key={line.id} data-view-line={line.id}>
+                  {/* ⚠️ **الاسمُ قد يكون غيرَ محلولٍ** — منتجٌ حُذف من الكتالوج
+                      وسطرُه باقٍ. **والشرطةُ هنا تعني «الاسمُ غيرُ معروف» لا
+                      «لا منتج»**، والسطرُ نفسُه محفوظٌ بكلّ أرقامه. */}
+                  <RefTd>{product?.name || '—'}</RefTd>
 
-                      {/* ══════════════════════════════════════════════════
-                          🔴 الدفعةُ — **استلامٌ وسعرُ وحدة، بلا «متبقٍّ»**
-                          ══════════════════════════════════════════════════
+                  {/* العبوات — خانةٌ ساكنةٌ وزرُّ «الكل» بجانبها، كما في الإنشاء. */}
+                  <RefTd>
+                    <span className="flex items-center gap-1">
+                      <StaticField className="w-12">
+                        {frames.entered === null ? '' : frames.entered}
+                      </StaticField>
+                      <StaticShellButton className="shrink-0 px-1.5 text-[11px]">
+                        {t('products:writeOff.fillAll')}
+                      </StaticShellButton>
+                    </span>
+                  </RefTd>
 
-                          ⚠️ **ومفتاحٌ خاصٌّ بالعرض، لا مفتاحُ المنسدل.** كان
-                          `writeOff.lotOption` — نصُّ خيارِ القائمة بأجزائه
-                          الثلاثة — **فعاد «متبقٍّ» بعد أن أُسقط، ومرّ في تقريرٍ
-                          قال إنه سقط.** والسببُ أن إعادةَ البناء «صورةً من شاشة
-                          الإنشاء» نسخت نصَّ الخيار حرفيًّا، **وأعادت قرارًا كان
-                          قد حُسم بلا أن يُقال.**
+                  <RefTd>
+                    {t('products:orders.qtyWithUnit', {
+                      n: frames.base, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
+                    })}
+                  </RefTd>
+                  <RefTd>
+                    {t('products:orders.qtyWithUnit', {
+                      n: inStock, unit: t(`products:units.${frames.baseUnit || 'pcs'}`),
+                    })}
+                  </RefTd>
 
-                          ❌ **و«متبقٍّ» مفهومُ لحظةِ اختيار** — متبقّي اليومَ لا
-                             متبقّي الترحيل، **وهو لم يكن في تصميم الشطب أصلًا.**
-                          ✅ **وسعرُ الوحدة يبقى** لأنه ما يشرح عمودَ المبلغ:
-                             دفعتان لمنتجٍ واحدٍ بسعرين، والدفعةُ وحدَها تفرّقهما.
+                  {/* ══════════════════════════════════════════════════
+                      🔴 الدفعةُ — **استلامٌ وسعرُ وحدة، بلا «متبقٍّ»**
+                      ══════════════════════════════════════════════════
 
-                          ⚠️ **والمفتاحُ في `documents` لا في `writeOff`** —
-                          مفتاحُ المنسدل يخصّ شاشةَ الإنشاء ويبقى لها كما هو. */}
-                      <RefTd>
-                        <span className="flex items-center gap-1.5">
-                          <StaticSelect>
-                            {lot
-                              ? t('products:documents.lotDateCost', {
-                                date: String(lot.received_at || '').slice(0, 10),
-                                cost: cost === null ? '—' : cost.base,
-                              })
-                              : t('products:writeOff.lotAuto')}
-                          </StaticSelect>
-                          {lot?.cost_is_estimated === true && (
-                            <RefTag title={t('products:writeOff.estimatedHelp')}>
-                              {t('products:writeOff.estimatedTag')}
-                            </RefTag>
-                          )}
-                        </span>
-                      </RefTd>
+                      ⚠️ **ومفتاحٌ خاصٌّ بالعرض، لا مفتاحُ المنسدل.** كان
+                      `writeOff.lotOption` بأجزائه الثلاثة، **فعاد «متبقٍّ» بعد
+                      أن أُسقط، ومرّ في تقريرٍ قال إنه سقط.**
 
-                      <RefTd>
-                        {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
-                      </RefTd>
-                    </RefRow>
-                  )
-                })}
-              </Fragment>
-            ))}
-            {writeOffLines.length === 0 && (
+                      ❌ **و«متبقٍّ» مفهومُ لحظةِ اختيار** — متبقّي اليومَ لا
+                         متبقّي الترحيل، **ولم يكن في تصميم الشطب أصلًا.**
+                      ✅ **وسعرُ الوحدة يبقى** لأنه ما يشرح عمودَ المبلغ. */}
+                  <RefTd>
+                    <span className="flex items-center gap-1.5">
+                      <StaticSelect>
+                        {lot
+                          ? t('products:documents.lotDateCost', {
+                            date: String(lot.received_at || '').slice(0, 10),
+                            cost: cost === null ? '—' : cost.base,
+                          })
+                          : t('products:writeOff.lotAuto')}
+                      </StaticSelect>
+                      {lot?.cost_is_estimated === true && (
+                        <RefTag title={t('products:writeOff.estimatedHelp')}>
+                          {t('products:writeOff.estimatedTag')}
+                        </RefTag>
+                      )}
+                    </span>
+                  </RefTd>
+
+                  <RefTd>
+                    {amount === null ? '—' : amount.toLocaleString('ar', { maximumFractionDigits: 2 })}
+                  </RefTd>
+                </RefRow>
+              )
+            })}
+            {viewRows.length === 0 && (
               <tr>
                 <td colSpan={COLUMNS} className="py-3 text-center text-xs text-muted-foreground">
                   {t('products:documents.noLines')}
