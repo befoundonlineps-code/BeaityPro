@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
+import { countUoms } from '../lib/stocktakeSheet'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
 import {
   remainingTotal, differenceBase, differenceAtCost,
@@ -47,10 +48,15 @@ function packagesLabel(t, value) {
 
 export default function StocktakingSheet({
   products, categories, storageCategories, balances, movements, documents,
-  storageId, storageName, loading, error, onClose,
+  storageId, storageName, salonId, userId, loading, error, onClose, stocktake,
 }) {
   const { t } = useTranslation(['products', 'common'])
-  const [counts, setCounts] = useState({})
+  // 🔴 **العدُّ يعيش في الجلسة لا في هذه الشاشة** — والكائنُ يصل كاملًا
+  // (الأرقامُ والأُطُرُ ودوالُّ كتابتها معًا)، **فلا يقدر منادٍ أن يعطي نصفَه.**
+  const {
+    counts = {}, uoms = {}, setCounts, setUoms, writeCount,
+    startedBy, startedAt, writeError,
+  } = stocktake || {}
   const [notes, setNotes] = useState('')
   const [search, setSearch] = useState('')
 
@@ -60,8 +66,8 @@ export default function StocktakingSheet({
   )
 
   const { rows } = useMemo(() => stocktakeTableRows({
-    categories, storageCategories, storageId, products, balances, movements, documents, since, counts,
-  }), [categories, storageCategories, storageId, products, balances, movements, documents, since, counts])
+    categories, storageCategories, storageId, products, balances, movements, documents, since, counts, uoms,
+  }), [categories, storageCategories, storageId, products, balances, movements, documents, since, counts, uoms])
 
   // ⚠️ **البحثُ يخفي السطورَ ولا يخفي مجلّداتِها** — مجلّدٌ يختفي بصمتٍ يجعل
   // العادَّةَ تبحث عن رفٍّ لا تجده، **وصفٌّ يقول «فارغ» خبرٌ واختفاؤه لغز.**
@@ -77,10 +83,12 @@ export default function StocktakingSheet({
   // شاشةٍ **لم يُعدَّ فيها شيءٌ بعد** — وهي جملةٌ عن مالٍ لا نعرفه، لا عن
   // مالٍ يساوي صفرًا. **وهو البندُ (أ) في `CLAUDE.md` بلبوس مجموع.**
   const counted = visible.filter((row) => row.kind === 'line'
-    && remainingTotal({ factBase: row.fact, cost: row.cost }) !== null)
+    && remainingTotal({ factBase: row.factBase, cost: row.cost }) !== null)
   const total = counted.length === 0 ? null : roundToPlaces(counted.reduce(
-    (sum, row) => sum + remainingTotal({ factBase: row.fact, cost: row.cost }), 0,
+    (sum, row) => sum + remainingTotal({ factBase: row.factBase, cost: row.cost }), 0,
   ))
+
+  const lineCount = visible.filter((row) => row.kind === 'line').length
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t('common:loading')}</p>
   if (error) {
@@ -137,6 +145,35 @@ export default function StocktakingSheet({
         </span>
       </div>
 
+      {/* ══════════════════════════════════════════════════════════════
+          شريطُ الجلسة — **مَن يعدّ ومنذ متى**
+          ══════════════════════════════════════════════════════════════
+
+          🔴 **وحالتان لا واحدة:** «جردُك أنت انقطع» و«جردٌ بدأه غيرُك»
+          موقفان مختلفان، **وأحدُهما وحدَه مفاجأة.** والنصّان قائمان في
+          `stocktake.*` **ويُعاد استعمالُهما لا يُكتب مثلُهما** — فنصّان
+          بنفس المعنى يتباعدان.
+
+          ⚠️ **ولا يظهر إلّا بعد أوّل عدّ** — لأن الجلسةَ لا تُفتح قبله:
+          فاتحُ الشاشة لينظر لا يُعلن مستودعَه «قيد الجرد». */}
+      {stocktake && stocktake.session && (
+        <div className="border border-[var(--rule)] bg-[var(--group)] px-2 py-1 text-xs" data-session-banner="">
+          {t(startedBy && startedBy === userId
+            ? 'products:stocktake.resumeYours'
+            : 'products:stocktake.resumeOther',
+          { when: startedAt ? String(startedAt).slice(0, 10) : '' })}
+        </div>
+      )}
+
+      {/* 🔴 **وتعذُّرُ الكتابة يُقال، ولا يُبتلع** — الرقمُ على الشاشة
+          والقاعدةُ لا تحمله، **وهي أخطرُ حالةٍ في هذه الشاشة:** العادَّةُ
+          تظنّ عدَّها محفوظًا وتُغلق. */}
+      {writeError && (
+        <div className="border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs" data-write-error="">
+          {t('products:stocktake.writeFailed')}
+        </div>
+      )}
+
       {/* ── الجدول ───────────────────────────────────────────────── */}
       <div className="min-h-0 flex-1 overflow-auto">
         <RefTable>
@@ -174,9 +211,9 @@ export default function StocktakingSheet({
                 )
               }
 
-              const { product, movement, plan, cost, costState, fact } = row
+              const { product, movement, plan, cost, costState, fact, frame, factBase } = row
               const unit = t(`products:units.${product.base_unit || 'pcs'}`)
-              const difference = differenceBase({ factBase: fact, planBase: plan })
+              const difference = differenceBase({ factBase, planBase: plan })
               const packages = differencePackages({ difference, product })
 
               return (
@@ -211,18 +248,55 @@ export default function StocktakingSheet({
                   </RefTd>
 
                   {/* الفعليُّ — الخانةُ الوحيدةُ التي يكتبها إنسان. */}
+                  {/* ══════════════════════════════════════════════════
+                      الفعليُّ — **الخانةُ الوحيدةُ التي يكتبها إنسان**
+                      ══════════════════════════════════════════════════
+
+                      🔴 **بإطارها، لأن الواقفَ أمام الرفّ يعدّ عبواتٍ لا قطعًا**
+                      — وإجبارُه على الضرب في رأسه هو عينُ «أدخلتُ ٥ عبوات
+                      والصفُّ يقول ٧٥». **والعمودان محفوظان في
+                      `stocktake_counts`، فالإطاران مشروعان.**
+
+                      ⚠️ **والكتابةُ عند فقدان التركيز، والقيمةُ من العنصر لا
+                      من الحالة:** لصقٌ يتبعه تبويبٌ قد يسبق إعادةَ الرسم
+                      **فيُكتب ما قبل الأخير** — رقمٌ معقولٌ وخاطئ. */}
                   <RefTd write>
-                    <NumberField
-                      min="0"
-                      step="1"
-                      className={FIELD}
-                      data-count-for={product.id}
-                      value={fact}
-                      onChange={(e) => setCounts((prev) => ({ ...prev, [product.id]: e.target.value }))}
-                    />
+                    <span className="flex items-center gap-1">
+                      <NumberField
+                        min="0"
+                        step="1"
+                        className={`${FIELD} w-16`}
+                        data-count-for={product.id}
+                        value={fact}
+                        onChange={(e) => setCounts({ ...counts, [product.id]: e.target.value })}
+                        onBlur={(e) => writeCount({ salonId, product, raw: e.target.value, uom: frame })}
+                      />
+                      {/* ⚠️ **تغييرُ الإطار يُعيد الكتابةَ فورًا** — لا blur
+                          لمنسدل، **والرقمُ يبقى كما كُتب ومعناه هو ما يتغيّر.** */}
+                      <select
+                        className={`${FIELD} w-20`}
+                        data-count-uom={product.id}
+                        value={frame}
+                        onChange={(e) => {
+                          setUoms({ ...uoms, [product.id]: e.target.value })
+                          writeCount({ salonId, product, raw: counts[product.id], uom: e.target.value })
+                        }}
+                      >
+                        {countUoms(product).map((uom) => (
+                          <option key={uom} value={uom}>{t(`products:docs.uom_${uom}`)}</option>
+                        ))}
+                      </select>
+                    </span>
+                    {/* 🔴 **والقراءةُ بالوحدة الأساسيّة تحتها** — الإطاران معًا
+                        وحدَهما يصدقان مع القارئ ومع الحساب. */}
+                    {factBase !== null && (
+                      <span className="block text-[10px] text-muted-foreground">
+                        {unit}: <LtrNumber>{factBase}</LtrNumber>
+                      </span>
+                    )}
                   </RefTd>
 
-                  <RefTd><LtrNumber>{cash(remainingTotal({ factBase: fact, cost }))}</LtrNumber></RefTd>
+                  <RefTd><LtrNumber>{cash(remainingTotal({ factBase, cost }))}</LtrNumber></RefTd>
                   <RefTd>
                     {difference === null ? NONE : <>{unit}: <LtrNumber>{difference}</LtrNumber></>}
                   </RefTd>
@@ -301,6 +375,22 @@ export default function StocktakingSheet({
                 <span className="flex items-center gap-3">
                   <span>Σ</span>
                   <span>{t('products:stocktakePeriod.totalRow')}</span>
+                  {/* 🔴 **مجموعٌ يستثني شيئًا يقول ما استثناه.**
+                      رقمُ ٣٬٨٠٠ فوق أربعةِ منتجاتٍ عُدّ منها اثنان يُقرأ
+                      «قيمةُ المستودع» — **وهو قيمةُ ما عُدّ لا غير.** وهي
+                      قاعدةُ `storageValueSummary` نفسُها: **المجموعُ يحمل ما
+                      يقدر على تقييمه ويبلّغ عمّا لم يقدر.**
+
+                      🔴 **وهذا السطرُ فقد اسمَه مرّةً قبل أن يُقرأ:** كُتب عبر
+                      الصدفة، **فنفّذت ما بين العلامتين الخلفيّتين وابتلعت
+                      الاسم** — وبقي «قاعدةُ  نفسُها». **ولا شيءَ كان يشتكي:
+                      تعليقٌ ناقصٌ ماركداونٌ سليم.** ⇒ **والقراءةُ الراجعةُ هي
+                      ما كشفته، لا نجاحُ الكاتب.** */}
+                  {lineCount > 0 && counted.length < lineCount && (
+                    <RefTag title={t('products:stocktakePeriod.totalPartialHelp')}>
+                      {t('products:stocktakePeriod.totalCounted', { counted: counted.length, total: lineCount })}
+                    </RefTag>
+                  )}
                 </span>
               </td>
               <td
@@ -330,7 +420,11 @@ export default function StocktakingSheet({
             onChange={(e) => setNotes(e.target.value)}
           />
         </label>
-        <RefCancelButton onClick={onClose}>
+        {/* 🔴 **«إلغاء» = إغلاقٌ، والعدُّ محفوظ — قرارُ المالك.**
+            **ولا `discard()` هنا إطلاقًا:** رميُ عدِّ ساعةٍ خلف كلمةٍ محايدة
+            فعلٌ مُتلِفٌ لا يُستدرَك، **والرميُ يبقى في الشاشة القائمة حيث
+            اسمُه صريح.** والنصُّ يقول ذلك بدل أن يتركه يُخمَّن. */}
+        <RefCancelButton onClick={onClose} title={t('products:stocktakePeriod.cancelHelp')}>
           {t('products:stocktakePeriod.cancel')}
         </RefCancelButton>
 
