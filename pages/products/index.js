@@ -388,6 +388,15 @@ export default function ProductsPage() {
                 // cannot tell a supply from a write-off.
                 movements={stockDocuments.movements}
                 documents={stockDocuments.documents}
+                // 🔴 القراءةُ الطازجةُ للوح المراجعة — قرارُ المالك (أ).
+                //
+                // ⚠️ **والاثنان معًا لا `stockDocuments` وحدَها:** الصفوفُ
+                // تُبنى من الحركات (المسجَّل) ومن الأرصدة (التكلفة) في نداءٍ
+                // واحد، **فتحديثُ أحدهما يترك الورقةَ نصفَها اليومَ ونصفَها
+                // أمس** — وهو أسوأُ من ورقةٍ قديمةٍ كلِّها لأنه غيرُ متّسق.
+                refresh={async () => {
+                  await Promise.all([stockDocuments.reload(), balances.reload()])
+                }}
                 loading={balances.loading || catalogue.loading || directories.loading
                   || stockDocuments.loading}
                 // ⚠️ Any read failing fails the screen, and it matters more

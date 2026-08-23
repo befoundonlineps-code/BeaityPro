@@ -4,6 +4,7 @@ import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
 import {
   countUoms, countedInSession, jumpsAboveRecord, settledCount,
+  linesToConfirm, CONFIRM_LINE,
 } from '../lib/stocktakeSheet'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
 import { splitsAPiece } from '../lib/stockDocument'
@@ -52,6 +53,15 @@ function packagesLabel(t, value) {
 export default function StocktakingSheet({
   products, categories, storageCategories, balances, movements, documents,
   storageId, storageName, salonId, userId, loading, error, onClose, stocktake,
+  // 🔴 **قراءةٌ طازجةٌ للرصيد لحظةَ فتح اللوح — قرارُ المالك (أ).**
+  //
+  // **و`balance_at_post` غيرُ متاحةٍ هنا بنيويًّا:** تُكتب داخلَ
+  // `post_stocktake_session` تحت قفلِها ([054a](../docs/sql/054a-stocktake-sessions.sql))،
+  // **فلا وجودَ لها قبل الترحيل.** ⇒ **والفجوةُ المستهدَفةُ تقادمُ العرض** —
+  // ورقةٌ فُتحت صباحًا تُقرأ ظهرًا، **فتصير نافذةُ التقادم ثوانيَ بدل ساعات.**
+  //
+  // ⚠️ **ولا يُلمس محرّكُ الترحيل** — وهو موقوفٌ بالبوّابة أصلًا.
+  refresh,
 }) {
   const { t } = useTranslation(['products', 'common'])
   // 🔴 **العدُّ يعيش في الجلسة لا في هذه الشاشة** — والكائنُ يصل كاملًا
@@ -71,6 +81,13 @@ export default function StocktakingSheet({
   // ⚠️ **وحالةٌ في الشاشة لا في الجلسة، عمدًا:** التنبيهُ سؤالٌ لمن يقف أمام
   // الرفّ الآن، **وإعادةُ فتح الورقة تعيده مطويًّا** — كسؤال الرمي حرفًا.
   const [blurred, setBlurred] = useState({})
+
+  // 🔴 **ثلاثُ حالاتٍ لا اثنتان، والوسطى هي القراءةُ الطازجة.**
+  //
+  // ⚠️ **`false` ⟵ مطويّ · `'loading'` ⟵ يُقرأ الرصيد · `'open'` ⟵ مرسوم.**
+  // ولولا الوسطى لانفتح اللوحُ على الرصيد القديم ثمّ **تبدّلت أرقامُه تحت
+  // عين القارئ** — وهو أسوأُ من انتظارٍ معلَن.
+  const [reviewing, setReviewing] = useState(false)
 
   const since = useMemo(
     () => previousStocktakeAt(documents, storageId),
@@ -116,6 +133,17 @@ export default function StocktakingSheet({
   // بلا رسمٍ ولا حالةِ مكوّن، **وحالةُ «بحثٌ يُخفي معدودًا» مثبَّتةٌ اختبارًا
   // دائمًا** بدل مسبارٍ يدويٍّ يُمحى بعد جولته.
   const sessionCount = countedInSession(counts)
+
+  // 🔴 **من `counts` كلِّها و`rows` كلِّها — لا من `visible` ولا من `counted`.**
+  //
+  // ⚠️ **`visible` مفلترةٌ بالبحث، و`counted` مشروطةٌ بتكلفةٍ معروفة** — والترحيلُ
+  // لا ينظر إلى أيٍّ منهما. **ولوحٌ يقول «سطرٌ شاذٌّ واحد» ثمّ يُرحَّل ثلاثةٌ
+  // شواذُّ يطمئن، والطمأنينةُ هي ما يجعل الإصبعَ يضغط** — وهو العطلُ نفسُه الذي
+  // كاد يُشحن في سؤال الرمي.
+  const reviewLines = useMemo(
+    () => linesToConfirm({ counts, uoms, rows, products }),
+    [counts, uoms, rows, products],
+  )
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t('common:loading')}</p>
   if (error) {
@@ -221,6 +249,107 @@ export default function StocktakingSheet({
             </button>
             <RefCancelButton onClick={() => setDiscarding(false)}>
               {t('products:stocktake.discardCancel')}
+            </RefCancelButton>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          🔴 **لوحُ مراجعة الأرقام الشاذّة — الموضع «ج»**
+          ══════════════════════════════════════════════════════════════
+
+          **ومدخلُه زرٌّ مستقلٌّ لا زرُّ الحفظ، بقرار المالك، وسببُه سابقةٌ لا
+          ذوق:** لا شيءَ يمسّ «حفظ الجرد» قبل اكتمال شروط البوّابة الأربعة،
+          **ولو كان المسُّ بريئًا.** ⇒ **و`<span>` الحفظ يبقى بصفر معالِجات
+          حرفًا.**
+
+          ⚠️ **وموضعُه أعلى الورقة كسؤال الرمي حرفًا:** الجدولُ يمرّر،
+          **ولوحٌ أسفلَ صفحةٍ طويلةٍ يُقرأ وصاحبُه لا يرى ما يتكلّم عنه.**
+
+          🔴 **ويُفتح ولو لم يكن فيه سطرٌ واحد** — والرسالةُ حينها خبرٌ صريح.
+          **وزرٌّ لا يفعل شيئًا أحيانًا يعلّم صاحبَه أنه بلا أثر**، فيُهمَل يومَ
+          يكون فيه ما يُقال. */}
+      {reviewing === 'open' && (
+        <div
+          className="border border-amber-500/40 bg-amber-500/10 px-2 py-2 text-xs"
+          data-jump-review=""
+        >
+          <p className="font-medium">{t('products:stocktakePeriod.reviewTitle')}</p>
+
+          {reviewLines.length === 0 ? (
+            <p className="mt-1 text-muted-foreground" data-jump-review-none="">
+              {t('products:stocktakePeriod.reviewNone')}
+            </p>
+          ) : (
+            <ul className="mt-1 max-h-48 space-y-1 overflow-auto">
+              {reviewLines.map((line) => {
+                const base = t(`products:units.${(line.product && line.product.base_unit) || 'pcs'}`)
+                // **إطاران فقط حيث يختلف الرقمان** — والمقارنةُ على العدد لا
+                // على اسم الإطار، **فمعامِلُ واحدٍ يجعل «عبوة» و«قطعة» رقمًا
+                // واحدًا مهما اختلف الاسمان.**
+                const twoFrames = line.frame !== null
+                  && line.countedBase !== null
+                  && Number(line.entered) !== line.countedBase
+                return (
+                  <li
+                    key={line.productId}
+                    className="border-b border-[var(--rule)] pb-1 last:border-b-0"
+                    data-jump-review-line={line.productId}
+                  >
+                    <span className="font-medium">
+                      {(line.product && line.product.name) || line.productId}
+                    </span>
+                    {/* 🔴 **الإطاران معًا — قاعدةُ المخزون الأولى.** «١٣٠ عبوة»
+                        وحدَه لا يُجمع، **و«١٩٥٠ قطعة» وحدَه لا تتعرّف عليه من
+                        كتبَته.** والوحدةُ قبل الرقم، فلا يحكمه إعراب.
+
+                        ⚠️ **وحدُّ القاعدة: إطاران حيث يوجد إطاران.** منتجٌ
+                        معامله واحدٌ يُكتب ويُخزَّن بنفس الرقم، **فطبعُه مرّتين
+                        يعرض حقيقةً واحدةً في ثوب حقيقتين** — ورآه القياسُ
+                        حرفًا: «وحدة أساسية: ١٩٥٠ · قطعة: ١٩٥٠».
+                        ⇒ **والقراءةُ الأساسيّةُ وحدَها حينئذٍ، باسم وحدة
+                        المنتج لا باسم الإطار.** */}
+                    <span className="ms-2 text-muted-foreground">
+                      {`${t('products:stocktakePeriod.reviewCounted')} — `}
+                      {twoFrames && (
+                        <>
+                          {`${t(`products:docs.uom_${line.frame}`)}: `}
+                          <LtrNumber>{line.entered}</LtrNumber>
+                          {' · '}
+                        </>
+                      )}
+                      {`${base}: `}
+                      <LtrNumber>
+                        {line.countedBase === null ? line.entered : line.countedBase}
+                      </LtrNumber>
+                    </span>
+                    {line.state === CONFIRM_LINE.UNJUDGED ? (
+                      // ⚠️ **«لا نعرف» ليست «سليمًا»** — والوسمُ يقولها، فلا
+                      // يُقرأ غيابُ الرقم اطمئنانًا.
+                      <RefTag title={t('products:stocktakePeriod.reviewUnjudgedHelp')}>
+                        {t('products:stocktakePeriod.reviewUnjudgedTag')}
+                      </RefTag>
+                    ) : (
+                      <span className="ms-2">
+                        {t('products:stocktakePeriod.reviewRecorded')}
+                        {` ${base}: `}
+                        <LtrNumber>{line.recordedBase}</LtrNumber>
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
+          {/* 🔴 **«إغلاق» وحدَه — ولا زرَّ اسمُه «حفظ» هنا.**
+              **مراجعةٌ طوعيّةٌ فيها زرٌّ يَعِد بفعلٍ لا يقع** تعلّم قارئَها أن
+              الأزرارَ هنا زينة، **وهي عينُ ما يجعل الوسمَ بلا شرحٍ يُقرأ
+              عطلًا.** ⇒ **الذيلُ يصير زرَّين («حفظ» و«رجوع للورقة») يومَ
+              يُوصَل اللوحُ بالحفظ الحقيقيّ، لا قبله.** */}
+          <div className="mt-2 flex gap-2">
+            <RefCancelButton onClick={() => setReviewing(false)} data-jump-review-close="">
+              {t('products:stocktakePeriod.reviewClose')}
             </RefCancelButton>
           </div>
         </div>
@@ -581,6 +710,33 @@ export default function StocktakingSheet({
         {stocktake && stocktake.session && !discarding && (
           <RefCancelButton onClick={() => setDiscarding(true)} data-discard-open="">
             {t('products:stocktake.discardButton')}
+          </RefCancelButton>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════
+            🔴 «راجِع الأرقام الشاذّة» — **مدخلُ اللوح، وزرٌّ حقيقيٌّ لا يرحّل**
+            ══════════════════════════════════════════════════════════
+
+            **ولا يظهر إلّا وهناك جلسةٌ فعلًا**، كزرّ الرمي حرفًا — **ومراجعةُ
+            ورقةٍ لم يُعدّ فيها شيءٌ تعرض فعلًا لا شيءَ ليفعله.**
+
+            ⚠️ **والقراءةُ الطازجةُ قبل الفتح لا بعده**، فالنصُّ يقول إنه
+            ينتظر: **زرٌّ يبدو معلّقًا بلا سببٍ يُضغط ثانيةً**، ويصير نداءان. */}
+        {stocktake && stocktake.session && sessionCount > 0 && reviewing !== 'open' && (
+          <RefCancelButton
+            data-review-open=""
+            title={t('products:stocktakePeriod.reviewOpenHelp')}
+            onClick={async () => {
+              setReviewing('loading')
+              // ⚠️ **`await` على ما قد لا يكون دالّةً** — والشاشةُ تُرسم في
+              // اختباراتٍ بلا `refresh`، **فغيابُها يفتح اللوحَ لا يُسقطه.**
+              if (typeof refresh === 'function') await refresh()
+              setReviewing('open')
+            }}
+          >
+            {reviewing === 'loading'
+              ? t('products:stocktakePeriod.reviewLoading')
+              : t('products:stocktakePeriod.reviewOpen')}
           </RefCancelButton>
         )}
 
