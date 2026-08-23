@@ -490,12 +490,11 @@ export default function StocktakingSheet({
             ⚠️ **والنصوصُ الخمسةُ مُعادُ استعمالُها من `stocktake.*`** — هي
             نفسُها التي تعرضها الشاشةُ القائمة، **فنصّان بنفس المعنى
             يتباعدان.** */}
+        {/* ⚠️ **ولا `title` على زرّ الرمي:** كان `discardTitle` («إلغاء الجرد؟»)
+            وهو نفسُ معنى النصّ على الزرّ — **تلميحٌ يعيد ما تقرؤه العينُ
+            ضجيجٌ**، والشرحُ يعيش في السؤال الذي يفتحه الزرُّ لا فوقه. */}
         {stocktake && stocktake.session && !discarding && (
-          <RefCancelButton
-            onClick={() => setDiscarding(true)}
-            data-discard-open=""
-            title={t('products:stocktake.discardTitle')}
-          >
+          <RefCancelButton onClick={() => setDiscarding(true)} data-discard-open="">
             {t('products:stocktake.discardButton')}
           </RefCancelButton>
         )}
