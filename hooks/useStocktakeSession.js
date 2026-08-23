@@ -146,8 +146,6 @@ export function useStocktakeSession(storageId) {
   }
 }
 
-
-
 // The rows, back into the shape the sheet holds.
 //
 // ⚠️ counted_entered_quantity and not counted_base, because the frame is stored
