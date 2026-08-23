@@ -10,7 +10,7 @@ import {
 } from '../lib/stocktakeMoney'
 import { numberOrNull, roundToPlaces } from '../lib/decimalPlaces'
 import { RefTable, RefHead, RefTh, RefRow, RefTd, RefGroupRow, RefTag } from './ref/RefGrid'
-import { RefCancelButton } from './ref/RefModal'
+import { RefCancelButton, REF_ACTION_CLASS, REF_ACTION_STYLE } from './ref/RefModal'
 import NumberField from '@/components/ui/NumberField'
 import { Input } from '@/components/ui/input'
 import LtrNumber from './LtrNumber'
@@ -511,13 +511,46 @@ export default function StocktakingSheet({
             دائمة (`post_stocktake_session`)، **وقد يكتب غرامةً على موظّفة**
             (٠٥٦ج أدخل كتلةَ الغرامة داخل الدالّة) — **ولا يُستدرَك إلّا بعكس
             المستند.** والتفعيلُ قرارٌ منفصلٌ يُرفع للمالك. */}
+        {/* ⚠️ **والشكلُ صار شكلَ الفعل الأساسيّ، معطَّلًا** — لا صندوقًا رماديًّا
+            بحدٍّ رفيع. **والسببُ ليس تجميلًا:** الزرُّ المعطَّلُ هو ما سيصير
+            الزرَّ الفاعل، **فاختلافُ شكلِه اليوم يجعل تفعيلَه غدًا يبدو ميزةً
+            جديدةً لا حالةً تبدّلت** — والموظّفةُ التي تعلّمت مكانَه تبحث عنه
+            من جديد.
+
+            ✅ **والأصنافُ من `REF_ACTION_CLASS` لا منسوخةً** — فلو تغيّر شكلُ
+            الفعل الأساسيّ تغيّر هذا معه، **ولا يبقى معطَّلٌ يشبه زرًّا لم يعد
+            موجودًا.**
+
+            🔴 **و`opacity-40` مكتوبةٌ صراحةً هنا:** الصنفُ المشترك يحملها
+            بصيغة `disabled:` وهي **متغيّرٌ لا يعمل إلّا على وسمٍ تفاعليٍّ
+            معطَّل** — و`<span>` ليس كذلك، **فبدونها كان سيُرسم بكامل لونه كأنه
+            فعّال.** ⚠️ وهذا بالضبط ما يفوته اختبارُ نصٍّ يرى الصنفَ موجودًا
+            فيطمئنّ. */}
         <span
           data-save-disabled=""
-          className="inline-flex h-7 cursor-not-allowed items-center gap-2 border border-[var(--rule)] bg-[var(--group)] px-3 text-xs text-muted-foreground opacity-70"
+          className={`${REF_ACTION_CLASS} inline-flex cursor-not-allowed items-center justify-center gap-2 opacity-40`}
+          style={REF_ACTION_STYLE}
           title={t('products:stocktakePeriod.saveDisabledHelp')}
         >
           {t('products:stocktakePeriod.save')}
-          <RefTag>{t('products:stocktakePeriod.saveDisabledTag')}</RefTag>
+          {/* 🔴 **والوسمُ يرث حبرَ الزرّ** — `RefTag` ألوانُه مضبوطةٌ لخلفيّةٍ
+              فاتحة (`text-muted-foreground` و`--rule`)، **وعلى أزرقِ الكروم
+              يبهت السببُ حتى يكاد لا يُقرأ.** ومقيسٌ بقصٍّ مكبَّرٍ ٦× قبل
+              الإصلاح: العنوانُ أبيضُ واضح، **والوسمُ بلونٍ باهتٍ بجانبه.**
+
+              ⚠️ **وذلك يُبطل الحجّةَ التي يقوم عليها التعطيلُ كلُّه:** «خيارٌ
+              معطَّلٌ **بسببٍ ظاهر** غيابٌ مُعلَن» — **فسببٌ لا يُقرأ يعيد الزرَّ
+              إلى كونه زرًّا لا يفعل شيئًا بلا تفسير.** */}
+          {/* ⚠️ **والمعدِّلُ المهمّ (`!`) لازمٌ هنا ولا يُستعمل في هذا المستودع
+              لغيره** — و`RefTag` يخبز `text-muted-foreground` في أصنافه،
+              **وترتيبُ الأصناف في السمة لا يقرّر الغلبة: ترتيبُ الورقة يقرّرها.**
+              مقيسًا: `text-current` وصلت الوسمَ ولم تفز، والمحسوبُ بقي
+              `oklch(0.556 0 0)` بينما حبرُ الزرّ `oklch(0.985 0 0)`.
+              ⚠️ **و`border-current/40` «نجحت» ظاهرًا وهي فاشلة**: حسبت
+              `currentColor` من لون الوسم الرماديّ نفسِه لا من لون الزرّ. */}
+          <RefTag className="text-current! border-current/40!">
+            {t('products:stocktakePeriod.saveDisabledTag')}
+          </RefTag>
         </span>
       </div>
     </div>
