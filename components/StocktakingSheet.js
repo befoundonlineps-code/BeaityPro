@@ -4,6 +4,7 @@ import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
 import { countUoms, countedInSession } from '../lib/stocktakeSheet'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
+import { splitsAPiece } from '../lib/stockDocument'
 import {
   remainingTotal, differenceBase, differenceAtCost,
   differencePackages, differenceAtRetail,
@@ -335,6 +336,42 @@ export default function StocktakingSheet({
                     {factBase !== null && (
                       <span className="block text-[10px] text-muted-foreground">
                         {unit}: <LtrNumber>{factBase}</LtrNumber>
+                      </span>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════
+                        ⚠️ **«القطع ما بتتجزّأ» — تنبيهٌ وقتَ الكتابة**
+                        ══════════════════════════════════════════════════
+
+                        🔴 **إعلامٌ لا منع، وذلك مقصودٌ لا نقص:** لا حفظَ
+                        حقيقيًّا من هذه الشاشة أصلًا، **فلا شيءَ هنا يُرفَض.**
+                        وحين يُفعَّل الحفظُ يبقى الرفضُ حيث هو — في
+                        `stocktakeLine` — **وهذا يمنع أن يصل أحدٌ إليه مفاجأةً
+                        بعد ساعةِ عدّ.**
+
+                        ⚠️ **وهو الشرطُ الثالثُ لرفع البوّابة حرفًا:** «تنبيهًا
+                        وقتَ الكتابة لا رفضًا متأخّرًا» — فبناؤه الآن تقدّمٌ
+                        فعليٌّ قبل التفعيل لا بعده.
+
+                        ✅ **والقاعدةُ من `splitsAPiece` نفسِها التي يرفض بها
+                        الترحيل** — لا نسخةَ ثانية، فلا يمكن أن يسمح هذا بما
+                        يرفضه ذاك.
+
+                        ⚠️ **والحكمُ على القراءة الأساسيّة لا على المكتوب:**
+                        `0.2` عبوةٍ من ١٥ هي ٣ قطعٍ صحيحةٌ فتمرّ، و`0.5` منها
+                        ٧٫٥ فتُنبَّه. ⇒ **فالتنبيهُ لا يُشتقّ من شكل ما كُتب.**
+
+                        ⚠️ **والرقمُ في `LtrNumber`** — سالبٌ أو عشريٌّ داخل
+                        فقرةٍ عربيّةٍ ينقلب رسمُه، وهو عطلٌ وقع في هذه الشاشة
+                        من قبل. */}
+                    {splitsAPiece(product, factBase) && (
+                      <span
+                        className="block text-[10px] text-amber-700 dark:text-amber-400"
+                        data-whole-pieces-hint={product.id}
+                        title={t('products:stocktakePeriod.wholePiecesHintHelp')}
+                      >
+                        {t('products:stocktakePeriod.wholePiecesHint')}
+                        <LtrNumber>{factBase}</LtrNumber>
                       </span>
                     )}
                   </RefTd>
