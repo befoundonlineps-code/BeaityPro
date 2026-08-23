@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
-import { countUoms, countState, COUNT_STATE } from '../lib/stocktakeSheet'
+import { countUoms, countedInSession } from '../lib/stocktakeSheet'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
 import {
   remainingTotal, differenceBase, differenceAtCost,
@@ -103,10 +103,10 @@ export default function StocktakingSheet({
   // ⇒ **فسؤالٌ يقول «المعدود: ٢» ثمّ يمحو تسعةً هو أسوأُ من سؤالٍ بلا رقم** —
   // الرقمُ يطمئن، والطمأنينةُ هي ما يجعل الإصبعَ يضغط.
   //
-  // ✅ **و`countState` مستوردةٌ لا منسوخة** — نفسُ القاعدة التي تعدّ بها
-  // الشاشةُ القائمة (`StocktakeScreen.js:280`)، فلا رقمان لسؤالٍ واحد.
-  const countedInSession = Object.values(counts)
-    .filter((raw) => countState(raw) !== COUNT_STATE.UNTOUCHED).length
+  // ✅ **والقاعدةُ مكتبةٌ لا سطرٌ هنا** (`countedInSession`) — فهي مُختبَرةٌ
+  // بلا رسمٍ ولا حالةِ مكوّن، **وحالةُ «بحثٌ يُخفي معدودًا» مثبَّتةٌ اختبارًا
+  // دائمًا** بدل مسبارٍ يدويٍّ يُمحى بعد جولته.
+  const sessionCount = countedInSession(counts)
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t('common:loading')}</p>
   if (error) {
@@ -199,7 +199,7 @@ export default function StocktakingSheet({
         <div className="border border-destructive/40 bg-destructive/10 px-2 py-2 text-xs" data-discard-confirm="">
           <p className="font-medium">{t('products:stocktake.discardTitle')}</p>
           <p className="mt-1 text-muted-foreground">
-            {t('products:stocktake.discardBody', { count: countedInSession })}
+            {t('products:stocktake.discardBody', { count: sessionCount })}
           </p>
           <div className="mt-2 flex gap-2">
             <button
