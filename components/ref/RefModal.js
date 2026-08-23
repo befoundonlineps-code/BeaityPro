@@ -148,6 +148,19 @@ export default function RefModal({
 //
 // ⚠️ Which is why it is a component rather than a class string: a second one
 // on the same screen stops it meaning «this is the act».
+// 🔴 الشكلُ مُصدَّرٌ لأن له مُستعمِلًا ثانيًا لا يمكن أن يكون زرًّا.
+//
+// ورقةُ الجرد تنهي بـ«حفظ الجرد» **معطَّلًا بالبنية** — `<span>` بلا معالِج
+// حدثٍ إطلاقًا، لا `<button disabled>` — لأن شرطًا يُنسى أو خاصّيّةً تُحذف
+// تعيد زرًّا معطَّلًا إلى الحياة، **ووسمٌ بلا معالِجٍ لا يُنسى إليها**. وترحيلُ
+// الجرد وراء بوّابةِ أمانٍ بأربعة شروط (`docs/SAFETY-GATE-stocktake.md`).
+//
+// ⚠️ **وبدون التصدير كانت أصنافُ الزرّ ستُنسَخ هناك** — وشكلان لفعلٍ واحدٍ
+// يتباعدان بأوّل تعديلٍ على أحدهما، **فيصير الزرُّ المعطَّلُ لا يشبه الزرَّ
+// الذي سيحلّ محلَّه.** والمستعمِلان الآن يقرآن من موضعٍ واحد.
+export const REF_ACTION_CLASS = 'h-8 min-w-[120px] px-4 text-xs font-semibold disabled:opacity-40'
+export const REF_ACTION_STYLE = { background: 'var(--chrome)', color: 'var(--chrome-ink)' }
+
 export function RefActionButton({ children, disabled, onClick, type = 'button' }) {
   return (
     <button
@@ -155,8 +168,8 @@ export function RefActionButton({ children, disabled, onClick, type = 'button' }
       disabled={disabled}
       onClick={onClick}
       data-ref-action
-      className="h-8 min-w-[120px] px-4 text-xs font-semibold disabled:opacity-40"
-      style={{ background: 'var(--chrome)', color: 'var(--chrome-ink)' }}
+      className={REF_ACTION_CLASS}
+      style={REF_ACTION_STYLE}
     >
       {children}
     </button>
