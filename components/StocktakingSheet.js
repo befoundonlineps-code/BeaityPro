@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
-import { countUoms, countedInSession } from '../lib/stocktakeSheet'
+import {
+  countUoms, countedInSession, jumpsAboveRecord, settledCount,
+} from '../lib/stocktakeSheet'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
 import { splitsAPiece } from '../lib/stockDocument'
 import {
@@ -63,6 +65,12 @@ export default function StocktakingSheet({
   // ⚠️ **سؤالُ الرمي حالةٌ في الشاشة لا في الجلسة** — فإغلاقُ الورقة وفتحُها
   // من جديدٍ يعيده مغلقًا، وهو الصواب: نيّةُ الرمي لا تُستأنَف.
   const [discarding, setDiscarding] = useState(false)
+
+  // 🔴 **ما استقرّ من الخانات — القيمةُ لحظةَ المغادرة، لا رايةُ «قد غادر».**
+  //
+  // ⚠️ **وحالةٌ في الشاشة لا في الجلسة، عمدًا:** التنبيهُ سؤالٌ لمن يقف أمام
+  // الرفّ الآن، **وإعادةُ فتح الورقة تعيده مطويًّا** — كسؤال الرمي حرفًا.
+  const [blurred, setBlurred] = useState({})
 
   const since = useMemo(
     () => previousStocktakeAt(documents, storageId),
@@ -313,7 +321,10 @@ export default function StocktakingSheet({
                         data-count-for={product.id}
                         value={fact}
                         onChange={(e) => setCounts({ ...counts, [product.id]: e.target.value })}
-                        onBlur={(e) => writeCount({ salonId, product, raw: e.target.value, uom: frame })}
+                        onBlur={(e) => {
+                          setBlurred({ ...blurred, [product.id]: e.target.value })
+                          writeCount({ salonId, product, raw: e.target.value, uom: frame })
+                        }}
                       />
                       {/* ⚠️ **تغييرُ الإطار يُعيد الكتابةَ فورًا** — لا blur
                           لمنسدل، **والرقمُ يبقى كما كُتب ومعناه هو ما يتغيّر.** */}
@@ -372,6 +383,43 @@ export default function StocktakingSheet({
                       >
                         {t('products:stocktakePeriod.wholePiecesHint')}
                         <LtrNumber>{factBase}</LtrNumber>
+                      </span>
+                    )}
+
+                    {/* ══════════════════════════════════════════════════
+                        ⚠️ **٣.١٣ب — القفزةُ فوق المسجَّل، عند مغادرة الخانة**
+                        ══════════════════════════════════════════════════
+
+                        🔴 **مقيسٌ بحادثةٍ وقعت:** `+1800` ثمّ `+26700` بفارق
+                        تسعٍ وثلاثين ثانية، ونمطٌ في أربعة منتجات. **والفعلُ
+                        الذي يُخرّب هو «خلّيني أعيد العدّ للتأكيد»** — فالعادّةُ
+                        لا تحتاج أن تُخطئ لتُفسد الرصيد، **تحتاج أن تتحقّق.**
+
+                        ⚠️ **وعند `onBlur` لا `onChange`، وهو الفرقُ الوحيدُ عن
+                        تنبيه «القطع ما بتتجزّأ» فوقَه** — وسببُه في
+                        `settledCount`: بادئةُ الرقم تُنقص المقدارَ ولا تُنقص
+                        الكسر. ⇒ **فالنمطُ لم يُخرَق، وموضعُه داخلَ الإدخال
+                        تحرّك خانةً واحدة.**
+
+                        🔴 **ولا يمنع الكتابةَ ولا يؤخّرها:** `stocktake_counts`
+                        قابلةٌ للاستبدال والمحو، **والممنوعُ هو الترحيلُ وحدَه**
+                        — فحارسٌ يمنع الكتابة يمنع فعلًا غيرَ ضارّ، **ويدفع من
+                        يريد إصلاحَ رقمِه إلى تركِ الخانة كما هي.**
+
+                        ⚠️ **والمقارَنُ هو `plan`** — `begin` وأعمدةُ الفترة
+                        كلُّها، أي **ما يعتقده الدفترُ الآن**، وهو نفسُ الرقم
+                        الذي يُحسب منه عمودُ الفرق. **فلا قارئَ ثانٍ للرصيد.**
+
+                        ⚠️ **والرقمُ في `LtrNumber`** — كما هو أعلاه حرفًا. */}
+                    {settledCount(blurred, product.id, fact)
+                      && jumpsAboveRecord(factBase, plan) && (
+                      <span
+                        className="block text-[10px] text-amber-700 dark:text-amber-400"
+                        data-jump-hint={product.id}
+                        title={t('products:stocktakePeriod.jumpHintHelp')}
+                      >
+                        {t('products:stocktakePeriod.jumpHint')}
+                        {unit}: <LtrNumber>{plan}</LtrNumber>
                       </span>
                     )}
                   </RefTd>
