@@ -4,9 +4,19 @@
 # next.js
 /.next/
 /out/
-# the separate build dir NEXT_BUILD_DIR points at, so a verification build
-# cannot overwrite the .next a running dev server is serving from
-/.next-check/
+# the separate build dirs NEXT_BUILD_DIR points at, so a verification build
+# cannot overwrite the .next a running dev server is serving from.
+#
+# 🔴 A PATTERN AND NOT A NAME, because the name was the hole. `/.next-check/`
+# was listed by hand, then a probe run used `NEXT_BUILD_DIR=.next-probe` and
+# `git add -A` swept eighteen build artefacts into a feature branch — the
+# directory was deleted first, but the dev server was still alive and wrote it
+# back between the delete and the add.
+#
+# ⚠️ A list of the build dirs we have thought of fails open: every new
+# NEXT_BUILD_DIR value is a fresh hole, and nothing complains. The glob covers
+# the ones nobody has invented yet.
+/.next-*/
 
 # production
 /build

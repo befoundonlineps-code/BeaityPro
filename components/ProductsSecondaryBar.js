@@ -1,6 +1,7 @@
 import { useTranslation } from 'next-i18next'
 import { navigationBlocked } from '../lib/storageScope'
-import { Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ClipboardList, ListChecks, ScrollText, Boxes } from 'lucide-react'
+import StocktakeMethodMenu from './StocktakeMethodMenu'
+import { ChevronDown, Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck, ClipboardList, ListChecks, ScrollText, Boxes } from 'lucide-react'
 
 // The row of entry points above the products screen.
 //
@@ -28,12 +29,15 @@ import { Truck, PackagePlus, PackageMinus, Undo2, ArrowLeftRight, ClipboardCheck
 // nothing in our data preferred either. True, but the reference has no
 // authority over a bar it is not being copied into, and the order below carries
 // written reasons of its own.
-function SecondaryItem({ icon: IconComp, label, active, disabled, blockedTitle, onClick }) {
+// ⚠️ **`as` موجودةٌ لسببٍ واحدٍ مقيس: `<button>` داخلَ `<button>` تعشيشٌ غيرُ
+// صالحٍ يُسقط ترطيبَ الصفحة كلِّها.** مدخلُ الجرد يعيش داخل مشغّلِ قائمةٍ وهو
+// زرٌّ بنفسه، **فما بداخله يُرسم `span`.** ولا شيءَ آخرَ يستعملها.
+function SecondaryItem({ as: Tag = 'button', icon: IconComp, label, active, disabled, blockedTitle, onClick, caret }) {
+  const isButton = Tag === 'button'
   return (
-    <button
-      type="button"
+    <Tag
+      {...(isButton ? { type: 'button', disabled } : {})}
       onClick={onClick}
-      disabled={disabled}
       title={disabled ? blockedTitle : label}
       className={`flex shrink-0 flex-col items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] ${
         disabled
@@ -42,8 +46,16 @@ function SecondaryItem({ icon: IconComp, label, active, disabled, blockedTitle, 
       }`}
     >
       <IconComp className="size-5" />
-      <span className="whitespace-nowrap">{label}</span>
-    </button>
+      {/* ⚠️ **السهمُ ملاصقٌ للنصّ داخل العمود، لا شقيقًا للمدخل كلِّه.**
+          كان أخًا للمكوّن في مشغّل القائمة، **فرُسم موسَّطًا رأسيًّا بجانب
+          مدخلٍ من سطرين** — ومقيسٌ بلقطةٍ من محرّكٍ حقيقيّ أنه بدا معلَّقًا في
+          الفراغ وأقربَ إلى «تغطية الجرد» منه إلى «الجرد». **وسهمٌ يبدو تابعًا
+          لجارِه أسوأُ من لا سهم.** */}
+      <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+        {label}
+        {caret && <ChevronDown className="size-3" />}
+      </span>
+    </Tag>
   )
 }
 
@@ -116,6 +128,41 @@ export default function ProductsSecondaryBar({ op, onSelect, lensStorageId }) {
         // missing feature, and one that greys says «not from here». The lens is
         // on the same screen, so the fix is one control away.
         const blocked = navigationBlocked(item.view, lensStorageId)
+
+        // 🔴 THE STOCKTAKE IS THE ONE ENTRY THAT ASKS *HOW* BEFORE IT OPENS.
+        //
+        // The reference offers three ways to enter a count — by hand, by
+        // barcode reader, from an Excel file. We built the first. The other two
+        // are drawn STRUCTURALLY disabled with the reason on each, which is why
+        // `stocktakeInputMethods` could leave REFERENCE_ENTRIES_WITHOUT_DATA:
+        // an option disabled for a stated reason is an absence declared, and
+        // the caret is no longer revealing a single live entry with nothing
+        // beside it.
+        //
+        // ⚠️ The item keeps NO onClick of its own. The click bubbles to the
+        // menu's trigger, so there is exactly one thing that opens on a press —
+        // a handler here as well would open the sheet AND the menu from one
+        // press, and the sheet would win the race invisibly.
+        if (item.view === 'stocktake') {
+          return (
+            <StocktakeMethodMenu
+              key={item.view}
+              disabled={blocked}
+              onManual={() => onSelect(op === item.view ? null : item.view)}
+            >
+              <SecondaryItem
+                as="span"
+                caret
+                icon={item.icon}
+                label={t(`products:secondaryItems.${item.key}`)}
+                active={op === item.view}
+                disabled={blocked}
+                blockedTitle={t('products:lens.pickStorageFirst')}
+              />
+            </StocktakeMethodMenu>
+          )
+        }
+
         return (
           <SecondaryItem
             key={item.view}
