@@ -14,7 +14,18 @@ import SuppliersManager from '../../components/SuppliersManager'
 import StockDocumentScreen from '../../components/StockDocumentScreen'
 import StockDocumentsList from '../../components/StockDocumentsList'
 import StorageBalances from '../../components/StorageBalances'
-import StocktakeScreen from '../../components/StocktakeScreen'
+// 🔴 `StocktakeScreen` IS NO LONGER IMPORTED, AND THE FILE STAYS.
+//
+// The counting sheet replaced it here — «دمجٌ لا استبدال»: same session engine
+// (`useStocktakeSession`), new shape. What the old screen still holds is the
+// POSTING path (`postStocktakeSession`), and that is deliberately unreachable
+// from the UI for now: posting a real stocktake is blocked outright by
+// docs/SAFETY-GATE-stocktake.md until its four conditions are met.
+//
+// ⚠️ So this is not dead code awaiting deletion — it is the engine the sheet's
+// save button will be wired to in a later request, and deleting it would throw
+// away the only working implementation of a path we intend to restore.
+import StocktakingSheet from '../../components/StocktakingSheet'
 import OrderProductsScreen from '../../components/OrderProductsScreen'
 import StocktakeCoverage from '../../components/StocktakeCoverage'
 import { useInventoryDirectories } from '../../hooks/useInventoryDirectories'
@@ -355,7 +366,7 @@ export default function ProductsPage() {
               />
             )}
             {op === 'stocktake' && (
-              <StocktakeScreen
+              <StocktakingSheet
                 // ⚠️ Keyed on the lens, so changing storage starts a fresh sheet
                 // by REMOUNTING rather than by an effect clearing state after a
                 // render. What remounts is the folder choice and the note; the
@@ -363,23 +374,30 @@ export default function ProductsPage() {
                 // again, not thrown away.
                 key={lensId}
                 storageId={lensId}
+                storageName={lensStorage?.name || null}
                 salonId={salonId}
                 userId={session.user.id}
                 stocktake={stocktake}
                 balances={balances.balances}
                 products={catalogue.products}
                 categories={catalogue.categories}
-                loading={balances.loading || catalogue.loading || directories.loading}
-                // ⚠️ Either read failing fails the screen, and it matters more
+                storageCategories={directories.storageCategories}
+                // ⚠️ The period columns are computed from movements grouped by
+                // the document that carried them, so both reads are needed and
+                // neither is optional — a sheet drawn from movements alone
+                // cannot tell a supply from a write-off.
+                movements={stockDocuments.movements}
+                documents={stockDocuments.documents}
+                loading={balances.loading || catalogue.loading || directories.loading
+                  || stockDocuments.loading}
+                // ⚠️ Any read failing fails the screen, and it matters more
                 // here than anywhere: a counting sheet drawn from half a read
                 // shows fewer products than exist, somebody counts what is in
                 // front of them, and the products that never appeared are
                 // untouched rather than wrong — so nothing looks amiss at all.
-                error={balances.error || catalogue.error || directories.error}
-                // ⚠️ THE COVERAGE READ RELOADS TOO. Posting a stocktake creates
-                // the very rows the coverage report is about, and a report
-                // opened beforehand kept saying the count had not happened.
-                onPosted={() => { balances.reload(); stockDocuments.reload(); coverage.reload() }}
+                error={balances.error || catalogue.error || directories.error
+                  || stockDocuments.error}
+                onClose={() => openOperation(null)}
               />
             )}
             {op === 'coverage' && (

@@ -163,12 +163,25 @@ export function RefActionButton({ children, disabled, onClick, type = 'button' }
   )
 }
 
-export function RefCancelButton({ children, onClick }) {
+// 🔴 **كان يبتلع كلَّ خاصّيّةٍ عدا `children` و`onClick` — بصمت.**
+//
+// ⚠️ **وقع فعلًا ومُدمجٌ في `main`:** زرُّ «إلغاء» في ورقة الجرد كُتب له
+// `title={t('…cancelHelp')}` **ليقول إن العدَّ يبقى محفوظًا** — وهو النصُّ الذي
+// حُسم به قرارُ المالك بين «إغلاق» و«رمي». **ولم يصل الشاشةَ قطّ.**
+//
+// **ولا شيءَ يشتكي:** لا خطأ، ولا تحذيرَ React، **وخاصّيّةٌ تُمرَّر إلى مكوّنٍ
+// لا يقرؤها تختفي كما لو لم تُكتب** — وهو أخو «خاصّيّةٌ لم تُمرَّر تصل
+// `undefined`»، بالاتّجاه المعاكس.
+//
+// ⇒ **والباقي يُمرَّر** (`...rest`)، فـ`title` و`data-*` تصل الوسمَ فعلًا.
+// **و`className` تُدمج ولا تُستبدَل**، وإلّا صار تمريرُها يمحو شكلَ الزرّ.
+export function RefCancelButton({ children, onClick, className = '', ...rest }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="h-8 min-w-[100px] border border-[var(--rule)] bg-white px-4 text-xs hover:bg-black/5"
+      className={`h-8 min-w-[100px] border border-[var(--rule)] bg-white px-4 text-xs hover:bg-black/5 ${className}`}
+      {...rest}
     >
       {children}
     </button>

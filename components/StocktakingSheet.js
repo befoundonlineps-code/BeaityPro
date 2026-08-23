@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
-import { countUoms } from '../lib/stocktakeSheet'
+import { countUoms, countState, COUNT_STATE } from '../lib/stocktakeSheet'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
 import {
   remainingTotal, differenceBase, differenceAtCost,
@@ -54,11 +54,14 @@ export default function StocktakingSheet({
   // 🔴 **العدُّ يعيش في الجلسة لا في هذه الشاشة** — والكائنُ يصل كاملًا
   // (الأرقامُ والأُطُرُ ودوالُّ كتابتها معًا)، **فلا يقدر منادٍ أن يعطي نصفَه.**
   const {
-    counts = {}, uoms = {}, setCounts, setUoms, writeCount,
+    counts = {}, uoms = {}, setCounts, setUoms, writeCount, discard,
     startedBy, startedAt, writeError,
   } = stocktake || {}
   const [notes, setNotes] = useState('')
   const [search, setSearch] = useState('')
+  // ⚠️ **سؤالُ الرمي حالةٌ في الشاشة لا في الجلسة** — فإغلاقُ الورقة وفتحُها
+  // من جديدٍ يعيده مغلقًا، وهو الصواب: نيّةُ الرمي لا تُستأنَف.
+  const [discarding, setDiscarding] = useState(false)
 
   const since = useMemo(
     () => previousStocktakeAt(documents, storageId),
@@ -89,6 +92,21 @@ export default function StocktakingSheet({
   ))
 
   const lineCount = visible.filter((row) => row.kind === 'line').length
+
+  // 🔴 **عددُ ما سيُرمى — من `counts` كلِّها، لا من `counted` أعلاه.**
+  //
+  // ⚠️ **والفرقُ ليس تفصيلًا، وهو خطأٌ كِدتُ أشحنه:** `counted` مبنيٌّ على
+  // `visible` **فيتقلّص مع البحث**، ومشروطٌ بـ`remainingTotal !== null`
+  // **فيُسقط كلَّ منتجٍ عُدّ وتكلفتُه غيرُ معروفة.** والرميُ يمحو الجلسةَ
+  // كاملةً بلا نظرٍ إلى بحثٍ ولا إلى تكلفة.
+  //
+  // ⇒ **فسؤالٌ يقول «المعدود: ٢» ثمّ يمحو تسعةً هو أسوأُ من سؤالٍ بلا رقم** —
+  // الرقمُ يطمئن، والطمأنينةُ هي ما يجعل الإصبعَ يضغط.
+  //
+  // ✅ **و`countState` مستوردةٌ لا منسوخة** — نفسُ القاعدة التي تعدّ بها
+  // الشاشةُ القائمة (`StocktakeScreen.js:280`)، فلا رقمان لسؤالٍ واحد.
+  const countedInSession = Object.values(counts)
+    .filter((raw) => countState(raw) !== COUNT_STATE.UNTOUCHED).length
 
   if (loading) return <p className="p-4 text-sm text-muted-foreground">{t('common:loading')}</p>
   if (error) {
@@ -171,6 +189,31 @@ export default function StocktakingSheet({
       {writeError && (
         <div className="border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs" data-write-error="">
           {t('products:stocktake.writeFailed')}
+        </div>
+      )}
+
+      {/* 🔴 **سؤالُ الرمي — والرقمُ فيه لا في الزرّ.**
+          **وموضعُه أعلى الورقة لا عند الزرّ:** الجدولُ يمرّر، **فسؤالٌ عند
+          أسفلِ صفحةٍ طويلةٍ يُجاب وصاحبُه لا يرى ما سيفقده.** */}
+      {discarding && (
+        <div className="border border-destructive/40 bg-destructive/10 px-2 py-2 text-xs" data-discard-confirm="">
+          <p className="font-medium">{t('products:stocktake.discardTitle')}</p>
+          <p className="mt-1 text-muted-foreground">
+            {t('products:stocktake.discardBody', { count: countedInSession })}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              data-discard-confirm-button=""
+              className="h-7 border border-destructive/50 bg-destructive/20 px-3 text-xs"
+              onClick={async () => { setDiscarding(false); await discard() }}
+            >
+              {t('products:stocktake.discardConfirm')}
+            </button>
+            <RefCancelButton onClick={() => setDiscarding(false)}>
+              {t('products:stocktake.discardCancel')}
+            </RefCancelButton>
+          </div>
         </div>
       )}
 
@@ -422,11 +465,40 @@ export default function StocktakingSheet({
         </label>
         {/* 🔴 **«إلغاء» = إغلاقٌ، والعدُّ محفوظ — قرارُ المالك.**
             **ولا `discard()` هنا إطلاقًا:** رميُ عدِّ ساعةٍ خلف كلمةٍ محايدة
-            فعلٌ مُتلِفٌ لا يُستدرَك، **والرميُ يبقى في الشاشة القائمة حيث
-            اسمُه صريح.** والنصُّ يقول ذلك بدل أن يتركه يُخمَّن. */}
+            فعلٌ مُتلِفٌ لا يُستدرَك، **ورميُ الجلسة فعلٌ ثانٍ باسمه الصريح
+            بجانبه.** والنصُّ يقول ذلك بدل أن يتركه يُخمَّن. */}
         <RefCancelButton onClick={onClose} title={t('products:stocktakePeriod.cancelHelp')}>
           {t('products:stocktakePeriod.cancel')}
         </RefCancelButton>
+
+        {/* ══════════════════════════════════════════════════════════
+            🔴 «ألغِ الجرد وابدأ من جديد» — **الفعلُ المُتلِفُ باسمه**
+            ══════════════════════════════════════════════════════════
+
+            **لا يظهر إلّا وهناك جلسةٌ فعلًا** — زرُّ رميٍ على ورقةٍ فارغةٍ
+            يعرض فعلًا لا شيءَ ليفعله، ويعلّم صاحبَه أن الزرَّ بلا أثر.
+
+            ⚠️ **والرقمُ في السؤال لا في الزرّ وحدَه:** رميُ طلبيّةٍ لا يُتلف
+            عملًا، **ورميُ جردٍ يُتلف ساعةَ إنسانٍ واقفٍ أمام رفّ** — و«هل أنت
+            متأكّد؟» لا تقول ذلك. **وهي العمليّةُ الوحيدةُ هنا التي لا تتراجع
+            عنها القاعدة: الصفوف تذهب بالتتالي (cascade).**
+
+            ✅ **و`discard` من الخطّاف نفسِه** — لا نسخةَ ثانيةٌ من المنطق:
+            تحذف الجلسةَ وتُفرّغ الأعدادَ والأُطُر، **وتُبلّغ عن فشلها في
+            `writeError` الذي ترسمه هذه الشاشةُ أصلًا.**
+
+            ⚠️ **والنصوصُ الخمسةُ مُعادُ استعمالُها من `stocktake.*`** — هي
+            نفسُها التي تعرضها الشاشةُ القائمة، **فنصّان بنفس المعنى
+            يتباعدان.** */}
+        {stocktake && stocktake.session && !discarding && (
+          <RefCancelButton
+            onClick={() => setDiscarding(true)}
+            data-discard-open=""
+            title={t('products:stocktake.discardTitle')}
+          >
+            {t('products:stocktake.discardButton')}
+          </RefCancelButton>
+        )}
 
         {/* ══════════════════════════════════════════════════════════
             🔴 «حفظ الجرد» — **معطَّلٌ بالبنية لا بالسلوك**

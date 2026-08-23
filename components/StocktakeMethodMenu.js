@@ -1,5 +1,4 @@
 import { useTranslation } from 'next-i18next'
-import { ChevronDown } from 'lucide-react'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
@@ -44,11 +43,26 @@ export default function StocktakeMethodMenu({ children, onManual, disabled }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={disabled}>
-        <span className="inline-flex items-center gap-0.5" data-stocktake-methods="">
-          {children}
-          <ChevronDown className="size-3" />
-        </span>
+      {/* 🔴 **لا `asChild` هنا — كانت خاصّيّةً لا يقرأها أحد.**
+          هذا `Base UI` لا Radix، **ومركّبتُه تُبدَّل بـ`render` لا بـ`asChild`** —
+          فمرّت `asChild` خاصّيّةً مجهولةً بلا شكوى، **ورسم المشغّلُ زرَّه ووضع
+          ما نمرّره داخلَه.**
+
+          ⚠️ **والنتيجةُ `<button>` داخلَ `<button>`:** تعشيشٌ غيرُ صالحٍ يُسقط
+          الترطيبَ كاملًا (`Hydration failed … the entire root will switch to
+          client rendering`). **ولا اختبارَ وحدةٍ يراه** — انكشف بمحرّكٍ حقيقيّ.
+
+          ⇒ **فالمشغّلُ هو الزرّ، وما بداخله لا يكون زرًّا** (`as="span"` من
+          الشريط). */}
+      {/* ⚠️ **والسهمُ ليس هنا** — يرسمه الشريطُ داخل عمود المدخل ملاصقًا للنصّ،
+          لأنه هنا كان أخًا لمدخلٍ من سطرين **فبدا موسَّطًا ومعلَّقًا بين مدخلين**
+          (مقيسٌ بلقطة). فهذا المكوّنُ سلوكٌ، والشكلُ حيث يعيش المدخل. */}
+      <DropdownMenuTrigger
+        disabled={disabled}
+        data-stocktake-methods=""
+        className="rounded-lg bg-transparent p-0 disabled:cursor-not-allowed"
+      >
+        {children}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-56">
         {/* ✅ **الطريقُ الوحيدُ المبنيّ — وهو وحدَه عنصرٌ تفاعليّ.** */}
