@@ -38,6 +38,34 @@
 --
 -- ⚠️ **و«الحالي» (old) يُطبع بجانب «الجديد» (new) عمدًا** — قاعدةُ «الحارسُ
 -- يطبع ما قاسه بجانب ما حكم به»: **مخرَجٌ يحمل بيّنةَ تكذيبِ حكمه معه.**
+--
+-- ---------------------------------------------------------------------------
+-- 🔴 والمسوّدةُ الأولى سقطت بـ`23502`، ومصدرُ الأعمدة هو ما سقط
+--
+-- **بُنيت قائمةُ إدراج `stock_fines` من تعريف الجدول في ٠٥٦أ، فأسقطت
+-- `attribution`** — **وهو `NOT NULL`، مقيسًا في مخرَج ١٠٦ب الذي كان بين
+-- أيدينا في نفس المحادثة.** نفّذه المراجعُ على جدولٍ بناه من ذلك المخرَج:
+--
+--     ERROR:  null value in column "attribution" of relation "stock_fines"
+--             violates not-null constraint
+--
+-- ⇒ **والقائمةُ الآن منسوخةٌ من ٠٩٥:٧٧٩** — الإدراجِ الذي يعمل في الإنتاج.
+-- **والقاعدةُ: تُؤخذ أعمدةُ الإدراج من إدراجٍ يعمل، لا من تعريف الجدول** —
+-- فتعريفُ الجدول يقول ما هو مسموح، والإدراجُ العامل يقول ما هو كافٍ.
+--
+-- ---------------------------------------------------------------------------
+-- ⚠️ ومصدرُ كلّ قيمةٍ تعداديّةٍ هنا يُسمّى، لأن واحدةً خاطئةً تُسقط الكتلةَ كلَّها
+--
+--   `stocktake` · `reversal`   ✅ **من الكتالوج** — ٠٩٦ب قرأ `stock_doc_type`
+--                                 تسعَ قيمٍ من `pg_enum`
+--   `purchase_price`           ✅ **من الكتالوج** — ٠٥٦أ:٢٢-٢٦ يقول إنها مسحٌ
+--                                 لا افتراض: `fine_basis  purchase_price | sales_price`
+--   `posting`                  ⚠️ **من ملفّ** — `create type fine_attribution`
+--                                 في ٠٥٦أ:٩٤، قيمةً وحيدة
+--   `no_responsible`           ⚠️ **من ملفّ** — `create type fine_resolution`
+--                                 في ٠٥٦أ:١٠٤-١١٠، خمسُ قيم
+--
+-- ⇒ **فاثنتان مقيستان واثنتان مقروءتان، والفرقُ يُقال بدل أن يُطمس.**
 -- ==========================================================================
 
 do $$
@@ -57,10 +85,17 @@ declare
   v_new    boolean;   -- is_void بعد ١٠٧
   v_old    boolean;   -- not is_live — أي ما كان يعطيه ١٠٦
   v_rows   int;
+
+  -- 🔴 **الطورُ يُسمّى، لأن «لم تُبنَ الحالات» و«بُنيت فلم تقل ما توقّعنا»
+  -- كانا يخرجان بنفس الشكل.** `exception when others` يبتلع الاثنين، والقارئُ
+  -- يقرأ سطرًا واحدًا فيظنّ القياسَ وقع. **وهو عينُ «فحصٌ يعطي نفسَ الجواب
+  -- بالحالتين ليس فحصًا».**
+  v_phase  text := 'بدء';
 begin
   begin
     -- ⚠️ صفٌّ حقيقيٌّ يُؤخذ كما هو، ولا مطابقةَ بالاسم (البند ٤). والمستودعُ
     -- وصالونُه من نفس الصفّ، لأن مفاتيح الغرامة مركّبةٌ على (…, salon_id).
+    v_phase := 'اختيارُ مستودعٍ وصالون';
     select st.salon_id, st.id into v_salon, v_storage
       from public.storages st
      order by st.id
@@ -72,6 +107,10 @@ begin
     end if;
 
     -- ── المستندات ───────────────────────────────────────────────────────────
+    -- ✅ قائمةُ الأعمدة **من إدراجٍ يعمل في الإنتاج** (٠٩٥:٩١٦ داخل
+    -- `reverse_stock_document`)، لا من تعريف الجدول. **وذلك ما يضمن أن كلَّ
+    -- عمودٍ إجباريٍّ بلا افتراضيٍّ حاضر:** الدالّةُ تُدرج بهذه القائمة كلَّ يوم.
+    v_phase := 'إدراجُ المستندات الثمانية';
     insert into public.stock_documents (salon_id, doc_type, storage_id, doc_date, note)
     values (v_salon, 'stocktake', v_storage, now(), 'case-A') returning id into v_a;
 
@@ -106,17 +145,39 @@ begin
     returning id into v_r5;
 
     -- ── الغرامات ────────────────────────────────────────────────────────────
+    -- 🔴 **القائمةُ منسوخةٌ من ٠٩٥:٧٧٩ حرفًا — الكاتبُ الوحيدُ للغرامات في
+    -- الإنتاج.** والمسوّدةُ الأولى بنتها من تعريف الجدول في ٠٥٦أ فأسقطت
+    -- `attribution`، **وهو `NOT NULL`** — فسقط الإدراجُ بـ`23502` على قاعدةِ
+    -- مراجعةٍ بُنيت من مخرَج ١٠٦ب.
+    --
+    -- ⚠️ **و`attribution` تُكتب صراحةً وإن كان للعمود افتراضيّ**، وذلك نصُّ
+    -- التعليق فوق الإدراج في ٠٩٥ بلفظه: *"attribution is written out although
+    -- the column defaults to it: what is being claimed is the point of the row,
+    -- and a default states it in a place nobody reading this function would
+    -- look."* ⇒ **فالسببُ كان مكتوبًا ثلاثةَ أسطرٍ فوق القائمة التي نسختُ
+    -- منها نصفَها.**
+    --
     -- `no_responsible` تجعل `employee_id` و`role_at_resolution` عدمًا، وهو ما
     -- يوجبه القيدان `employee_matches_resolution` و`role_text_matches_resolution`.
-    insert into public.stock_fines (salon_id, document_id, storage_id,
-                                    resolution, fine_percent, fine_basis)
-    values (v_salon, v_a,  v_storage, 'no_responsible', 10, 'purchase_price'),
-           (v_salon, v_b,  v_storage, 'no_responsible', 10, 'purchase_price'),
-           (v_salon, v_r1, v_storage, 'no_responsible', 10, 'purchase_price'),
-           (v_salon, v_r3, v_storage, 'no_responsible', 10, 'purchase_price');
+    v_phase := 'إدراجُ الغرامات الأربع';
+    insert into public.stock_fines (id, salon_id, document_id, storage_id, employee_id,
+                                    attribution, resolution, role_at_resolution,
+                                    fine_percent, fine_basis)
+    values (gen_random_uuid(), v_salon, v_a,  v_storage, null,
+            'posting', 'no_responsible', null, 10, 'purchase_price'),
+           (gen_random_uuid(), v_salon, v_b,  v_storage, null,
+            'posting', 'no_responsible', null, 10, 'purchase_price'),
+           (gen_random_uuid(), v_salon, v_r1, v_storage, null,
+            'posting', 'no_responsible', null, 10, 'purchase_price'),
+           (gen_random_uuid(), v_salon, v_r3, v_storage, null,
+            'posting', 'no_responsible', null, 10, 'purchase_price');
     -- ولا غرامةَ على v_r5 — وهي الحالة F.
 
+    -- ✅ **شاهدُ أن البناءَ تمّ** — فلا يُقرأ الفشلُ في القياس بناءً ناقصًا.
+    v_log := v_log || 'BUILD: 8 documents + 4 fines ✅' || E'\n';
+
     -- ── القياس ──────────────────────────────────────────────────────────────
+    v_phase := 'قراءةُ الحالات A · B · C · D';
     foreach v_doc in array array[v_a, v_b, v_r1, v_r3] loop
       select v.is_void, v.voided_by_document_id
         into v_new, v_voided
@@ -135,6 +196,7 @@ begin
     end loop;
 
     -- الحالة F — صفرُ صفوفٍ هو المتوقَّع، ورقمٌ يُطبع لا حكمٌ يُقال.
+    v_phase := 'قراءةُ الحالة F';
     select count(*) into v_rows
       from public.stock_fine_voidness v where v.document_id = v_r5;
     v_log := v_log || 'case-F (reversal with no fine): rows_in_view=' || v_rows
@@ -143,7 +205,9 @@ begin
     raise exception 'ROLLBACK_MARKER';
   exception when others then
     if sqlerrm <> 'ROLLBACK_MARKER' then
-      v_log := v_log || '💥 ' || sqlstate || ' — ' || sqlerrm;
+      -- 🔴 **الطورُ يسبق الرمز** — فيُقرأ «أين سقط» قبل «بماذا سقط».
+      v_log := v_log || '💥 سقط في الطور [' || v_phase || '] — '
+                     || sqlstate || ' — ' || sqlerrm;
     end if;
   end;
 
