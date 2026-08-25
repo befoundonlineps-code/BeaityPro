@@ -3,7 +3,7 @@ import { useTranslation } from 'next-i18next'
 import { Search, FileSpreadsheet } from 'lucide-react'
 import { stocktakeTableRows, COST_STATE } from '../lib/stocktakeTableRows'
 import {
-  countUoms, countedInSession, jumpsAboveRecord, settledCount,
+  countUoms, countedInSession, jumpsAboveRecord, dropsBelowRecord, settledCount,
   linesToConfirm, CONFIRM_LINE,
 } from '../lib/stocktakeSheet'
 import { previousStocktakeAt, PERIOD_COLUMNS } from '../lib/stocktakePeriod'
@@ -548,6 +548,30 @@ export default function StocktakingSheet({
                         title={t('products:stocktakePeriod.jumpHintHelp')}
                       >
                         {t('products:stocktakePeriod.jumpHint')}
+                        {unit}: <LtrNumber>{plan}</LtrNumber>
+                      </span>
+                    )}
+
+                    {/* 🔴 **والاتّجاهُ الثاني، بقرار المالك: ٣.١٣ب ثنائيّ.**
+                        حادثتُه «تُكتب ٥ والمقصودُ ٥٠» — عجزٌ وهميٌّ يكتب غرامة.
+
+                        ⚠️ **ووسمٌ ثانٍ لا نفسُ الوسم** (`data-drop-hint`):
+                        الاثنان يقولان «رقمٌ بعيدٌ عن المسجَّل»، **والفعلُ الذي
+                        يُطلب مختلف** — فمن يقرأ الوسمَ آليًّا يحتاج أن يعرف
+                        أيَّهما وقع، **ووسمٌ واحدٌ يجعل الحالتين واحدةً في كلّ
+                        قياسٍ لاحق.**
+
+                        ⚠️ **ولا يمكن أن يومضا معًا**: الشرطان يتنافيان
+                        (`counted > recorded` مقابل `counted < recorded`)،
+                        **فالسطران لا يتزاحمان ولو بُنيا متجاورَين.** */}
+                    {settledCount(blurred, product.id, fact)
+                      && dropsBelowRecord(factBase, plan) && (
+                      <span
+                        className="block text-[10px] text-amber-700 dark:text-amber-400"
+                        data-drop-hint={product.id}
+                        title={t('products:stocktakePeriod.dropHintHelp')}
+                      >
+                        {t('products:stocktakePeriod.dropHint')}
                         {unit}: <LtrNumber>{plan}</LtrNumber>
                       </span>
                     )}
