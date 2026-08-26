@@ -75,12 +75,18 @@ export default function StorageFormDialog({
   const [saleByVolume, setSaleByVolume] = useState(true)
   const [saleByPortion, setSaleByPortion] = useState(true)
   const [saleByUnits, setSaleByUnits] = useState(true)
-  // ⚠️ Blank, not 100. These defaulted to '100' and 'purchase_price', and both
-  // live storages were saved with them untouched — a 100% wage deduction that
+  // ⚠️ Blank, not 100. These defaulted to '100' and 'purchase_price', and
+  // storages were saved with them untouched — a 100% wage deduction that
   // nobody decided on. A pre-filled field is an answer the screen gives on the
   // user's behalf, and there is no way to tell it later from one they meant.
+  //
+  // ⚠️ Said as a past event on purpose. The sibling comment in lib/storageForm
+  // once claimed the live rows still carried it, and that was measured false
+  // (110 §③, 26 Aug 2026: four storages, all null/null). The reason to keep
+  // this blank does not depend on any row being wrong today.
   const [finePercent, setFinePercent] = useState('')
   const [fineBasis, setFineBasis] = useState('')
+  const [fineEnabled, setFineEnabled] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState([])
   const [folderKeys, setFolderKeys] = useState([])
 
@@ -140,6 +146,15 @@ export default function StorageFormDialog({
     // stored but never survived being looked at.
     setFinePercent(storage && storage.fine_percent != null ? String(storage.fine_percent) : '')
     setFineBasis(storage && storage.fine_basis ? storage.fine_basis : '')
+    // 🔴 والتأشيرُ مشتقٌّ من الصفّ لا مخزَّنٌ بعمود — قرارُ المالك: «بقول زيّك
+    // تنمسح». ⇒ صفرُ تغييرٍ في المخطّط وصفرُ هجرة.
+    //
+    // ⚠️ **ويُشتقّ بـ«أو» لا بـ«و»، والفرقُ ليس تشدُّدًا:** اللازمةُ «مؤشَّرٌ
+    // ⟺ الحقلان غيرُ فارغَين» تصدق على ما **حُفظ** من الشاشة، لأن التحقُّق
+    // يرفض واحدًا من اثنين. **وصفٌّ نصفيٌّ ممكنٌ رغم ذلك** — يُكتب من محرّر
+    // SQL مباشرةً، وهو ما يفعله المالكُ فعلًا. **فاشتقاقٌ بـ«و» يُظهره غيرَ
+    // مؤشَّرٍ فيُخفي قيمةً مخزَّنة، وأوّلُ حفظٍ بعدها يمحوها بلا أن يراها أحد.**
+    setFineEnabled(!!(storage && (storage.fine_percent != null || storage.fine_basis)))
     setSelectedKeys(storage
       ? (responsibles || []).filter((r) => r.storage_id === storage.id).map(responsibleKey)
       : [])
@@ -153,8 +168,11 @@ export default function StorageFormDialog({
 
   const values = {
     name, kind, ownerEmployeeId, packagesOnly, saleEnabled,
-    saleByVolume, saleByPortion, saleByUnits, finePercent, fineBasis,
+    saleByVolume, saleByPortion, saleByUnits, finePercent, fineBasis, fineEnabled,
   }
+
+  const fineGridClass = 'grid grid-cols-1 gap-3 sm:grid-cols-2'
+    + (fineEnabled ? '' : ' opacity-50')
 
   function toggleKey(key) {
     setSelectedKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
@@ -432,16 +450,34 @@ export default function StorageFormDialog({
                 and with the action that ends it — the third part being the one
                 that turns a description into something the reader can act on. */}
             <p className="text-xs text-muted-foreground">{t('products:storageDialog.fineOptionalHint')}</p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+            {/* 🔴 قرارُ المالك: مؤشَّرٌ ⟶ في سياسة · غيرُ مؤشَّرٍ ⟶ لا سياسة.
+                **والسطران يبقيان ظاهرَين مظلَّلَين مقفلَين، لا يُخفَيان** —
+                بنصّه: «بتضل السطور ظاهرة بس غير فعالة للكتابة».
+                ⚠️ **والفرقُ ليس ذوقًا:** حقلٌ يختفي يمحو من الشاشة أنّ للمستودع
+                سياسةَ غرامةٍ أصلًا، فمن لم يؤشّر لا يعرف ما فاته — والمظلَّلُ
+                يقول «هذا موجودٌ ومطفأ»، والغائبُ لا يقول شيئًا. */}
+            <CheckboxField
+              label={t('products:storageDialog.fineEnabledLabel')}
+              checked={fineEnabled}
+              onChange={(e) => setFineEnabled(e.target.checked)}
+            />
+
+            <div className={fineGridClass}>
               <div className="flex flex-col gap-1.5">
                 <Label>{t('products:storageDialog.finePercentLabel')}</Label>
+                {/* ⚠️ والقيمةُ تبقى في حالة المكوّن عند رفع التأشير، فإعادةُ
+                    التأشير تستردّها — ورفعٌ ثمّ حفظٌ يكتب `null` في العمودين.
+                    **«باقٍ على الشاشة» ليس «باقيًا في الصفّ».** */}
                 <NumberField min="0" max="100" step="1" value={finePercent}
+                  disabled={!fineEnabled}
                   placeholder={t('products:storageDialog.fineBlankPlaceholder')}
                   onChange={(e) => setFinePercent(e.target.value)} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label>{t('products:storageDialog.fineBasisLabel')}</Label>
-                <select className={FIELD} value={fineBasis} onChange={(e) => setFineBasis(e.target.value)}>
+                <select className={FIELD} value={fineBasis} disabled={!fineEnabled}
+                  onChange={(e) => setFineBasis(e.target.value)}>
                   {/* The empty option is the default and has to be selectable:
                       a blank policy you cannot get back to is not a state. */}
                   <option value="">{t('products:storageDialog.fineBlankPlaceholder')}</option>
