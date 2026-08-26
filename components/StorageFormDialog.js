@@ -75,10 +75,15 @@ export default function StorageFormDialog({
   const [saleByVolume, setSaleByVolume] = useState(true)
   const [saleByPortion, setSaleByPortion] = useState(true)
   const [saleByUnits, setSaleByUnits] = useState(true)
-  // ⚠️ Blank, not 100. These defaulted to '100' and 'purchase_price', and both
-  // live storages were saved with them untouched — a 100% wage deduction that
+  // ⚠️ Blank, not 100. These defaulted to '100' and 'purchase_price', and
+  // storages were saved with them untouched — a 100% wage deduction that
   // nobody decided on. A pre-filled field is an answer the screen gives on the
   // user's behalf, and there is no way to tell it later from one they meant.
+  //
+  // ⚠️ Said as a past event on purpose. The sibling comment in lib/storageForm
+  // once claimed the live rows still carried it, and that was measured false
+  // (110 §③, 26 Aug 2026: four storages, all null/null). The reason to keep
+  // this blank does not depend on any row being wrong today.
   const [finePercent, setFinePercent] = useState('')
   const [fineBasis, setFineBasis] = useState('')
   const [fineEnabled, setFineEnabled] = useState(false)
